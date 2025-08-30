@@ -283,9 +283,7 @@ All operations can be run in "dry-run" mode first:
 - [Configuration Guide](docs/configuration.md) *(coming soon)*
 
 ### Tutorials
-- [Getting Started Tutorial](docs/tutorial-getting-started.md) *(coming soon)*
-- [Advanced Scenarios](docs/tutorial-advanced.md) *(coming soon)*
-- [Best Practices](docs/best-practices.md) *(coming soon)*
+- [Getting Started Tutorial](https://medium.com/@hmquan08011996/ai-infrastructure-agent-for-cloud-7580bbd73cca)
 
 ## Troubleshooting
 
