@@ -50,13 +50,10 @@ The AI agent analyzes your request and creates a detailed execution plan:
 title: AI Infrastructure Agent - Execution Plan
 ---
 flowchart LR
-    A[Request<br/>Create EC2 with Apache] --> B[🤖 AI Analysis]
-    B --> C[Plan Created]
-    C --> D[Get Default VPC]
+    C[Plan Created] --> D[Get Default VPC]
     D --> E[Create Security Group<br/>for Apache Server]
-    E --> F[Add HTTP<br/>Ingress Rule]
-    F --> G[Add SSH<br/>Ingress Rule]
-    G --> H[Get Latest<br/>Amazon Linux 2 AMI]
+    E --> F[Add HTTP & SSH<br/>Ingress Rule]
+    F --> H[Get Latest<br/>Amazon Linux 2 AMI]
     H --> I[Get Default Subnet]
     I --> J[Create EC2 Instance<br/>for Apache Server]
 ```
