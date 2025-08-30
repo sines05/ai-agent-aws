@@ -3,7 +3,7 @@
 > ⚠️ **Proof of Concept Project**: This repository contains a proof-of-concept implementation of an AI-powered infrastructure management agent. It is currently in active development and **not intended for production use**. We plan to release a production-ready version in the future. Use at your own risk and always test in development environments first.
 
 <h1 align="center" style="border-bottom: none">
-  <img alt="AI Infrastructure Agent" src="docs/images/ai-infrastructure-agent.svg">
+  <img alt="AI Infrastructure Agent" src="docs/images/ai-infrastructure-agent.svg" width="150" height="150">
 </h1>
 
 <div align="center">
