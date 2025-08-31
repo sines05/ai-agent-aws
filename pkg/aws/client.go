@@ -50,3 +50,8 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	}
 	return nil
 }
+
+// GetRegion returns the configured AWS region
+func (c *Client) GetRegion() string {
+	return c.cfg.Region
+}
