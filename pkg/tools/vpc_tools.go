@@ -74,26 +74,20 @@ func (t *CreateVPCTool) Execute(ctx context.Context, arguments map[string]interf
 	// Create VPC using adapter
 	vpc, err := t.adapter.Create(ctx, createParams)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Type: "text",
-					Text: fmt.Sprintf("Failed to create VPC: %s", err.Error()),
-				},
-			},
-		}, nil
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to create VPC: %s", err.Error()))
 	}
 
-	// Return success result
-	result := fmt.Sprintf("Successfully created VPC %s with CIDR block %s", vpc.ID, cidrBlock)
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{
-				Type: "text",
-				Text: result,
-			},
-		},
-	}, nil
+	// Return success result with structured data
+	message := fmt.Sprintf("Successfully created VPC %s with CIDR block %s", vpc.ID, cidrBlock)
+	data := map[string]interface{}{
+		"vpcId":              vpc.ID,
+		"cidrBlock":          cidrBlock,
+		"enableDnsHostnames": enableDnsHostnames,
+		"enableDnsSupport":   enableDnsSupport,
+		"resource":           vpc,
+	}
+
+	return t.CreateSuccessResponse(message, data)
 }
 
 // ListVPCsTool implements VPC listing using the VPC adapter
@@ -130,33 +124,17 @@ func (t *ListVPCsTool) Execute(ctx context.Context, arguments map[string]interfa
 	// List VPCs using adapter
 	vpcs, err := t.adapter.List(ctx)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Type: "text",
-					Text: fmt.Sprintf("Failed to list VPCs: %s", err.Error()),
-				},
-			},
-		}, nil
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to list VPCs: %s", err.Error()))
 	}
 
-	// Format results
-	result := fmt.Sprintf("Found %d VPCs:\n", len(vpcs))
-	for _, vpc := range vpcs {
-		result += fmt.Sprintf("- VPC ID: %s, State: %s, Region: %s\n", vpc.ID, vpc.State, vpc.Region)
-		if cidrBlock, ok := vpc.Details["cidrBlock"]; ok {
-			result += fmt.Sprintf("  CIDR: %s\n", cidrBlock)
-		}
+	// Return success result with structured data
+	message := fmt.Sprintf("Successfully retrieved %d VPCs", len(vpcs))
+	data := map[string]interface{}{
+		"vpcs":  vpcs,
+		"count": len(vpcs),
 	}
 
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{
-				Type: "text",
-				Text: result,
-			},
-		},
-	}, nil
+	return t.CreateSuccessResponse(message, data)
 }
 
 // CreateSubnetTool implements subnet creation using the Subnet adapter
@@ -227,27 +205,21 @@ func (t *CreateSubnetTool) Execute(ctx context.Context, arguments map[string]int
 	// Create subnet using adapter
 	subnet, err := t.adapter.Create(ctx, createParams)
 	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Type: "text",
-					Text: fmt.Sprintf("Failed to create subnet: %s", err.Error()),
-				},
-			},
-		}, nil
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to create subnet: %s", err.Error()))
 	}
 
-	// Return success result
-	result := fmt.Sprintf("Successfully created subnet %s in VPC %s with CIDR block %s",
-		subnet.ID, vpcId, cidrBlock)
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{
-				Type: "text",
-				Text: result,
-			},
-		},
-	}, nil
+	// Return success result with structured data
+	message := fmt.Sprintf("Successfully created subnet %s in VPC %s with CIDR block %s", subnet.ID, vpcId, cidrBlock)
+	data := map[string]interface{}{
+		"subnetId":            subnet.ID,
+		"vpcId":               vpcId,
+		"cidrBlock":           cidrBlock,
+		"availabilityZone":    availabilityZone,
+		"mapPublicIpOnLaunch": mapPublicIpOnLaunch,
+		"resource":            subnet,
+	}
+
+	return t.CreateSuccessResponse(message, data)
 }
 
 // Helper function for boolean values

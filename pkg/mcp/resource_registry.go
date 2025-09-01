@@ -39,6 +39,27 @@ type ResourceRegistry struct {
 	definitions []ResourceDefinition
 }
 
+// registerResourcesModern uses the new registry-based approach to register resources
+func (s *Server) registerResources() {
+	s.Logger.Info("Registering resources using modern registry-based approach")
+
+	// Create resource registry
+	registry := NewResourceRegistry(s.Logger)
+
+	// Get all resource definitions
+	definitions := CreateResourceDefinitions(s.AWSClient, s.Logger)
+
+	// Add all definitions to the registry
+	for _, def := range definitions {
+		registry.AddResourceDefinition(def)
+	}
+
+	// Register all resources with the MCP server
+	registry.RegisterAllResources(s.mcpServer)
+
+	s.Logger.WithField("resourceCount", len(definitions)).Info("Successfully registered all resources")
+}
+
 // NewResourceRegistry creates a new resource registry
 func NewResourceRegistry(logger *logging.Logger) *ResourceRegistry {
 	return &ResourceRegistry{

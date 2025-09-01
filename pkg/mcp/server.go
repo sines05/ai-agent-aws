@@ -18,6 +18,8 @@ import (
 )
 
 type Server struct {
+	mcpServer *server.MCPServer
+
 	Config           *config.Config
 	AWSClient        *aws.Client
 	Logger           *logging.Logger
@@ -26,8 +28,7 @@ type Server struct {
 	GraphManager     *graph.Manager
 	GraphAnalyzer    *graph.Analyzer
 	ConflictResolver *conflict.Resolver
-
-	mcpServer *server.MCPServer
+	ToolManager      *ToolManager
 }
 
 func NewServer(cfg *config.Config, awsClient *aws.Client, logger *logging.Logger) *Server {
@@ -37,6 +38,7 @@ func NewServer(cfg *config.Config, awsClient *aws.Client, logger *logging.Logger
 	graphManager := graph.NewManager(logger)
 	graphAnalyzer := graph.NewAnalyzer(graphManager)
 	conflictResolver := conflict.NewResolver(logger)
+	toolManager := NewToolManager(logger)
 
 	// Create MCP server
 	mcpServer := server.NewMCPServer(
@@ -47,6 +49,8 @@ func NewServer(cfg *config.Config, awsClient *aws.Client, logger *logging.Logger
 	)
 
 	s := &Server{
+		mcpServer: mcpServer,
+
 		Config:           cfg,
 		AWSClient:        awsClient,
 		Logger:           logger,
@@ -55,14 +59,14 @@ func NewServer(cfg *config.Config, awsClient *aws.Client, logger *logging.Logger
 		GraphManager:     graphManager,
 		GraphAnalyzer:    graphAnalyzer,
 		ConflictResolver: conflictResolver,
-		mcpServer:        mcpServer,
+		ToolManager:      toolManager,
 	}
 
 	// Register resources using the new registry-based approach
-	s.registerResourcesModern()
+	s.registerResources()
 
 	// Register modern adapter-based tools (replaces legacy registerTools)
-	s.registerServerToolsModern()
+	s.registerServerTools()
 
 	// Load existing state from file
 	if err := s.StateManager.LoadState(context.Background()); err != nil {
@@ -71,27 +75,6 @@ func NewServer(cfg *config.Config, awsClient *aws.Client, logger *logging.Logger
 	}
 
 	return s
-}
-
-// registerResourcesModern uses the new registry-based approach to register resources
-func (s *Server) registerResourcesModern() {
-	s.Logger.Info("Registering resources using modern registry-based approach")
-
-	// Create resource registry
-	registry := NewResourceRegistry(s.Logger)
-
-	// Get all resource definitions
-	definitions := CreateResourceDefinitions(s.AWSClient, s.Logger)
-
-	// Add all definitions to the registry
-	for _, def := range definitions {
-		registry.AddResourceDefinition(def)
-	}
-
-	// Register all resources with the MCP server
-	registry.RegisterAllResources(s.mcpServer)
-
-	s.Logger.WithField("resourceCount", len(definitions)).Info("Successfully registered all resources")
 }
 
 // Start begins the stdio message loop for the MCP server

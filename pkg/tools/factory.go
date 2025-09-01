@@ -20,11 +20,7 @@ type ToolFactoryImpl struct {
 
 // ToolDependencies contains all dependencies needed to create tools
 type ToolDependencies struct {
-	AWSClient *aws.Client
-}
-
-// StateAwareToolDependencies holds dependencies for state-aware tools
-type StateAwareToolDependencies struct {
+	AWSClient        *aws.Client
 	StateManager     interfaces.StateManager
 	DiscoveryScanner *discovery.Scanner
 	GraphManager     *graph.Manager
@@ -45,15 +41,15 @@ func NewToolFactory(awsClient *aws.Client, logger *logging.Logger) interfaces.To
 func (f *ToolFactoryImpl) CreateTool(toolType string, dependencies interface{}) (interfaces.MCPTool, error) {
 
 	// Handle regular tool dependencies
-	deps, ok := dependencies.(ToolDependencies)
+	deps, ok := dependencies.(*ToolDependencies)
 	if !ok {
-		// Use factory's default dependencies
-		deps = ToolDependencies{
-			AWSClient: f.awsClient,
+		// Try value type as well
+		if depsVal, valOk := dependencies.(ToolDependencies); valOk {
+			deps = &depsVal
+		} else {
+			return nil, fmt.Errorf("invalid dependencies type for tool %s", toolType)
 		}
 	}
-
-	stateAwareDeps, _ := dependencies.(StateAwareToolDependencies)
 
 	switch toolType {
 	// EC2 Tools
@@ -150,25 +146,21 @@ func (f *ToolFactoryImpl) CreateTool(toolType string, dependencies interface{}) 
 
 	// State Management Tools
 	case "analyze-infrastructure-state":
-		return NewAnalyzeStateTool(deps.AWSClient, f.logger), nil
+		return NewAnalyzeStateTool(deps, deps.AWSClient, f.logger), nil
 	case "export-infrastructure-state":
-		return NewExportStateTool(deps.AWSClient, f.logger), nil
+		return NewExportStateTool(deps, deps.AWSClient, f.logger), nil
 
 	// State-Aware Tools
-	case "analyze-infrastructure-state-advanced":
-		return NewAnalyzeInfrastructureStateTool(&stateAwareDeps, f.logger), nil
 	case "visualize-dependency-graph":
-		return NewVisualizeDependencyGraphTool(&stateAwareDeps, f.logger), nil
-	case "detect-conflicts":
-		return NewDetectConflictsTool(&stateAwareDeps, f.logger), nil
-	case "export-state-aware":
-		return NewStateAwareExportTool(&stateAwareDeps, f.logger), nil
+		return NewVisualizeDependencyGraphTool(deps, f.logger), nil
+	case "detect-infrastructure-conflicts":
+		return NewDetectConflictsTool(deps, f.logger), nil
 	case "save-state":
-		return NewSaveStateTool(&stateAwareDeps, f.logger), nil
+		return NewSaveStateTool(deps, f.logger), nil
 	case "add-resource-to-state":
-		return NewAddResourceToStateTool(&stateAwareDeps, f.logger), nil
-	case "plan-deployment":
-		return NewPlanDeploymentTool(&stateAwareDeps, f.logger), nil
+		return NewAddResourceToStateTool(deps, f.logger), nil
+	case "plan-infrastructure-deployment":
+		return NewPlanDeploymentTool(deps, f.logger), nil
 
 	default:
 		return nil, fmt.Errorf("unsupported tool type: %s", toolType)
@@ -230,18 +222,14 @@ func (f *ToolFactoryImpl) GetSupportedToolTypes() []string {
 		"list-db-instances",
 		"list-db-snapshots",
 
-		// State Management Tools
+		// State Tools
 		"analyze-infrastructure-state",
 		"export-infrastructure-state",
-
-		// State-Aware Tools
-		"analyze-infrastructure-state-advanced",
 		"visualize-dependency-graph",
-		"detect-conflicts",
-		"export-state-aware",
-		"save-state",
+		"detect-infrastructure-conflicts",
+		"plan-infrastructure-deployment",
 		"add-resource-to-state",
-		"plan-deployment",
+		"save-state",
 	}
 }
 
@@ -259,34 +247,6 @@ func NewToolRegistrationHelper(factory interfaces.ToolFactory, registry interfac
 		registry: registry,
 		logger:   logger,
 	}
-}
-
-// RegisterEC2Tools registers all EC2-related tools
-func (h *ToolRegistrationHelper) RegisterEC2Tools(deps ToolDependencies) error {
-	ec2Tools := []string{
-		"create-ec2-instance",
-		"list-ec2-instances",
-		"start-ec2-instance",
-		"stop-ec2-instance",
-		"terminate-ec2-instance",
-	}
-
-	for _, toolType := range ec2Tools {
-		tool, err := h.factory.CreateTool(toolType, deps)
-		if err != nil {
-			h.logger.WithError(err).WithField("toolType", toolType).Error("Failed to create tool")
-			continue
-		}
-
-		if err := h.registry.Register(tool); err != nil {
-			h.logger.WithError(err).WithField("toolType", toolType).Error("Failed to register tool")
-			continue
-		}
-
-		h.logger.WithField("toolType", toolType).Info("Successfully registered tool")
-	}
-
-	return nil
 }
 
 // RegisterAllTools registers all available tools

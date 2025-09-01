@@ -409,7 +409,31 @@ func (a *StateAwareAgent) executeAPIValueRetrieval(ctx context.Context, planStep
 	// Determine the type of value retrieval based on step parameters
 	valueType, exists := planStep.Parameters["value_type"]
 	if !exists {
-		return nil, fmt.Errorf("value_type parameter is required for API value retrieval")
+		// Try to infer value_type from step description or name for backward compatibility
+		description := strings.ToLower(planStep.Description)
+		name := strings.ToLower(planStep.Name)
+
+		if strings.Contains(description, "default vpc") || strings.Contains(name, "default vpc") {
+			valueType = "default_vpc"
+			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'default_vpc' from step description")
+		} else if strings.Contains(description, "default subnet") || strings.Contains(name, "default subnet") {
+			valueType = "default_subnet"
+			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'default_subnet' from step description")
+		} else if strings.Contains(description, "latest ami") || strings.Contains(name, "latest ami") {
+			valueType = "latest_ami"
+			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'latest_ami' from step description")
+		} else if strings.Contains(description, "availability zone") || strings.Contains(name, "availability zone") {
+			valueType = "available_azs"
+			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'available_azs' from step description")
+		} else {
+			return nil, fmt.Errorf("value_type parameter is required for API value retrieval. Unable to infer from description: '%s'", planStep.Description)
+		}
+
+		// Store the inferred value_type back in parameters for consistency
+		if planStep.Parameters == nil {
+			planStep.Parameters = make(map[string]interface{})
+		}
+		planStep.Parameters["value_type"] = valueType
 	}
 
 	var result map[string]interface{}
@@ -1154,6 +1178,12 @@ func (a *StateAwareAgent) extractResourceIDFromResponse(result map[string]interf
 			}
 		}
 	case "create-security-group":
+		if groupID, exists := result["securityGroupId"]; exists {
+			if groupIDStr, ok := groupID.(string); ok {
+				return groupIDStr, nil
+			}
+		}
+		// Also try the legacy field name for backward compatibility
 		if groupID, exists := result["groupId"]; exists {
 			if groupIDStr, ok := groupID.(string); ok {
 				return groupIDStr, nil

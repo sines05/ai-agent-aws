@@ -39,11 +39,6 @@ func (a *StateAwareAgent) Initialize(ctx context.Context) error {
 		return fmt.Errorf("LLM connectivity test failed: %w", err)
 	}
 
-	// Load existing state via MCP server
-	if err := a.loadState(ctx); err != nil {
-		return fmt.Errorf("failed to load state: %w", err)
-	}
-
 	// Start MCP process and discover capabilities early
 	if err := a.startMCPProcess(); err != nil {
 		a.Logger.WithError(err).Warn("Failed to start MCP process during initialization, will retry later")

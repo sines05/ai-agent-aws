@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -248,6 +249,11 @@ func (b *BaseTool) AddExample(description string, arguments map[string]interface
 	})
 }
 
+// GetLogger returns the logger for this tool
+func (b *BaseTool) GetLogger() *logging.Logger {
+	return b.logger
+}
+
 // ValidateArguments provides basic argument validation
 func (b *BaseTool) ValidateArguments(arguments map[string]interface{}) error {
 	// Basic validation - check required fields based on input schema
@@ -303,8 +309,33 @@ func (b *BaseTool) validateType(value interface{}, expectedType string) bool {
 
 // CreateSuccessResponse creates a standardized success response
 func (b *BaseTool) CreateSuccessResponse(message string, data map[string]interface{}) (*mcp.CallToolResult, error) {
+	// Create structured response that the agent expects
+	response := map[string]interface{}{
+		"success": true,
+		"message": message,
+	}
+
+	// Add data fields to the response
+	for key, value := range data {
+		response[key] = value
+	}
+
+	// Marshal to JSON string for the text content
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		b.logger.Error("Failed to marshal success response", "error", err)
+		// Fallback to simple message
+		content := []mcp.Content{
+			mcp.NewTextContent(fmt.Sprintf(`{"success": true, "message": %q, "error": "failed to marshal response data"}`, message)),
+		}
+		return &mcp.CallToolResult{
+			Content: content,
+			IsError: false,
+		}, nil
+	}
+
 	content := []mcp.Content{
-		mcp.NewTextContent(message),
+		mcp.NewTextContent(string(jsonBytes)),
 	}
 
 	return &mcp.CallToolResult{
@@ -315,8 +346,28 @@ func (b *BaseTool) CreateSuccessResponse(message string, data map[string]interfa
 
 // CreateErrorResponse creates a standardized error response
 func (b *BaseTool) CreateErrorResponse(message string) (*mcp.CallToolResult, error) {
+	// Create structured error response that the agent expects
+	response := map[string]interface{}{
+		"success": false,
+		"error":   message,
+	}
+
+	// Marshal to JSON string for the text content
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		b.logger.Error("Failed to marshal error response", "error", err)
+		// Fallback to simple error message
+		content := []mcp.Content{
+			mcp.NewTextContent(fmt.Sprintf(`{"success": false, "error": %q}`, message)),
+		}
+		return &mcp.CallToolResult{
+			Content: content,
+			IsError: true,
+		}, nil
+	}
+
 	content := []mcp.Content{
-		mcp.NewTextContent(fmt.Sprintf("Error: %s", message)),
+		mcp.NewTextContent(string(jsonBytes)),
 	}
 
 	return &mcp.CallToolResult{
