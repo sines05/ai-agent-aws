@@ -83,6 +83,10 @@ function handleWebSocketMessage(data) {
     } else if (data.type === 'processing_completed') {
         if (data.success) {
             updateStatus('Processing completed successfully');
+            // Auto-refresh state if currently viewing state tab
+            if (currentTab === 'state-tab') {
+                loadState(true); // Force fresh discovery
+            }
         } else {
             updateStatus('Processing failed');
         }
@@ -106,6 +110,10 @@ function handleWebSocketMessage(data) {
         updateExecutionStatus('Execution completed');
         updateExecutionProgress(100);
         stopExecutionTimer();
+        // Auto-refresh state after execution to show new infrastructure
+        if (currentTab === 'state-tab') {
+            setTimeout(() => loadState(true), 1000); // Small delay to allow AWS to propagate changes, force fresh discovery
+        }
     }
 }
 
@@ -333,7 +341,7 @@ function displayAgentResponse(response) {
 }
 
 // State Management Functions
-async function loadState() {
+async function loadState(forceFresh = false) {
     const contentEl = document.getElementById('stateContent');
     const refreshButton = document.querySelector('button[onclick="loadState()"]');
     
@@ -345,8 +353,11 @@ async function loadState() {
         }
         contentEl.innerHTML = '<div class="loading">Refreshing state...</div>';
         
-        console.log('Loading state from /api/state...');
-        const state = await apiCall('/state');
+        // Add parameter to force fresh discovery if needed
+        // When forceFresh is true, get only discovered resources (not managed state from file)
+        const url = forceFresh ? '/state?discovered_only=true' : '/state';
+        console.log('Loading state from', url, '...');
+        const state = await apiCall(url);
         console.log('State loaded successfully:', state);
         displayState(state);
         
@@ -386,8 +397,28 @@ function displayState(state) {
     
     // Handle both direct state and managed_state structure
     let actualState = state;
-    if (state.managed_state) {
+    let dataSource = 'direct';
+    
+    // Check if we have discovered resources and managed state is empty or doesn't exist
+    const hasDiscoveredResources = state.discovered_resources && 
+        (Array.isArray(state.discovered_resources) ? state.discovered_resources.length > 0 : 
+         Object.keys(state.discovered_resources).length > 0);
+    
+    const managedResourceCount = state.managed_state ? Object.keys(state.managed_state.resources || {}).length : 0;
+    
+    if (state.managed_state && managedResourceCount > 0) {
+        // Use managed state if it has resources
         actualState = state.managed_state;
+        dataSource = 'managed';
+    } else if (hasDiscoveredResources) {
+        // Use discovered resources if managed state is empty
+        actualState = {
+            resources: state.discovered_resources,
+            version: '1.0',
+            lastUpdated: state.timestamp || new Date().toISOString(),
+            region: state.region || 'N/A'
+        };
+        dataSource = 'discovered';
     }
     
     // Handle string responses (JSON as string)
@@ -401,13 +432,37 @@ function displayState(state) {
         }
     }
     
-    const resourceCount = Object.keys(actualState.resources || {}).length;
+    // Calculate resource count based on data source
+    let resourceCount = 0;
+    let resources = {};
+    
+    if (dataSource === 'discovered' && Array.isArray(actualState.resources)) {
+        // Handle discovered resources format (array of ResourceState objects)
+        resourceCount = actualState.resources.length;
+        // Convert array to object for consistent display
+        resources = {};
+        actualState.resources.forEach((resource, index) => {
+            resources[resource.id || `resource-${index}`] = {
+                id: resource.id,
+                name: resource.name || resource.id,
+                type: resource.type,
+                status: resource.status,
+                properties: {
+                    aws_details: resource.properties
+                }
+            };
+        });
+    } else {
+        // Handle managed state format (object with resources)
+        resourceCount = Object.keys(actualState.resources || {}).length;
+        resources = actualState.resources || {};
+    }
     
     let html = `
         <div class="stats-grid">
             <div class="stat-card">
                 <span class="number">${resourceCount}</span>
-                <span class="label">Managed Resources</span>
+                <span class="label">${dataSource === 'discovered' ? 'Discovered Resources' : 'Managed Resources'}</span>
             </div>
             <div class="stat-card">
                 <span class="number">${actualState.version || '1.0.0'}</span>
@@ -424,18 +479,29 @@ function displayState(state) {
         </div>
     `;
     
+    if (dataSource === 'discovered') {
+        html += '<div class="alert alert-info"><i class="fas fa-cloud"></i> Showing live AWS resources (no managed state found)</div>';
+    }
+    
     if (actualState.error) {
         html += `<div class="error">Error: ${actualState.error}</div>`;
     }
     
     if (resourceCount > 0) {
         html += '<div class="data-grid">';
-        for (const [id, resource] of Object.entries(actualState.resources)) {
-            // Extract AWS resource ID from MCP response if available
+        for (const [id, resource] of Object.entries(resources)) {
+            // Extract AWS resource ID from different formats
             let awsResourceId = 'N/A';
-            if (resource.properties && resource.properties.mcp_response) {
+            if (dataSource === 'discovered' && resource.properties && resource.properties.aws_details) {
+                // For discovered resources
+                const details = resource.properties.aws_details;
+                awsResourceId = details.instanceId || details.vpcId || details.subnetId || 
+                               details.groupId || details.loadBalancerArn || resource.id || 'N/A';
+            } else if (resource.properties && resource.properties.mcp_response) {
+                // For managed resources
                 const mcpResponse = resource.properties.mcp_response;
-                awsResourceId = mcpResponse.groupId || mcpResponse.instanceId || mcpResponse.vpcId || mcpResponse.subnetId || 'N/A';
+                awsResourceId = mcpResponse.groupId || mcpResponse.instanceId || 
+                               mcpResponse.vpcId || mcpResponse.subnetId || 'N/A';
             }
             
             html += `

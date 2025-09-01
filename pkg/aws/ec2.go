@@ -986,3 +986,58 @@ func (c *Client) GetSubnetsInVPC(ctx context.Context, vpcID string) ([]string, e
 
 	return subnetIDs, nil
 }
+
+// ListAMIs lists Amazon Machine Images owned by the specified owner
+func (c *Client) ListAMIs(ctx context.Context, owner string) ([]*types.AWSResource, error) {
+	input := &ec2.DescribeImagesInput{
+		Owners: []string{owner},
+	}
+
+	result, err := c.ec2.DescribeImages(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list AMIs for owner %s: %w", owner, err)
+	}
+
+	var amis []*types.AWSResource
+	for _, image := range result.Images {
+		if image.ImageId == nil {
+			continue
+		}
+
+		// Convert tags
+		tags := make(map[string]string)
+		for _, tag := range image.Tags {
+			if tag.Key != nil && tag.Value != nil {
+				tags[*tag.Key] = *tag.Value
+			}
+		}
+
+		ami := &types.AWSResource{
+			ID:     *image.ImageId,
+			Type:   "ami",
+			Region: c.cfg.Region,
+			State:  string(image.State),
+			Tags:   tags,
+			Details: map[string]interface{}{
+				"name":               aws.ToString(image.Name),
+				"description":        aws.ToString(image.Description),
+				"architecture":       string(image.Architecture),
+				"platform":           string(image.Platform),
+				"virtualizationType": string(image.VirtualizationType),
+				"rootDeviceType":     string(image.RootDeviceType),
+				"creationDate":       aws.ToString(image.CreationDate),
+				"public":             aws.ToBool(image.Public),
+			},
+		}
+
+		amis = append(amis, ami)
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"owner":  owner,
+		"count":  len(amis),
+		"region": c.cfg.Region,
+	}).Info("Successfully listed AMIs via AWS API")
+
+	return amis, nil
+}

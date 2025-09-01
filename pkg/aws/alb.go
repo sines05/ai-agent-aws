@@ -18,6 +18,11 @@ import (
 
 // CreateApplicationLoadBalancer creates an Application Load Balancer
 func (c *Client) CreateApplicationLoadBalancer(ctx context.Context, params CreateLoadBalancerParams) (*types.AWSResource, error) {
+	// Validate AWS requirements before making the API call
+	if len(params.Subnets) < 2 {
+		return nil, fmt.Errorf("at least two subnets in different Availability Zones must be specified for Application Load Balancer creation")
+	}
+
 	input := &elasticloadbalancingv2.CreateLoadBalancerInput{
 		Name:           aws.String(params.Name),
 		Subnets:        params.Subnets,
@@ -73,6 +78,23 @@ func (c *Client) CreateApplicationLoadBalancer(ctx context.Context, params Creat
 
 // CreateTargetGroup creates a target group for the load balancer
 func (c *Client) CreateTargetGroup(ctx context.Context, params CreateTargetGroupParams) (*types.AWSResource, error) {
+	// Validate and set defaults for critical parameters
+	if params.HealthCheckPath == "" {
+		params.HealthCheckPath = "/"
+	}
+	if params.HealthCheckProtocol == "" {
+		params.HealthCheckProtocol = params.Protocol
+		if params.HealthCheckProtocol == "" {
+			params.HealthCheckProtocol = "HTTP"
+		}
+	}
+	if params.Matcher == "" {
+		params.Matcher = "200"
+	}
+	if params.TargetType == "" {
+		params.TargetType = "instance"
+	}
+
 	input := &elasticloadbalancingv2.CreateTargetGroupInput{
 		Name:                       aws.String(params.Name),
 		Protocol:                   elbv2types.ProtocolEnum(params.Protocol),
@@ -190,11 +212,26 @@ func (c *Client) CreateListener(ctx context.Context, params CreateListenerParams
 
 // RegisterTargets registers targets with a target group
 func (c *Client) RegisterTargets(ctx context.Context, targetGroupArn string, targetIDs []string) error {
+	c.logger.WithFields(logrus.Fields{
+		"targetGroupArn": targetGroupArn,
+		"targetIDs":      targetIDs,
+		"targetCount":    len(targetIDs),
+	}).Info("AWS RegisterTargets API call - Starting target registration")
+
+	if len(targetIDs) == 0 {
+		c.logger.Warn("No target IDs provided for registration")
+		return fmt.Errorf("no target IDs provided")
+	}
+
 	var targets []elbv2types.TargetDescription
-	for _, targetID := range targetIDs {
+	for i, targetID := range targetIDs {
 		targets = append(targets, elbv2types.TargetDescription{
 			Id: aws.String(targetID),
 		})
+		c.logger.WithFields(logrus.Fields{
+			"targetIndex": i,
+			"targetId":    targetID,
+		}).Debug("Prepared target for registration")
 	}
 
 	input := &elasticloadbalancingv2.RegisterTargetsInput{
@@ -202,15 +239,26 @@ func (c *Client) RegisterTargets(ctx context.Context, targetGroupArn string, tar
 		Targets:        targets,
 	}
 
-	_, err := c.elbv2.RegisterTargets(ctx, input)
+	c.logger.WithFields(logrus.Fields{
+		"targetGroupArn": targetGroupArn,
+		"targetCount":    len(targets),
+		"awsInput":       input,
+	}).Info("Calling AWS ELBv2 RegisterTargets API")
+
+	output, err := c.elbv2.RegisterTargets(ctx, input)
 	if err != nil {
+		c.logger.WithError(err).WithFields(logrus.Fields{
+			"targetGroupArn": targetGroupArn,
+			"targetIDs":      targetIDs,
+		}).Error("AWS RegisterTargets API call failed")
 		return fmt.Errorf("failed to register targets: %w", err)
 	}
 
 	c.logger.WithFields(logrus.Fields{
 		"targetGroupArn": targetGroupArn,
 		"targetCount":    len(targetIDs),
-	}).Info("Targets registered successfully")
+		"awsOutput":      output,
+	}).Info("AWS RegisterTargets API call completed successfully")
 
 	return nil
 }

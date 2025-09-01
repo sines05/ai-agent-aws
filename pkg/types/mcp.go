@@ -92,6 +92,35 @@ type ConflictResolution struct {
 	ResolvedBy   string                 `json:"resolvedBy"` // agent, user
 }
 
+// ConflictImpact represents the impact analysis of a conflict
+type ConflictImpact struct {
+	Severity          string   `json:"severity"` // low, medium, high, critical
+	AffectedResources []string `json:"affectedResources"`
+	RiskLevel         string   `json:"riskLevel"`
+	Recommendations   []string `json:"recommendations"`
+	EstimatedDowntime string   `json:"estimatedDowntime,omitempty"`
+}
+
+// ResourceCorrelation represents correlation between managed and discovered resources
+type ResourceCorrelation struct {
+	ManagedResourceID    string                 `json:"managedResourceId"`
+	DiscoveredResourceID string                 `json:"discoveredResourceId"`
+	CorrelationType      string                 `json:"correlationType"` // exact, similar, conflict
+	Confidence           float64                `json:"confidence"`      // 0.0 to 1.0
+	Differences          map[string]interface{} `json:"differences,omitempty"`
+}
+
+// ResourceChange represents a detected change in a resource
+type ResourceChange struct {
+	ResourceID string                 `json:"resourceId"`
+	ChangeType string                 `json:"changeType"` // created, modified, deleted, moved
+	OldValues  map[string]interface{} `json:"oldValues,omitempty"`
+	NewValues  map[string]interface{} `json:"newValues,omitempty"`
+	Timestamp  time.Time              `json:"timestamp"`
+	DetectedBy string                 `json:"detectedBy"`
+	Confidence float64                `json:"confidence"`
+}
+
 // ExecutionPlanStep represents a single step in an execution plan
 type ExecutionPlanStep struct {
 	ID                string                 `json:"id"`
