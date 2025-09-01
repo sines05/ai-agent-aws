@@ -10,60 +10,6 @@ import (
 	"github.com/versus-control/ai-infrastructure-agent/pkg/types"
 )
 
-// Helper functions for parameter extraction
-func getString(params map[string]interface{}, key string) string {
-	if val, ok := params[key].(string); ok {
-		return val
-	}
-	return ""
-}
-
-func getStringSlice(params map[string]interface{}, key string) []string {
-	if val, ok := params[key].([]interface{}); ok {
-		result := make([]string, len(val))
-		for i, v := range val {
-			if str, ok := v.(string); ok {
-				result[i] = str
-			}
-		}
-		return result
-	}
-	return []string{}
-}
-
-func getStringMap(params map[string]interface{}, key string) map[string]string {
-	if val, ok := params[key].(map[string]interface{}); ok {
-		result := make(map[string]string)
-		for k, v := range val {
-			if str, ok := v.(string); ok {
-				result[k] = str
-			}
-		}
-		return result
-	}
-	return map[string]string{}
-}
-
-func getInt32(params map[string]interface{}, key string, defaultVal int32) int32 {
-	if val, ok := params[key].(float64); ok {
-		return int32(val)
-	}
-	if val, ok := params[key].(int); ok {
-		return int32(val)
-	}
-	if val, ok := params[key].(int32); ok {
-		return val
-	}
-	return defaultVal
-}
-
-func getBool(params map[string]interface{}, key string, defaultVal bool) bool {
-	if val, ok := params[key].(bool); ok {
-		return val
-	}
-	return defaultVal
-}
-
 // ALBAdapter implements the AWSResourceAdapter interface for Application Load Balancers
 type ALBAdapter struct {
 	*BaseAWSAdapter
@@ -143,6 +89,9 @@ func (a *ALBAdapter) ValidateParams(operation string, params interface{}) error 
 		if len(createParams.Subnets) == 0 {
 			return fmt.Errorf("subnets are required for ALB creation")
 		}
+		if len(createParams.Subnets) < 2 {
+			return fmt.Errorf("at least two subnets in different Availability Zones are required for ALB creation")
+		}
 		return nil
 	case "get", "delete":
 		if params == nil {
@@ -179,12 +128,21 @@ func (a *ALBSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 			return nil, fmt.Errorf("invalid parameters for create-load-balancer")
 		}
 
+		// Validate subnet requirements before proceeding
+		subnetIds := getStringSlice(paramsMap, "subnetIds")
+		if len(subnetIds) == 0 {
+			return nil, fmt.Errorf("subnetIds are required for load balancer creation")
+		}
+		if len(subnetIds) < 2 {
+			return nil, fmt.Errorf("at least two subnets in different Availability Zones must be specified for load balancer creation")
+		}
+
 		albParams := aws.CreateLoadBalancerParams{
 			Name:           getString(paramsMap, "name"),
 			Scheme:         getString(paramsMap, "scheme"),
 			Type:           getString(paramsMap, "type"),
 			IpAddressType:  getString(paramsMap, "ipAddressType"),
-			Subnets:        getStringSlice(paramsMap, "subnetIds"),
+			Subnets:        subnetIds,
 			SecurityGroups: getStringSlice(paramsMap, "securityGroupIds"),
 			Tags:           getStringMap(paramsMap, "tags"),
 		}
@@ -271,7 +229,7 @@ func (a *ALBSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 			LoadBalancerArn:       getString(paramsMap, "loadBalancerArn"),
 			Protocol:              getString(paramsMap, "protocol"),
 			Port:                  getInt32(paramsMap, "port", 80),
-			DefaultTargetGroupArn: getString(paramsMap, "defaultTargetGroupArn"),
+			DefaultTargetGroupArn: getTargetGroupArn(paramsMap),
 			CertificateArn:        getString(paramsMap, "certificateArn"),
 		}
 
@@ -309,6 +267,14 @@ func (a *ALBSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 
 		targetGroupArn := getString(paramsMap, "targetGroupArn")
 		instanceIds := getStringSlice(paramsMap, "instanceIds")
+
+		if targetGroupArn == "" {
+			return nil, fmt.Errorf("targetGroupArn is required")
+		}
+
+		if len(instanceIds) == 0 {
+			return nil, fmt.Errorf("at least one instance ID is required")
+		}
 
 		err := a.client.RegisterTargets(ctx, targetGroupArn, instanceIds)
 		if err != nil {
@@ -368,4 +334,77 @@ func (a *ALBSpecializedAdapter) GetSpecialOperations() []string {
 		"register-targets",
 		"deregister-targets",
 	}
+}
+
+// Helper functions for parameter extraction
+func getString(params map[string]interface{}, key string) string {
+	if val, ok := params[key].(string); ok {
+		return val
+	}
+	return ""
+}
+
+// getTargetGroupArn handles both targetGroupArn and defaultTargetGroupArn parameter names
+func getTargetGroupArn(params map[string]interface{}) string {
+	// First try the new parameter name from CreateListener tool
+	if val, ok := params["targetGroupArn"].(string); ok && val != "" {
+		return val
+	}
+	// Fallback to the old parameter name for backward compatibility
+	if val, ok := params["defaultTargetGroupArn"].(string); ok && val != "" {
+		return val
+	}
+	return ""
+}
+
+func getStringSlice(params map[string]interface{}, key string) []string {
+	if val, ok := params[key].([]interface{}); ok {
+		result := make([]string, len(val))
+		for i, v := range val {
+			if str, ok := v.(string); ok {
+				result[i] = str
+			}
+		}
+		return result
+	}
+
+	// Try []string directly
+	if val, ok := params[key].([]string); ok {
+		return val
+	}
+
+	return []string{}
+}
+
+func getStringMap(params map[string]interface{}, key string) map[string]string {
+	if val, ok := params[key].(map[string]interface{}); ok {
+		result := make(map[string]string)
+		for k, v := range val {
+			if str, ok := v.(string); ok {
+				result[k] = str
+			}
+		}
+		return result
+	}
+	return map[string]string{}
+}
+
+func getInt32(params map[string]interface{}, key string, defaultVal int32) int32 {
+	if val, ok := params[key].(float64); ok {
+		return int32(val)
+	}
+	if val, ok := params[key].(int); ok {
+		return int32(val)
+	}
+	if val, ok := params[key].(int32); ok {
+		return val
+	}
+	return defaultVal
+}
+
+func getBool(params map[string]interface{}, key string, defaultVal bool) bool {
+	if val, ok := params[key].(bool); ok {
+		return val
+	}
+	return defaultVal
 }

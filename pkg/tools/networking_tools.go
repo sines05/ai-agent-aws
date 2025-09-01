@@ -598,3 +598,180 @@ func (t *AssociateRouteTableTool) Execute(ctx context.Context, arguments map[str
 
 	return t.CreateSuccessResponse(message, data)
 }
+
+// SelectSubnetsForALBTool implements MCPTool for selecting suitable subnets for ALB creation
+type SelectSubnetsForALBTool struct {
+	*BaseTool
+	awsClient *aws.Client
+}
+
+// NewSelectSubnetsForALBTool creates a new subnet selection tool for ALB
+func NewSelectSubnetsForALBTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+	inputSchema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"vpcId": map[string]interface{}{
+				"type":        "string",
+				"description": "The VPC ID to select subnets from (optional - defaults to default VPC)",
+			},
+			"scheme": map[string]interface{}{
+				"type":        "string",
+				"description": "Load balancer scheme (internet-facing or internal)",
+				"default":     "internet-facing",
+			},
+		},
+	}
+
+	baseTool := NewBaseTool(
+		"select-subnets-for-alb",
+		"Select at least two subnets in different Availability Zones for ALB creation",
+		"networking",
+		inputSchema,
+		logger,
+	)
+
+	baseTool.AddExample(
+		"Select subnets for internet-facing ALB",
+		map[string]interface{}{
+			"scheme": "internet-facing",
+		},
+		"Selected 2 public subnets in different AZs",
+	)
+
+	baseTool.AddExample(
+		"Select subnets for internal ALB in specific VPC",
+		map[string]interface{}{
+			"vpcId":  "vpc-12345678",
+			"scheme": "internal",
+		},
+		"Selected 2 private subnets in different AZs",
+	)
+
+	return &SelectSubnetsForALBTool{
+		BaseTool:  baseTool,
+		awsClient: awsClient,
+	}
+}
+
+func (t *SelectSubnetsForALBTool) Execute(ctx context.Context, arguments map[string]interface{}) (*mcp.CallToolResult, error) {
+	scheme, _ := arguments["scheme"].(string)
+	if scheme == "" {
+		scheme = "internet-facing"
+	}
+
+	// Get VPC ID
+	vpcID, _ := arguments["vpcId"].(string)
+	if vpcID == "" {
+		// Get default VPC
+		defaultVPC, err := t.awsClient.GetDefaultVPC(ctx)
+		if err != nil {
+			return t.CreateErrorResponse(fmt.Sprintf("Failed to get default VPC: %v", err))
+		}
+		vpcID = defaultVPC
+	}
+
+	// Get all subnets in the VPC
+	subnets, err := t.awsClient.DescribeSubnetsAll(ctx)
+	if err != nil {
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to describe subnets: %v", err))
+	}
+
+	t.logger.WithFields(map[string]interface{}{
+		"total_subnets": len(subnets),
+		"vpcId":         vpcID,
+		"scheme":        scheme,
+	}).Info("Starting subnet selection for ALB")
+
+	// Filter subnets by VPC and collect by availability zone
+	subnetsByAZ := make(map[string][]*types.AWSResource)
+	for _, subnet := range subnets {
+		if subnetVPC, ok := subnet.Details["vpcId"].(string); ok && subnetVPC == vpcID {
+			if az, ok := subnet.Details["availabilityZone"].(string); ok {
+				// For internet-facing ALBs, prefer public subnets
+				// For internal ALBs, prefer private subnets
+				isPublic := false
+				if mapPublic, ok := subnet.Details["mapPublicIpOnLaunch"].(bool); ok {
+					isPublic = mapPublic
+				}
+
+				t.logger.WithFields(map[string]interface{}{
+					"subnet_id": subnet.ID,
+					"az":        az,
+					"is_public": isPublic,
+					"scheme":    scheme,
+				}).Debug("Evaluating subnet for ALB selection")
+
+				// Be more flexible with subnet selection - add all available subnets first
+				subnetsByAZ[az] = append(subnetsByAZ[az], subnet)
+			}
+		}
+	}
+
+	t.logger.WithFields(map[string]interface{}{
+		"subnets_by_az": len(subnetsByAZ),
+		"vpcId":         vpcID,
+	}).Info("Grouped subnets by availability zone")
+
+	// Ensure we have at least 2 different AZs
+	if len(subnetsByAZ) < 2 {
+		return t.CreateErrorResponse(fmt.Sprintf("Need at least 2 subnets in different Availability Zones, found %d AZs in VPC %s", len(subnetsByAZ), vpcID))
+	}
+
+	// Select subnets with preference for the right type, but be flexible
+	var selectedSubnets []string
+	var selectedAZs []string
+	count := 0
+
+	// First pass: try to select preferred subnet type (public for internet-facing, private for internal)
+	for az, subnetsInAZ := range subnetsByAZ {
+		if count >= 2 {
+			break
+		}
+		if len(subnetsInAZ) > 0 {
+			var bestSubnet *types.AWSResource
+
+			// Look for the preferred subnet type
+			for _, subnet := range subnetsInAZ {
+				isPublic := false
+				if mapPublic, ok := subnet.Details["mapPublicIpOnLaunch"].(bool); ok {
+					isPublic = mapPublic
+				}
+
+				if (scheme == "internet-facing" && isPublic) || (scheme == "internal" && !isPublic) {
+					bestSubnet = subnet
+					break
+				}
+			}
+
+			// If no preferred type found, use the first available subnet in this AZ
+			if bestSubnet == nil {
+				bestSubnet = subnetsInAZ[0]
+			}
+
+			selectedSubnets = append(selectedSubnets, bestSubnet.ID)
+			selectedAZs = append(selectedAZs, az)
+			count++
+
+			t.logger.WithFields(map[string]interface{}{
+				"subnet_id": bestSubnet.ID,
+				"az":        az,
+				"scheme":    scheme,
+			}).Info("Selected subnet for ALB")
+		}
+	}
+
+	if len(selectedSubnets) < 2 {
+		return t.CreateErrorResponse("Could not find at least 2 suitable subnets in different AZs for ALB creation")
+	}
+
+	message := fmt.Sprintf("Selected %d subnets in %d different Availability Zones for %s ALB", len(selectedSubnets), len(selectedAZs), scheme)
+	data := map[string]interface{}{
+		"subnetIds":         selectedSubnets,
+		"availabilityZones": selectedAZs,
+		"vpcId":             vpcID,
+		"scheme":            scheme,
+		"count":             len(selectedSubnets),
+	}
+
+	return t.CreateSuccessResponse(message, data)
+}

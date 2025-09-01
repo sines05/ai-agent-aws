@@ -81,6 +81,8 @@ func (f *ToolFactoryImpl) CreateTool(toolType string, dependencies interface{}) 
 		return NewCreatePublicSubnetTool(deps.AWSClient, f.logger), nil
 	case "list-subnets":
 		return NewListSubnetsTool(deps.AWSClient, f.logger), nil
+	case "select-subnets-for-alb":
+		return NewSelectSubnetsForALBTool(deps.AWSClient, f.logger), nil
 	case "create-internet-gateway":
 		return NewCreateInternetGatewayTool(deps.AWSClient, f.logger), nil
 	case "create-nat-gateway":
@@ -125,6 +127,10 @@ func (f *ToolFactoryImpl) CreateTool(toolType string, dependencies interface{}) 
 		return NewListLoadBalancersTool(deps.AWSClient, f.logger), nil
 	case "list-target-groups":
 		return NewListTargetGroupsTool(deps.AWSClient, f.logger), nil
+	case "register-targets":
+		return NewRegisterTargetsTool(deps.AWSClient, f.logger), nil
+	case "deregister-targets":
+		return NewDeregisterTargetsTool(deps.AWSClient, f.logger), nil
 
 	// RDS Tools
 	case "create-db-subnet-group":
@@ -186,6 +192,7 @@ func (f *ToolFactoryImpl) GetSupportedToolTypes() []string {
 		"create-private-subnet",
 		"create-public-subnet",
 		"list-subnets",
+		"select-subnets-for-alb",
 		"create-internet-gateway",
 		"create-nat-gateway",
 		"create-public-route-table",
@@ -211,6 +218,8 @@ func (f *ToolFactoryImpl) GetSupportedToolTypes() []string {
 		"create-listener",
 		"list-load-balancers",
 		"list-target-groups",
+		"register-targets",
+		"deregister-targets",
 
 		// RDS Tools
 		"create-db-subnet-group",

@@ -38,7 +38,7 @@ func NewManager(stateFile string, region string, logger *logging.Logger) *Manage
 
 // LoadState loads infrastructure state from file
 func (m *Manager) LoadState(ctx context.Context) error {
-	m.logger.WithField("state_file", m.stateFile).Info("Loading infrastructure state")
+	m.logger.WithField("state_file", m.stateFile).Info("Loading infrastructure state from file")
 
 	// Create state directory if it doesn't exist
 	if err := os.MkdirAll(filepath.Dir(m.stateFile), 0755); err != nil {
@@ -57,13 +57,33 @@ func (m *Manager) LoadState(ctx context.Context) error {
 		return fmt.Errorf("failed to read state file: %w", err)
 	}
 
+	m.logger.WithField("file_size", len(data)).Info("Read state file data")
+
+	// Create a new state object to ensure clean loading
+	newState := &types.InfrastructureState{}
+
 	// Parse state
-	if err := json.Unmarshal(data, m.state); err != nil {
+	if err := json.Unmarshal(data, newState); err != nil {
 		return fmt.Errorf("failed to parse state file: %w", err)
 	}
 
-	m.logger.WithField("resource_count", len(m.state.Resources)).Info("Infrastructure state loaded")
+	// Replace the current state with the newly loaded state
+	m.state = newState
+
+	m.logger.WithFields(map[string]interface{}{
+		"resource_count": len(m.state.Resources),
+		"resources":      getResourceKeys(m.state.Resources),
+	}).Info("Infrastructure state loaded successfully")
 	return nil
+}
+
+// Helper function to get resource keys for logging
+func getResourceKeys(resources map[string]*types.ResourceState) []string {
+	keys := make([]string, 0, len(resources))
+	for k := range resources {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // SaveState saves infrastructure state to file

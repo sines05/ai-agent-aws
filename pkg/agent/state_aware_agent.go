@@ -2,10 +2,13 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/versus-control/ai-infrastructure-agent/pkg/tools"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/types"
 
 	"github.com/google/uuid"
@@ -340,7 +343,7 @@ func (a *StateAwareAgent) executeExecutionStep(ctx context.Context, planStep *ty
 
 	switch planStep.Action {
 	case "create":
-		result, err = a.executeCreateAction(ctx, planStep, progressChan, execution.ID)
+		result, err = a.executeCreateAction(planStep, progressChan, execution.ID)
 	case "update":
 		result, err = a.executeUpdateAction(ctx, planStep, progressChan, execution.ID)
 	case "delete":
@@ -370,7 +373,7 @@ func (a *StateAwareAgent) executeExecutionStep(ctx context.Context, planStep *ty
 }
 
 // executeCreateAction handles resource creation using native MCP tool calls
-func (a *StateAwareAgent) executeCreateAction(ctx context.Context, planStep *types.ExecutionPlanStep, progressChan chan<- *types.ExecutionUpdate, executionID string) (map[string]interface{}, error) {
+func (a *StateAwareAgent) executeCreateAction(planStep *types.ExecutionPlanStep, progressChan chan<- *types.ExecutionUpdate, executionID string) (map[string]interface{}, error) {
 	// Send progress update
 	if progressChan != nil {
 		progressChan <- &types.ExecutionUpdate{
@@ -383,7 +386,7 @@ func (a *StateAwareAgent) executeCreateAction(ctx context.Context, planStep *typ
 	}
 
 	// Use native MCP tool call approach
-	return a.executeNativeMCPTool(ctx, planStep, progressChan, executionID)
+	return a.executeNativeMCPTool(planStep, progressChan, executionID)
 }
 
 // executeAPIValueRetrieval handles API calls to retrieve real values instead of AI-generated placeholders
@@ -416,15 +419,27 @@ func (a *StateAwareAgent) executeAPIValueRetrieval(ctx context.Context, planStep
 		if strings.Contains(description, "default vpc") || strings.Contains(name, "default vpc") {
 			valueType = "default_vpc"
 			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'default_vpc' from step description")
+		} else if strings.Contains(description, "existing vpc") || strings.Contains(description, "vpc id") || strings.Contains(name, "existing vpc") || strings.Contains(name, "vpc id") {
+			valueType = "existing_vpc"
+			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'existing_vpc' from step description")
 		} else if strings.Contains(description, "default subnet") || strings.Contains(name, "default subnet") {
 			valueType = "default_subnet"
 			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'default_subnet' from step description")
+		} else if strings.Contains(description, "subnets") && strings.Contains(description, "vpc") || strings.Contains(name, "subnets") && strings.Contains(name, "vpc") {
+			valueType = "subnets_in_vpc"
+			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'subnets_in_vpc' from step description")
 		} else if strings.Contains(description, "latest ami") || strings.Contains(name, "latest ami") {
 			valueType = "latest_ami"
 			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'latest_ami' from step description")
 		} else if strings.Contains(description, "availability zone") || strings.Contains(name, "availability zone") {
 			valueType = "available_azs"
 			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'available_azs' from step description")
+		} else if (strings.Contains(description, "load balancer") && strings.Contains(description, "arn")) || (strings.Contains(description, "alb") && strings.Contains(description, "arn")) || (strings.Contains(name, "load balancer") && strings.Contains(name, "arn")) || (strings.Contains(name, "alb") && strings.Contains(name, "arn")) {
+			valueType = "load_balancer_arn"
+			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'load_balancer_arn' from step description")
+		} else if (strings.Contains(description, "target group") && strings.Contains(description, "arn")) || (strings.Contains(name, "target group") && strings.Contains(name, "arn")) {
+			valueType = "target_group_arn"
+			a.Logger.WithField("step_id", planStep.ID).Warn("Inferred value_type as 'target_group_arn' from step description")
 		} else {
 			return nil, fmt.Errorf("value_type parameter is required for API value retrieval. Unable to infer from description: '%s'", planStep.Description)
 		}
@@ -444,10 +459,20 @@ func (a *StateAwareAgent) executeAPIValueRetrieval(ctx context.Context, planStep
 		result, err = a.retrieveLatestAMI(ctx, planStep)
 	case "default_vpc":
 		result, err = a.retrieveDefaultVPC(ctx, planStep)
+	case "existing_vpc":
+		result, err = a.retrieveExistingVPC(ctx, planStep)
 	case "default_subnet":
 		result, err = a.retrieveDefaultSubnet(ctx, planStep)
+	case "subnets_in_vpc":
+		result, err = a.retrieveSubnetsInVPC(ctx, planStep)
 	case "available_azs":
 		result, err = a.retrieveAvailabilityZones(ctx, planStep)
+	case "select_subnets_for_alb":
+		result, err = a.retrieveSelectSubnetsForALB(ctx, planStep)
+	case "load_balancer_arn":
+		result, err = a.retrieveLoadBalancerArn(ctx, planStep)
+	case "target_group_arn":
+		result, err = a.retrieveTargetGroupArn(ctx, planStep)
 	default:
 		err = fmt.Errorf("unsupported value_type: %s", valueType)
 	}
@@ -658,8 +683,298 @@ func (a *StateAwareAgent) retrieveAvailabilityZones(ctx context.Context, planSte
 	}, nil
 }
 
+// retrieveExistingVPC gets an existing VPC ID (first available VPC or default VPC)
+func (a *StateAwareAgent) retrieveExistingVPC(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.Logger.WithField("step_id", planStep.ID).Info("Starting API retrieval for existing VPC")
+
+	// First try to get the default VPC
+	a.Logger.Info("Attempting to find default VPC first")
+	vpcID, err := a.awsClient.GetDefaultVPC(ctx)
+	if err == nil && vpcID != "" {
+		a.Logger.WithField("vpc_id", vpcID).Info("Found default VPC")
+		return map[string]interface{}{
+			"value":        vpcID,
+			"type":         "vpc",
+			"is_default":   true,
+			"retrieved_at": time.Now().Format(time.RFC3339),
+			"description":  "Default VPC for the current region",
+			"source":       "aws_api_call",
+		}, nil
+	}
+
+	// If no default VPC, get the first available VPC
+	a.Logger.Info("No default VPC found, looking for any available VPC")
+	vpcs, err := a.awsClient.DescribeVPCs(ctx)
+	if err != nil {
+		a.Logger.WithError(err).Error("AWS API call failed for DescribeVPCs")
+		return nil, fmt.Errorf("failed to describe VPCs: %w", err)
+	}
+
+	if len(vpcs) == 0 {
+		return nil, fmt.Errorf("no VPCs found in the region")
+	}
+
+	// Use the first available VPC
+	firstVPC := vpcs[0]
+	a.Logger.WithField("vpc_id", firstVPC.ID).Info("Using first available VPC")
+
+	return map[string]interface{}{
+		"value":        firstVPC.ID,
+		"type":         "vpc",
+		"is_default":   false,
+		"retrieved_at": time.Now().Format(time.RFC3339),
+		"description":  "First available VPC in the current region",
+		"source":       "aws_api_call",
+	}, nil
+}
+
+// retrieveSubnetsInVPC gets all subnets in a specified VPC
+func (a *StateAwareAgent) retrieveSubnetsInVPC(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.Logger.WithField("step_id", planStep.ID).Info("Starting API retrieval for subnets in VPC")
+
+	// Get VPC ID from parameters
+	vpcID, exists := planStep.Parameters["vpc_id"]
+	if !exists {
+		// Try to get from resource mapping using a previous step
+		if vpcIDParam, exists := planStep.Parameters["vpc_id_step"]; exists {
+			if stepID, ok := vpcIDParam.(string); ok {
+				a.mappingsMutex.RLock()
+				mappedVPC, mappingExists := a.resourceMappings[stepID]
+				a.mappingsMutex.RUnlock()
+				if mappingExists && mappedVPC != "" {
+					vpcID = mappedVPC
+					a.Logger.WithFields(map[string]interface{}{
+						"vpc_id":      vpcID,
+						"source_step": stepID,
+					}).Info("Retrieved VPC ID from previous step mapping")
+				}
+			}
+		}
+	}
+
+	if vpcID == nil {
+		return nil, fmt.Errorf("vpc_id parameter is required for subnets_in_vpc retrieval")
+	}
+
+	vpcIDStr, ok := vpcID.(string)
+	if !ok {
+		return nil, fmt.Errorf("vpc_id must be a string")
+	}
+
+	a.Logger.WithField("vpc_id", vpcIDStr).Info("Calling AWS API via awsClient.GetSubnetsInVPC")
+	subnetIDs, err := a.awsClient.GetSubnetsInVPC(ctx, vpcIDStr)
+	if err != nil {
+		a.Logger.WithError(err).Error("AWS API call failed for GetSubnetsInVPC")
+		return nil, fmt.Errorf("failed to get subnets in VPC %s: %w", vpcIDStr, err)
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"vpc_id":     vpcIDStr,
+		"subnet_ids": subnetIDs,
+		"count":      len(subnetIDs),
+	}).Info("AWS API call successful, received subnet IDs")
+
+	// Use the first subnet as the primary value for dependency resolution
+	primarySubnet := ""
+	if len(subnetIDs) > 0 {
+		primarySubnet = subnetIDs[0]
+	}
+
+	return map[string]interface{}{
+		"value":        primarySubnet, // For {{step-id.resourceId}} resolution (first subnet)
+		"subnet_ids":   subnetIDs,     // Full list of subnet IDs
+		"vpc_id":       vpcIDStr,      // VPC ID for reference
+		"count":        len(subnetIDs),
+		"type":         "subnets",
+		"retrieved_at": time.Now().Format(time.RFC3339),
+		"description":  fmt.Sprintf("Found %d subnets in VPC %s (primary: %s)", len(subnetIDs), vpcIDStr, primarySubnet),
+		"source":       "aws_api_call",
+	}, nil
+}
+
+// retrieveSelectSubnetsForALB retrieves subnets suitable for ALB creation
+func (a *StateAwareAgent) retrieveSelectSubnetsForALB(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.Logger.WithField("step_id", planStep.ID).Info("Starting subnet selection for ALB")
+
+	// Get scheme from parameters (default to "internet-facing")
+	scheme := "internet-facing"
+	if schemeParam, exists := planStep.Parameters["scheme"]; exists {
+		if schemeStr, ok := schemeParam.(string); ok {
+			scheme = schemeStr
+		}
+	}
+
+	// Get VPC ID from parameters if provided
+	var vpcID string
+	if vpcIDParam, exists := planStep.Parameters["vpc_id"]; exists {
+		if vpcIDStr, ok := vpcIDParam.(string); ok {
+			// Check if it's a step reference that needs resolution
+			if strings.Contains(vpcIDStr, "{{") && strings.Contains(vpcIDStr, "}}") {
+				resolvedVPCID, err := a.resolveDependencyReference(vpcIDStr)
+				if err != nil {
+					a.Logger.WithError(err).WithField("vpc_id_reference", vpcIDStr).Error("Failed to resolve VPC ID reference")
+					return nil, fmt.Errorf("failed to resolve VPC ID reference %s: %w", vpcIDStr, err)
+				}
+				vpcID = resolvedVPCID
+				a.Logger.WithFields(map[string]interface{}{
+					"vpc_id_reference": vpcIDStr,
+					"resolved_vpc_id":  vpcID,
+				}).Info("Resolved VPC ID from step reference")
+			} else {
+				vpcID = vpcIDStr
+			}
+		}
+	}
+
+	// Create the subnet selection tool and call it directly
+	subnetSelector := tools.NewSelectSubnetsForALBTool(a.awsClient, a.Logger)
+	selectionArgs := map[string]interface{}{
+		"scheme": scheme,
+	}
+
+	if vpcID != "" {
+		selectionArgs["vpcId"] = vpcID
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"scheme": scheme,
+		"vpc_id": vpcID,
+	}).Info("Calling subnet selection tool for ALB")
+
+	selectionResult, err := subnetSelector.Execute(ctx, selectionArgs)
+	if err != nil {
+		a.Logger.WithError(err).Error("Failed to execute subnet selection tool")
+		return nil, fmt.Errorf("failed to select subnets for ALB: %w", err)
+	}
+
+	if selectionResult.IsError {
+		a.Logger.Error("Subnet selection tool returned error", "error", selectionResult.Content[0])
+		return nil, fmt.Errorf("subnet selection failed: %v", selectionResult.Content[0])
+	}
+
+	// Parse the tool result
+	if len(selectionResult.Content) > 0 {
+		if textContent, ok := selectionResult.Content[0].(*mcp.TextContent); ok {
+			var resultData map[string]interface{}
+			if err := json.Unmarshal([]byte(textContent.Text), &resultData); err != nil {
+				a.Logger.WithError(err).Error("Failed to parse subnet selection response")
+				return nil, fmt.Errorf("failed to parse subnet selection response: %w", err)
+			}
+
+			a.Logger.WithFields(map[string]interface{}{
+				"result_data": resultData,
+			}).Info("Successfully parsed subnet selection result")
+
+			// Extract subnet IDs from the result
+			var subnetIDs []string
+			if subnetIDsData, exists := resultData["subnetIds"]; exists {
+				if subnetIDsSlice, ok := subnetIDsData.([]interface{}); ok {
+					subnetIDs = make([]string, len(subnetIDsSlice))
+					for i, subnetID := range subnetIDsSlice {
+						if subnetIDStr, ok := subnetID.(string); ok {
+							subnetIDs[i] = subnetIDStr
+						}
+					}
+				}
+			}
+
+			return map[string]interface{}{
+				"value":        subnetIDs,      // For {{step-id.resourceId}} resolution
+				"subnet_ids":   subnetIDs,      // Full list of subnet IDs
+				"scheme":       scheme,         // ALB scheme for reference
+				"count":        len(subnetIDs), // Number of selected subnets
+				"type":         "alb_subnets",  // Resource type
+				"retrieved_at": time.Now().Format(time.RFC3339),
+				"description":  fmt.Sprintf("Selected %d subnets for %s ALB", len(subnetIDs), scheme),
+				"source":       "subnet_selection_tool",
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("invalid or empty response from subnet selection tool")
+}
+
+// retrieveLoadBalancerArn retrieves load balancer ARN from a previous step
+func (a *StateAwareAgent) retrieveLoadBalancerArn(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.Logger.WithField("step_id", planStep.ID).Info("Starting load balancer ARN retrieval")
+
+	// Get the step reference from parameters
+	stepRef, exists := planStep.Parameters["step_ref"]
+	if !exists {
+		return nil, fmt.Errorf("step_ref parameter is required for load_balancer_arn retrieval")
+	}
+
+	stepRefStr, ok := stepRef.(string)
+	if !ok {
+		return nil, fmt.Errorf("step_ref must be a string")
+	}
+
+	a.Logger.WithField("step_ref", stepRefStr).Info("Resolving load balancer ARN from step reference")
+
+	// Use dependency resolution to get the ARN
+	loadBalancerArn, err := a.resolveDependencyReference(stepRefStr)
+	if err != nil {
+		a.Logger.WithError(err).Error("Failed to resolve load balancer ARN reference")
+		return nil, fmt.Errorf("failed to resolve load balancer ARN reference %s: %w", stepRefStr, err)
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"step_ref":          stepRefStr,
+		"load_balancer_arn": loadBalancerArn,
+	}).Info("Successfully resolved load balancer ARN")
+
+	return map[string]interface{}{
+		"value":           loadBalancerArn,     // For {{step-id.resourceId}} resolution
+		"loadBalancerArn": loadBalancerArn,     // Explicit ARN field
+		"arn":             loadBalancerArn,     // Alternative key for ARN
+		"type":            "load_balancer_arn", // Resource type
+		"retrieved_at":    time.Now().Format(time.RFC3339),
+		"description":     fmt.Sprintf("Load balancer ARN resolved from %s", stepRefStr),
+		"source":          "step_reference",
+	}, nil
+}
+
+// retrieveTargetGroupArn retrieves the target group ARN from a previous step
+func (a *StateAwareAgent) retrieveTargetGroupArn(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.Logger.WithField("step_id", planStep.ID).Info("Retrieving target group ARN")
+
+	// Extract the step_ref parameter
+	stepRef, exists := planStep.Parameters["step_ref"]
+	if !exists {
+		return nil, fmt.Errorf("step_ref parameter is required for target_group_arn retrieval")
+	}
+
+	stepRefStr, ok := stepRef.(string)
+	if !ok {
+		return nil, fmt.Errorf("step_ref must be a string")
+	}
+
+	a.Logger.WithField("step_ref", stepRefStr).Info("Resolving target group ARN from step reference")
+
+	// Use the existing dependency resolution mechanism
+	targetGroupArn, err := a.resolveDependencyReference(stepRefStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve target group ARN from step reference %s: %w", stepRefStr, err)
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"target_group_arn": targetGroupArn,
+		"step_ref":         stepRefStr,
+	}).Info("Successfully resolved target group ARN")
+
+	return map[string]interface{}{
+		"value":          targetGroupArn,     // For {{step-id.resourceId}} resolution
+		"targetGroupArn": targetGroupArn,     // Explicit ARN field
+		"arn":            targetGroupArn,     // Alternative key for ARN
+		"type":           "target_group_arn", // Resource type
+		"retrieved_at":   time.Now().Format(time.RFC3339),
+		"description":    fmt.Sprintf("Target group ARN resolved from %s", stepRefStr),
+		"source":         "step_reference",
+	}, nil
+}
+
 // executeNativeMCPTool executes MCP tools directly with AI-provided parameters
-func (a *StateAwareAgent) executeNativeMCPTool(ctx context.Context, planStep *types.ExecutionPlanStep, _ chan<- *types.ExecutionUpdate, _ string) (map[string]interface{}, error) {
+func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep, _ chan<- *types.ExecutionUpdate, _ string) (map[string]interface{}, error) {
 	toolName := planStep.MCPTool
 
 	a.Logger.WithFields(map[string]interface{}{
@@ -1011,14 +1326,17 @@ func (a *StateAwareAgent) resolveDependencyReference(reference string) (string, 
 	refContent := strings.TrimSuffix(strings.TrimPrefix(reference, "{{"), "}}")
 	parts := strings.Split(refContent, ".")
 
-	// Support both {{step-1.resourceId}} and {{step-1}} formats
+	// Support multiple reference formats: {{step-1.resourceId}}, {{step-1}}, {{step-1.targetGroupArn}}, etc.
 	var stepID string
-	if len(parts) == 2 && parts[1] == "resourceId" {
+	var requestedField string
+	if len(parts) == 2 {
 		stepID = parts[0]
+		requestedField = parts[1]
 	} else if len(parts) == 1 {
 		stepID = parts[0]
+		requestedField = "resourceId" // Default to resourceId for backward compatibility
 	} else {
-		return "", fmt.Errorf("invalid reference format: %s (expected {{step-id.resourceId}} or {{step-id}})", reference)
+		return "", fmt.Errorf("invalid reference format: %s (expected {{step-id.field}} or {{step-id}})", reference)
 	}
 
 	a.mappingsMutex.RLock()
@@ -1026,6 +1344,86 @@ func (a *StateAwareAgent) resolveDependencyReference(reference string) (string, 
 	a.mappingsMutex.RUnlock()
 
 	if !exists {
+		// Fallback: try to get state via MCP and extract the resource ID
+		stateJSON, err := a.ExportInfrastructureState(context.Background(), false) // Only managed state
+		if err == nil {
+			// Parse the state and look for the step ID
+			var stateData map[string]interface{}
+			if json.Unmarshal([]byte(stateJSON), &stateData) == nil {
+				if managedState, ok := stateData["managed_state"].(map[string]interface{}); ok {
+					if resources, ok := managedState["resources"].(map[string]interface{}); ok {
+						if resource, ok := resources[stepID].(map[string]interface{}); ok {
+							// Extract AWS resource ID from the resource properties
+							if properties, ok := resource["properties"].(map[string]interface{}); ok {
+								if mcpResponse, ok := properties["mcp_response"].(map[string]interface{}); ok {
+									// First, try to find the specifically requested field
+									if requestedField != "resourceId" {
+										if id, ok := mcpResponse[requestedField].(string); ok && id != "" {
+											// Cache it for future use
+											a.mappingsMutex.Lock()
+											a.resourceMappings[stepID] = id
+											a.mappingsMutex.Unlock()
+
+											a.Logger.WithFields(map[string]interface{}{
+												"reference":       reference,
+												"step_id":         stepID,
+												"resource_id":     id,
+												"source":          "state_fallback",
+												"requested_field": requestedField,
+											}).Info("Resolved specific field dependency from state")
+
+											return id, nil
+										}
+									}
+
+									// Fall back to trying common AWS resource ID fields with field-specific prioritization
+									var fieldsToTry []string
+									switch requestedField {
+									case "targetGroupArn", "arn":
+										// For target group ARN requests, prioritize ARN fields
+										fieldsToTry = []string{"targetGroupArn", "arn", "targetGroupId"}
+									case "loadBalancerArn":
+										// For load balancer ARN requests, prioritize ARN fields
+										fieldsToTry = []string{"loadBalancerArn", "arn", "loadBalancerId"}
+									case "securityGroupId":
+										fieldsToTry = []string{"securityGroupId", "groupId"}
+									case "instanceId":
+										fieldsToTry = []string{"instanceId", "instance_id"}
+									case "vpcId":
+										fieldsToTry = []string{"vpcId", "vpc_id"}
+									case "subnetId":
+										fieldsToTry = []string{"subnetId", "subnet_id"}
+									default:
+										// General fallback order for resourceId
+										fieldsToTry = []string{"securityGroupId", "instanceId", "targetGroupArn", "loadBalancerArn", "vpcId", "subnetId", "targetGroupId", "loadBalancerId", "arn"}
+									}
+
+									for _, field := range fieldsToTry {
+										if id, ok := mcpResponse[field].(string); ok && id != "" {
+											// Cache it for future use
+											a.mappingsMutex.Lock()
+											a.resourceMappings[stepID] = id
+											a.mappingsMutex.Unlock()
+
+											a.Logger.WithFields(map[string]interface{}{
+												"reference":   reference,
+												"step_id":     stepID,
+												"resource_id": id,
+												"source":      "state_fallback",
+												"field":       field,
+											}).Debug("Resolved dependency reference from state")
+
+											return id, nil
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
 		return "", fmt.Errorf("resource ID not found for step: %s", stepID)
 	}
 
@@ -1394,7 +1792,10 @@ func (a *StateAwareAgent) GetAvailableToolsContext() string {
 	context.WriteString("- \"default_vpc\": Get default VPC for the region\n")
 	context.WriteString("- \"default_subnet\": Get default subnet in the region\n")
 	context.WriteString("- \"available_azs\": Get available availability zones\n")
-	context.WriteString("  * max_azs: limit number of AZs returned (optional)\n\n")
+	context.WriteString("  * max_azs: limit number of AZs returned (optional)\n")
+	context.WriteString("- \"select_subnets_for_alb\": Select subnets for ALB creation\n")
+	context.WriteString("  * scheme: internet-facing, internal (default: internet-facing)\n")
+	context.WriteString("  * vpc_id: specific VPC ID (optional, uses default VPC if not specified)\n\n")
 
 	context.WriteString("=== EXTENDED API VALUE RETRIEVAL EXAMPLES ===\n\n")
 

@@ -123,7 +123,7 @@ func (a *ASGAdapter) ValidateParams(operation string, params interface{}) error 
 		return nil
 	case "get", "delete":
 		if params == nil {
-			return fmt.Errorf("Auto Scaling Group name is required for %s operation", operation)
+			return fmt.Errorf("AutoScaling Group name is required for %s operation", operation)
 		}
 		return nil
 	default:

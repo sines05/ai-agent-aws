@@ -2,7 +2,9 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/versus-control/ai-infrastructure-agent/internal/logging"
@@ -14,7 +16,8 @@ import (
 // CreateLoadBalancerTool implements MCPTool for creating load balancers
 type CreateLoadBalancerTool struct {
 	*BaseTool
-	adapter interfaces.SpecializedOperations
+	adapter   interfaces.SpecializedOperations
+	awsClient *aws.Client
 }
 
 // NewCreateLoadBalancerTool creates a new load balancer creation tool
@@ -41,7 +44,8 @@ func NewCreateLoadBalancerTool(awsClient *aws.Client, logger *logging.Logger) in
 				"items": map[string]interface{}{
 					"type": "string",
 				},
-				"description": "List of subnet IDs",
+				"description": "List of subnet IDs (minimum 2 subnets in different Availability Zones required). If not provided, subnets will be auto-selected.",
+				"minItems":    2,
 			},
 			"securityGroupIds": map[string]interface{}{
 				"type": "array",
@@ -51,7 +55,7 @@ func NewCreateLoadBalancerTool(awsClient *aws.Client, logger *logging.Logger) in
 				"description": "List of security group IDs",
 			},
 		},
-		"required": []string{"name", "subnetIds"},
+		"required": []string{"name"},
 	}
 
 	return &CreateLoadBalancerTool{
@@ -61,7 +65,8 @@ func NewCreateLoadBalancerTool(awsClient *aws.Client, logger *logging.Logger) in
 			inputSchema: inputSchema,
 			logger:      logger,
 		},
-		adapter: adapters.NewALBSpecializedAdapter(awsClient, logger),
+		adapter:   adapters.NewALBSpecializedAdapter(awsClient, logger),
+		awsClient: awsClient,
 	}
 }
 
@@ -81,6 +86,115 @@ func (t *CreateLoadBalancerTool) Execute(ctx context.Context, arguments map[stri
 		lbType = "application"
 	}
 
+	// Check subnet requirements and auto-select if needed
+	subnetIds, _ := arguments["subnetIds"].([]interface{})
+	if len(subnetIds) < 2 {
+		t.logger.Info("Insufficient subnets provided, auto-selecting subnets for ALB creation")
+
+		// Create the subnet selection tool and call it
+		subnetSelector := NewSelectSubnetsForALBTool(t.awsClient, t.logger)
+		selectionArgs := map[string]interface{}{
+			"scheme": scheme,
+		}
+
+		// Copy VPC ID if provided
+		if vpcId, exists := arguments["vpcId"]; exists {
+			selectionArgs["vpcId"] = vpcId
+		}
+
+		selectionResult, err := subnetSelector.Execute(ctx, selectionArgs)
+		if err != nil {
+			return t.CreateErrorResponse(fmt.Sprintf("Failed to auto-select subnets: %v", err))
+		}
+
+		if selectionResult.IsError {
+			return t.CreateErrorResponse(fmt.Sprintf("Subnet selection failed: %v", selectionResult.Content[0]))
+		}
+
+		t.logger.WithFields(map[string]interface{}{
+			"selection_result_length": len(selectionResult.Content),
+		}).Info("Received subnet selection result")
+
+		// Extract subnet IDs from the selection result
+		if len(selectionResult.Content) > 0 {
+			t.logger.WithFields(map[string]interface{}{
+				"content_type": fmt.Sprintf("%T", selectionResult.Content[0]),
+				"content":      selectionResult.Content[0],
+			}).Debug("Analyzing subnet selection response content type")
+
+			// Try multiple approaches to extract text content
+			var textData string
+			var extractSuccess bool
+
+			// Approach 1: Try TextContent type assertion
+			if textContent, ok := selectionResult.Content[0].(*mcp.TextContent); ok {
+				textData = textContent.Text
+				extractSuccess = true
+				t.logger.Debug("Successfully extracted text using TextContent type assertion")
+			} else if textContent, ok := selectionResult.Content[0].(mcp.TextContent); ok {
+				// Approach 2: Try value type assertion
+				textData = textContent.Text
+				extractSuccess = true
+				t.logger.Debug("Successfully extracted text using TextContent value assertion")
+			} else {
+				// Approach 3: Try to extract from any content with Text field
+				if contentInterface, ok := selectionResult.Content[0].(interface{ GetText() string }); ok {
+					textData = contentInterface.GetText()
+					extractSuccess = true
+					t.logger.Debug("Successfully extracted text using GetText method")
+				}
+			}
+
+			if extractSuccess {
+				t.logger.WithFields(map[string]interface{}{
+					"response_text": textData,
+				}).Debug("Parsing subnet selection response")
+
+				// Parse the JSON response to extract subnet IDs
+				var resultData map[string]interface{}
+				if err := json.Unmarshal([]byte(textData), &resultData); err == nil {
+					if subnetIdsData, exists := resultData["subnetIds"]; exists {
+						if subnetIdsSlice, ok := subnetIdsData.([]interface{}); ok {
+							arguments["subnetIds"] = subnetIdsSlice
+							t.logger.WithFields(map[string]interface{}{
+								"selected_subnets": subnetIdsSlice,
+								"source":           "auto_selection",
+							}).Info("Auto-selected subnets for ALB creation")
+						} else {
+							t.logger.Error("subnetIds field is not a slice")
+							return t.CreateErrorResponse("Invalid format for selected subnet IDs")
+						}
+					} else {
+						t.logger.Error("No subnetIds field found in response")
+						return t.CreateErrorResponse("No subnet IDs found in selection response")
+					}
+				} else {
+					t.logger.WithError(err).Error("Failed to parse subnet selection response")
+					return t.CreateErrorResponse(fmt.Sprintf("Failed to parse subnet selection response: %v", err))
+				}
+			} else {
+				t.logger.WithFields(map[string]interface{}{
+					"actual_type":    fmt.Sprintf("%T", selectionResult.Content[0]),
+					"content_string": fmt.Sprintf("%v", selectionResult.Content[0]),
+				}).Error("Unable to extract text content from selection result")
+				return t.CreateErrorResponse("Invalid content type in subnet selection response")
+			}
+		} else {
+			t.logger.Error("Empty selection result content")
+			return t.CreateErrorResponse("Empty response from subnet selection")
+		}
+
+		// Re-validate that we now have sufficient subnets
+		subnetIds, _ = arguments["subnetIds"].([]interface{})
+		if len(subnetIds) < 2 {
+			t.logger.WithFields(map[string]interface{}{
+				"subnets_after_autoselect": len(subnetIds),
+				"required_minimum":         2,
+			}).Error("Auto-selection provided insufficient subnets")
+			return t.CreateErrorResponse(fmt.Sprintf("Failed to auto-select sufficient subnets for ALB creation. Got %d subnets, need at least 2", len(subnetIds)))
+		}
+	}
+
 	// Use the ALB specialized adapter to create load balancer
 	result, err := t.adapter.ExecuteSpecialOperation(ctx, "create-load-balancer", arguments)
 	if err != nil {
@@ -89,11 +203,13 @@ func (t *CreateLoadBalancerTool) Execute(ctx context.Context, arguments map[stri
 
 	message := fmt.Sprintf("Load balancer %s created successfully", name)
 	data := map[string]interface{}{
-		"name":           name,
-		"scheme":         scheme,
-		"type":           lbType,
-		"loadBalancer":   result,
-		"loadBalancerId": result.ID,
+		"name":            name,
+		"scheme":          scheme,
+		"type":            lbType,
+		"loadBalancer":    result,
+		"loadBalancerId":  result.ID,
+		"loadBalancerArn": result.ID, // The ID field contains the ARN for load balancers
+		"arn":             result.ID, // Alternative key for ARN
 	}
 
 	return t.CreateSuccessResponse(message, data)
@@ -132,6 +248,25 @@ func NewCreateTargetGroupTool(awsClient *aws.Client, logger *logging.Logger) int
 				"type":        "string",
 				"description": "The target type (instance, ip, lambda)",
 				"default":     "instance",
+			},
+			"healthCheckPath": map[string]interface{}{
+				"type":        "string",
+				"description": "The health check path",
+				"default":     "/",
+			},
+			"healthCheckProtocol": map[string]interface{}{
+				"type":        "string",
+				"description": "The health check protocol",
+			},
+			"healthCheckEnabled": map[string]interface{}{
+				"type":        "boolean",
+				"description": "Whether health checks are enabled",
+				"default":     true,
+			},
+			"matcher": map[string]interface{}{
+				"type":        "string",
+				"description": "HTTP response codes that indicate healthy targets",
+				"default":     "200",
 			},
 		},
 		"required": []string{"name", "vpcId"},
@@ -184,13 +319,15 @@ func (t *CreateTargetGroupTool) Execute(ctx context.Context, arguments map[strin
 
 	message := fmt.Sprintf("Target group %s created successfully", name)
 	data := map[string]interface{}{
-		"name":          name,
-		"protocol":      protocol,
-		"port":          port,
-		"vpcId":         vpcID,
-		"targetType":    targetType,
-		"targetGroup":   result,
-		"targetGroupId": result.ID,
+		"name":           name,
+		"protocol":       protocol,
+		"port":           port,
+		"vpcId":          vpcID,
+		"targetType":     targetType,
+		"targetGroup":    result,
+		"targetGroupId":  result.ID,
+		"targetGroupArn": result.ID, // The ID field contains the ARN for target groups
+		"arn":            result.ID, // Alternative key for ARN
 	}
 
 	return t.CreateSuccessResponse(message, data)
@@ -246,9 +383,33 @@ func (t *CreateListenerTool) Execute(ctx context.Context, arguments map[string]i
 		return t.CreateErrorResponse("loadBalancerArn is required")
 	}
 
+	// Check if the loadBalancerArn is actually an ARN format, if not, it might be a name that needs validation
+	if !strings.HasPrefix(loadBalancerArn, "arn:aws:elasticloadbalancing:") {
+		t.logger.WithFields(map[string]interface{}{
+			"provided_value": loadBalancerArn,
+		}).Warn("loadBalancerArn does not appear to be in ARN format - this may cause AWS API errors")
+
+		// If it looks like a load balancer name instead of ARN, return a helpful error
+		if !strings.Contains(loadBalancerArn, ":") {
+			return t.CreateErrorResponse(fmt.Sprintf("loadBalancerArn must be in ARN format, received what appears to be a name: '%s'. Expected format: arn:aws:elasticloadbalancing:region:account:loadbalancer/type/name/id", loadBalancerArn))
+		}
+	}
+
 	targetGroupArn, ok := arguments["targetGroupArn"].(string)
 	if !ok || targetGroupArn == "" {
 		return t.CreateErrorResponse("targetGroupArn is required")
+	}
+
+	// Check if the targetGroupArn is actually an ARN format
+	if !strings.HasPrefix(targetGroupArn, "arn:aws:elasticloadbalancing:") {
+		t.logger.WithFields(map[string]interface{}{
+			"provided_value": targetGroupArn,
+		}).Warn("targetGroupArn does not appear to be in ARN format - this may cause AWS API errors")
+
+		// If it looks like a target group name instead of ARN, return a helpful error
+		if !strings.Contains(targetGroupArn, ":") {
+			return t.CreateErrorResponse(fmt.Sprintf("targetGroupArn must be in ARN format, received what appears to be a name: '%s'. Expected format: arn:aws:elasticloadbalancing:region:account:targetgroup/name/id", targetGroupArn))
+		}
 	}
 
 	protocol, _ := arguments["protocol"].(string)
@@ -264,8 +425,19 @@ func (t *CreateListenerTool) Execute(ctx context.Context, arguments map[string]i
 	}
 
 	// Use the ALB specialized adapter to create listener
+	t.logger.WithFields(map[string]interface{}{
+		"loadBalancerArn": loadBalancerArn,
+		"targetGroupArn":  targetGroupArn,
+		"protocol":        protocol,
+		"port":            port,
+	}).Info("Creating listener with validated parameters")
+
 	result, err := t.adapter.ExecuteSpecialOperation(ctx, "create-listener", arguments)
 	if err != nil {
+		t.logger.WithError(err).WithFields(map[string]interface{}{
+			"loadBalancerArn": loadBalancerArn,
+			"targetGroupArn":  targetGroupArn,
+		}).Error("Failed to create listener")
 		return t.CreateErrorResponse(fmt.Sprintf("Failed to create listener: %v", err))
 	}
 

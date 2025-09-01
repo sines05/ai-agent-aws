@@ -301,12 +301,7 @@ func NewExportStateTool(deps *ToolDependencies, awsClient *aws.Client, logger *l
 
 // Execute exports infrastructure state using dynamic resource discovery
 func (t *ExportStateTool) Execute(ctx context.Context, arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	// Load current state
-	if t.deps != nil && t.deps.StateManager != nil {
-		if err := t.deps.StateManager.LoadState(ctx); err != nil {
-			t.GetLogger().WithError(err).Warn("Failed to load state from file, continuing with current state")
-		}
-	}
+	t.GetLogger().Info("=== ExportStateTool.Execute called ===")
 
 	format, _ := arguments["format"].(string)
 	if format == "" {
@@ -334,6 +329,8 @@ func (t *ExportStateTool) Execute(ctx context.Context, arguments map[string]inte
 		"include_discovered": includeDiscovered,
 		"include_managed":    includeManaged,
 		"resource_filter":    resourceFilter,
+		"deps_nil":           t.deps == nil,
+		"state_manager_nil":  t.deps == nil || t.deps.StateManager == nil,
 	}).Info("Exporting infrastructure state")
 
 	// Create structured data for export
@@ -344,11 +341,20 @@ func (t *ExportStateTool) Execute(ctx context.Context, arguments map[string]inte
 		"include_managed":    includeManaged,
 	}
 
-	// Include managed resources from state file
+	// Include managed resources from state file only if requested
 	if includeManaged && t.deps != nil && t.deps.StateManager != nil {
-		managedState := t.deps.StateManager.GetState()
-		exportData["managed_state"] = managedState
-		exportData["managed_resource_count"] = len(managedState.Resources)
+		t.GetLogger().Info("About to force reload state from file")
+		// Force reload state from file to get latest state
+		if err := t.deps.StateManager.LoadState(ctx); err != nil {
+			t.GetLogger().WithError(err).Warn("Failed to load state from file, continuing without managed state")
+		} else {
+			managedState := t.deps.StateManager.GetState()
+			t.GetLogger().WithField("managed_resource_count", len(managedState.Resources)).Info("Loaded managed state from file")
+			exportData["managed_state"] = managedState
+			exportData["managed_resource_count"] = len(managedState.Resources)
+		}
+	} else {
+		t.GetLogger().Info("Skipping managed state loading (include_managed=false)")
 	}
 
 	// Include discovered resources

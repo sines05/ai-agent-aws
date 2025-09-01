@@ -30,7 +30,6 @@ import (
 //   - VisualizeDependencyGraph()        : Call MCP server to visualize dependency graph
 //   - ExportInfrastructureState()       : Call MCP server to export infrastructure state
 //   - addResourceToState()              : Add resource to state via MCP server
-//   - loadState()                       : Load state via MCP server
 //
 // Usage Example:
 //   1. agent.startMCPProcess()
@@ -69,10 +68,27 @@ func (a *StateAwareAgent) startMCPProcess() error {
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
+	// Redirect MCP server stderr to our logger so we can see debug output
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
 	// Start the process
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start MCP server: %w", err)
 	}
+
+	// Start a goroutine to read stderr and log it
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			a.Logger.WithField("source", "mcp_server").Info(scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			a.Logger.WithError(err).Warn("Error reading MCP server stderr")
+		}
+	}()
 
 	a.mcpProcess = &MCPProcess{
 		cmd:    cmd,
@@ -750,6 +766,11 @@ func (a *StateAwareAgent) VisualizeDependencyGraph(ctx context.Context, format s
 
 // ExportInfrastructureState calls the MCP server to export infrastructure state
 func (a *StateAwareAgent) ExportInfrastructureState(ctx context.Context, includeDiscovered bool) (string, error) {
+	return a.ExportInfrastructureStateWithOptions(ctx, includeDiscovered, true)
+}
+
+// ExportInfrastructureStateWithOptions calls the MCP server to export infrastructure state with full control
+func (a *StateAwareAgent) ExportInfrastructureStateWithOptions(ctx context.Context, includeDiscovered, includeManaged bool) (string, error) {
 	// Use a direct MCP call to get the raw text response
 	if a.mcpProcess == nil {
 		if err := a.startMCPProcess(); err != nil {
@@ -770,6 +791,7 @@ func (a *StateAwareAgent) ExportInfrastructureState(ctx context.Context, include
 			"name": "export-infrastructure-state",
 			"arguments": map[string]interface{}{
 				"include_discovered": includeDiscovered,
+				"include_managed":    includeManaged,
 			},
 		},
 	}
@@ -828,12 +850,5 @@ func (a *StateAwareAgent) addResourceToState(resourceState *types.ResourceState)
 	}
 
 	a.Logger.WithField("result", result).Debug("Resource added to state via MCP server")
-	return nil
-}
-
-// loadState calls the MCP server to load state
-func (a *StateAwareAgent) loadState(ctx context.Context) error {
-	// State loading is now handled by the MCP server
-	a.Logger.Info("State loading delegated to MCP server")
 	return nil
 }
