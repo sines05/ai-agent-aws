@@ -28,7 +28,7 @@ func main() {
 	logger.Info("Starting AI Infrastructure Agent Web UI")
 
 	// Initialize AWS client
-	awsClient, err := aws.NewClient(cfg.AWS.Region, cfg.AWS.Profile, logger)
+	awsClient, err := aws.NewClient(cfg.AWS.Region, logger)
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to create AWS client")
 	}

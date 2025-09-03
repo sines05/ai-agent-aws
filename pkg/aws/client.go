@@ -23,7 +23,7 @@ type Client struct {
 	logger      *logging.Logger
 }
 
-func NewClient(region, profile string, logger *logging.Logger) (*Client, error) {
+func NewClient(region string, logger *logging.Logger) (*Client, error) {
 	cfg, err := config.LoadDefaultConfig(
 		context.Background(),
 		config.WithRegion(region),

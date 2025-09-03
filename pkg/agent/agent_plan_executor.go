@@ -2,44 +2,45 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/versus-control/ai-infrastructure-agent/pkg/tools"
-	"github.com/versus-control/ai-infrastructure-agent/pkg/types"
-
 	"github.com/google/uuid"
+	"github.com/versus-control/ai-infrastructure-agent/pkg/types"
 )
 
 // ========== Interface defines ==========
 
-// StateAwareAgentInterface defines plan execution and resource management functionality
+// PlanExecutorInterface defines plan execution functionality
 //
 // Available Functions:
-//   - ExecuteConfirmedPlanWithDryRun()  : Execute confirmed plan with optional dry run mode
-//   - simulatePlanExecution()           : Simulate plan execution for dry run mode
-//   - executeExecutionStep()            : Execute a single step in the execution plan
-//   - executeNativeMCPTool()            : Execute MCP tools directly with AI-provided parameters
-//   - executeCreateAction()             : Handle resource creation using MCP tool calls
-//   - executeUpdateAction()             : Handle resource updates using MCP tools
-//   - executeDeleteAction()             : Handle resource deletion
-//   - executeValidateAction()           : Handle validation steps using MCP tools
-//   - updateStateFromMCPResult()        : Update state manager with MCP operation results
-//   - extractResourceIDFromResponse()   : Extract AWS resource ID from MCP response
-//   - storeResourceMapping()            : Store mapping between plan step ID and actual resource ID
-//   - resolveDependencyReference()      : Resolve dependency references like {{step-1.resourceId}}
-//   - getDefaultValue()                 : Provide default values for required parameters
-//   - addMissingRequiredParameters()    : Add intelligent defaults for missing required parameters
-//   - validateNativeMCPArguments()      : Validate arguments against tool schema
+//   - ExecuteConfirmedPlanWithDryRun() : Execute confirmed plans with dry-run support
+//   - simulatePlanExecution()          : Simulate plan execution for dry-run mode
+//   - executeExecutionStep()           : Execute individual plan steps
+//   - executeCreateAction()            : Execute create actions via MCP tools
+//   - executeAPIValueRetrieval()       : Execute AWS API retrieval operations
+//   - executeNativeMCPTool()          : Execute native MCP tool calls
+//   - executeUpdateAction()            : Execute update actions on existing resources
+//   - executeDeleteAction()            : Execute delete actions on resources
+//   - executeValidateAction()          : Execute validation actions
+//   - updateStateFromMCPResult()       : Update state from MCP operation results
+//   - extractResourceTypeFromStep()    : Extract resource type from execution step
+//   - getAvailableToolsContext()       : Get available tools context for AI prompts
+//   - persistCurrentState()            : Persist current state to storage
+//   - extractResourceIDFromResponse()  : Extract AWS resource IDs from responses
+//   - waitForResourceReady()           : Wait for AWS resources to be ready before continuing
+//   - checkResourceState()             : Check if a specific AWS resource is ready
+//   - checkNATGatewayState()           : Check if NAT gateway is available
+//   - checkRDSInstanceState()          : Check if RDS instance is available
+//   - storeResourceMapping()           : Store step-to-resource ID mappings
+//
+// This file manages the execution of infrastructure plans, including dry-run
+// capabilities, progress tracking, and state management integration.
 //
 // Usage Example:
 //   1. execution := agent.ExecuteConfirmedPlanWithDryRun(ctx, decision, progressChan, false)
 //   2. // Monitor execution through progressChan updates
-
-// ========== State Aware Agent Functions ==========
 
 // ExecuteConfirmedPlanWithDryRun executes a confirmed execution plan with a specific dry run setting
 func (a *StateAwareAgent) ExecuteConfirmedPlanWithDryRun(ctx context.Context, decision *types.AgentDecision, progressChan chan<- *types.ExecutionUpdate, dryRun bool) (*types.PlanExecution, error) {
@@ -128,11 +129,13 @@ func (a *StateAwareAgent) ExecuteConfirmedPlanWithDryRun(ctx context.Context, de
 
 		// 🔥 CRITICAL: Save state after each successful step
 		// This ensures that if later steps fail, we don't lose track of successfully created resources
+		a.Logger.WithField("step_id", planStep.ID).Info("Attempting to persist state after successful step")
+
 		if err := a.persistCurrentState(); err != nil {
-			a.Logger.WithError(err).Warn("Failed to persist state after successful step - continuing execution")
-			// Don't fail the execution for state persistence issues, just log warning
+			a.Logger.WithError(err).WithField("step_id", planStep.ID).Error("CRITICAL: Failed to persist state after successful step - this may cause state inconsistency")
+			// Don't fail the execution for state persistence issues, but make it very visible
 		} else {
-			a.Logger.WithField("step_id", planStep.ID).Debug("Successfully persisted state after step completion")
+			a.Logger.WithField("step_id", planStep.ID).Info("Successfully persisted state after step completion")
 		}
 
 		// Send step completed update
@@ -473,6 +476,17 @@ func (a *StateAwareAgent) executeAPIValueRetrieval(ctx context.Context, planStep
 		result, err = a.retrieveLoadBalancerArn(ctx, planStep)
 	case "target_group_arn":
 		result, err = a.retrieveTargetGroupArn(ctx, planStep)
+	// Get values from existing state file
+	case "vpc_id":
+		result, err = a.retrieveExistingResourceFromState(planStep, "vpc")
+	case "subnet_id":
+		result, err = a.retrieveExistingResourceFromState(planStep, "subnet")
+	case "security_group_id":
+		result, err = a.retrieveExistingResourceFromState(planStep, "security_group")
+	case "instance_id":
+		result, err = a.retrieveExistingResourceFromState(planStep, "ec2_instance")
+	case "existing_resource":
+		result, err = a.retrieveExistingResourceFromState(planStep, "")
 	default:
 		err = fmt.Errorf("unsupported value_type: %s", valueType)
 	}
@@ -486,6 +500,22 @@ func (a *StateAwareAgent) executeAPIValueRetrieval(ctx context.Context, planStep
 	if resourceValue, exists := result["value"]; exists {
 		if resourceValueStr, ok := resourceValue.(string); ok {
 			a.storeResourceMapping(planStep.ID, resourceValueStr)
+		}
+	}
+
+	// For availability zones, also store indexed values for array access
+	if valueType == "available_azs" {
+		if allZones, exists := result["all_zones"]; exists {
+			if zoneList, ok := allZones.([]string); ok {
+				for i, zone := range zoneList {
+					a.storeResourceMapping(fmt.Sprintf("%s.%d", planStep.ID, i), zone)
+				}
+				a.Logger.WithFields(map[string]interface{}{
+					"step_id":    planStep.ID,
+					"zone_count": len(zoneList),
+					"first_zone": zoneList[0],
+				}).Debug("Stored indexed availability zone mappings")
+			}
 		}
 	}
 
@@ -509,468 +539,6 @@ func (a *StateAwareAgent) executeAPIValueRetrieval(ctx context.Context, planStep
 	}).Info("API value retrieval completed successfully")
 
 	return result, nil
-}
-
-// retrieveLatestAMI gets the latest Amazon Linux 2 AMI for the current region
-func (a *StateAwareAgent) retrieveLatestAMI(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
-	// Get the OS type from parameters (default to Amazon Linux 2)
-	osType := "amazon-linux-2"
-	if osParam, exists := planStep.Parameters["os_type"]; exists {
-		osType = fmt.Sprintf("%v", osParam)
-	}
-
-	// Get the architecture (default to x86_64)
-	architecture := "x86_64"
-	if archParam, exists := planStep.Parameters["architecture"]; exists {
-		architecture = fmt.Sprintf("%v", archParam)
-	}
-
-	a.Logger.WithFields(map[string]interface{}{
-		"os_type":      osType,
-		"architecture": architecture,
-		"step_id":      planStep.ID,
-	}).Info("Starting API retrieval for latest AMI")
-
-	var amiID string
-	var err error
-
-	switch osType {
-	case "amazon-linux-2":
-		a.Logger.Info("Calling AWS API via awsClient.GetLatestAmazonLinux2AMI")
-		amiID, err = a.awsClient.GetLatestAmazonLinux2AMI(ctx)
-		if err != nil {
-			a.Logger.WithError(err).Error("AWS API call failed for GetLatestAmazonLinux2AMI")
-		} else {
-			a.Logger.WithField("ami_id", amiID).Info("AWS API call successful, received AMI ID")
-		}
-	case "ubuntu":
-		a.Logger.Info("Calling AWS API via awsClient.GetLatestUbuntuAMI")
-		amiID, err = a.awsClient.GetLatestUbuntuAMI(ctx, architecture)
-		if err != nil {
-			a.Logger.WithError(err).Error("AWS API call failed for GetLatestUbuntuAMI")
-		} else {
-			a.Logger.WithField("ami_id", amiID).Info("AWS API call successful, received Ubuntu AMI ID")
-		}
-	case "windows":
-		a.Logger.Info("Calling AWS API via awsClient.GetLatestWindowsAMI")
-		amiID, err = a.awsClient.GetLatestWindowsAMI(ctx, architecture)
-		if err != nil {
-			a.Logger.WithError(err).Error("AWS API call failed for GetLatestWindowsAMI")
-		} else {
-			a.Logger.WithField("ami_id", amiID).Info("AWS API call successful, received Windows AMI ID")
-		}
-	default:
-		return nil, fmt.Errorf("unsupported OS type: %s. Supported types: amazon-linux-2, ubuntu, windows", osType)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to get latest %s AMI: %w", osType, err)
-	}
-
-	a.Logger.WithFields(map[string]interface{}{
-		"ami_id":       amiID,
-		"os_type":      osType,
-		"architecture": architecture,
-		"source":       "aws_api_call",
-	}).Info("API retrieval completed successfully")
-
-	return map[string]interface{}{
-		"value":        amiID,
-		"type":         "ami",
-		"os_type":      osType,
-		"architecture": architecture,
-		"retrieved_at": time.Now().Format(time.RFC3339),
-		"description":  fmt.Sprintf("Latest %s AMI for %s architecture", osType, architecture),
-		"source":       "aws_api_call", // Confirm this came from API
-	}, nil
-}
-
-// retrieveDefaultVPC gets the default VPC for the current region
-func (a *StateAwareAgent) retrieveDefaultVPC(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
-	a.Logger.WithField("step_id", planStep.ID).Info("Starting API retrieval for default VPC")
-
-	a.Logger.Info("Calling AWS API via awsClient.GetDefaultVPC")
-	vpcID, err := a.awsClient.GetDefaultVPC(ctx)
-	if err != nil {
-		a.Logger.WithError(err).Error("AWS API call failed for GetDefaultVPC")
-		return nil, fmt.Errorf("failed to get default VPC: %w", err)
-	}
-
-	a.Logger.WithField("vpc_id", vpcID).Info("AWS API call successful, received VPC ID")
-
-	return map[string]interface{}{
-		"value":        vpcID,
-		"type":         "vpc",
-		"is_default":   true,
-		"retrieved_at": time.Now().Format(time.RFC3339),
-		"description":  "Default VPC for the current region",
-		"source":       "aws_api_call",
-	}, nil
-}
-
-// retrieveDefaultSubnet gets the default subnet for the current region
-func (a *StateAwareAgent) retrieveDefaultSubnet(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
-	a.Logger.WithField("step_id", planStep.ID).Info("Starting API retrieval for default subnet")
-
-	a.Logger.Info("Calling AWS API via awsClient.GetDefaultSubnet")
-	subnetInfo, err := a.awsClient.GetDefaultSubnet(ctx)
-	if err != nil {
-		a.Logger.WithError(err).Error("AWS API call failed for GetDefaultSubnet")
-		return nil, fmt.Errorf("failed to get default subnet: %w", err)
-	}
-
-	a.Logger.WithFields(map[string]interface{}{
-		"subnet_id": subnetInfo.SubnetID,
-		"vpc_id":    subnetInfo.VpcID,
-	}).Info("AWS API call successful, received subnet and VPC IDs")
-
-	return map[string]interface{}{
-		"value":        subnetInfo.SubnetID, // For {{step-id.resourceId}} resolution (subnet ID)
-		"subnet_id":    subnetInfo.SubnetID, // Explicit subnet ID
-		"vpc_id":       subnetInfo.VpcID,    // Explicit VPC ID for security groups
-		"type":         "subnet",
-		"is_default":   true,
-		"retrieved_at": time.Now().Format(time.RFC3339),
-		"description":  fmt.Sprintf("Default subnet (%s) in VPC (%s)", subnetInfo.SubnetID, subnetInfo.VpcID),
-		"source":       "aws_api_call",
-	}, nil
-}
-
-// retrieveAvailabilityZones gets available AZs for the current region
-func (a *StateAwareAgent) retrieveAvailabilityZones(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
-	a.Logger.WithField("step_id", planStep.ID).Info("Starting API retrieval for availability zones")
-
-	// Check if user wants a specific number of AZs
-	maxAZs := 0
-	if maxParam, exists := planStep.Parameters["max_azs"]; exists {
-		if maxFloat, ok := maxParam.(float64); ok {
-			maxAZs = int(maxFloat)
-		}
-	}
-
-	a.Logger.Info("Calling AWS API via awsClient.GetAvailabilityZones")
-	azList, err := a.awsClient.GetAvailabilityZones(ctx)
-	if err != nil {
-		a.Logger.WithError(err).Error("AWS API call failed for GetAvailabilityZones")
-		return nil, fmt.Errorf("failed to get availability zones: %w", err)
-	}
-
-	// Limit AZs if requested
-	if maxAZs > 0 && len(azList) > maxAZs {
-		azList = azList[:maxAZs]
-		a.Logger.WithField("limited_to", maxAZs).Info("Limited AZ list to requested maximum")
-	}
-
-	a.Logger.WithFields(map[string]interface{}{
-		"availability_zones": azList,
-		"count":              len(azList),
-	}).Info("AWS API call successful, received availability zones")
-
-	// Store the first AZ as the resource value for dependency resolution
-	primaryAZ := ""
-	if len(azList) > 0 {
-		primaryAZ = azList[0]
-	}
-
-	return map[string]interface{}{
-		"value":        primaryAZ, // For {{step-id.resourceId}} resolution
-		"all_zones":    azList,    // Full list available in result
-		"count":        len(azList),
-		"type":         "availability_zones",
-		"retrieved_at": time.Now().Format(time.RFC3339),
-		"description":  fmt.Sprintf("Available AZs in current region (primary: %s)", primaryAZ),
-		"source":       "aws_api_call",
-	}, nil
-}
-
-// retrieveExistingVPC gets an existing VPC ID (first available VPC or default VPC)
-func (a *StateAwareAgent) retrieveExistingVPC(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
-	a.Logger.WithField("step_id", planStep.ID).Info("Starting API retrieval for existing VPC")
-
-	// First try to get the default VPC
-	a.Logger.Info("Attempting to find default VPC first")
-	vpcID, err := a.awsClient.GetDefaultVPC(ctx)
-	if err == nil && vpcID != "" {
-		a.Logger.WithField("vpc_id", vpcID).Info("Found default VPC")
-		return map[string]interface{}{
-			"value":        vpcID,
-			"type":         "vpc",
-			"is_default":   true,
-			"retrieved_at": time.Now().Format(time.RFC3339),
-			"description":  "Default VPC for the current region",
-			"source":       "aws_api_call",
-		}, nil
-	}
-
-	// If no default VPC, get the first available VPC
-	a.Logger.Info("No default VPC found, looking for any available VPC")
-	vpcs, err := a.awsClient.DescribeVPCs(ctx)
-	if err != nil {
-		a.Logger.WithError(err).Error("AWS API call failed for DescribeVPCs")
-		return nil, fmt.Errorf("failed to describe VPCs: %w", err)
-	}
-
-	if len(vpcs) == 0 {
-		return nil, fmt.Errorf("no VPCs found in the region")
-	}
-
-	// Use the first available VPC
-	firstVPC := vpcs[0]
-	a.Logger.WithField("vpc_id", firstVPC.ID).Info("Using first available VPC")
-
-	return map[string]interface{}{
-		"value":        firstVPC.ID,
-		"type":         "vpc",
-		"is_default":   false,
-		"retrieved_at": time.Now().Format(time.RFC3339),
-		"description":  "First available VPC in the current region",
-		"source":       "aws_api_call",
-	}, nil
-}
-
-// retrieveSubnetsInVPC gets all subnets in a specified VPC
-func (a *StateAwareAgent) retrieveSubnetsInVPC(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
-	a.Logger.WithField("step_id", planStep.ID).Info("Starting API retrieval for subnets in VPC")
-
-	// Get VPC ID from parameters
-	vpcID, exists := planStep.Parameters["vpc_id"]
-	if !exists {
-		// Try to get from resource mapping using a previous step
-		if vpcIDParam, exists := planStep.Parameters["vpc_id_step"]; exists {
-			if stepID, ok := vpcIDParam.(string); ok {
-				a.mappingsMutex.RLock()
-				mappedVPC, mappingExists := a.resourceMappings[stepID]
-				a.mappingsMutex.RUnlock()
-				if mappingExists && mappedVPC != "" {
-					vpcID = mappedVPC
-					a.Logger.WithFields(map[string]interface{}{
-						"vpc_id":      vpcID,
-						"source_step": stepID,
-					}).Info("Retrieved VPC ID from previous step mapping")
-				}
-			}
-		}
-	}
-
-	if vpcID == nil {
-		return nil, fmt.Errorf("vpc_id parameter is required for subnets_in_vpc retrieval")
-	}
-
-	vpcIDStr, ok := vpcID.(string)
-	if !ok {
-		return nil, fmt.Errorf("vpc_id must be a string")
-	}
-
-	a.Logger.WithField("vpc_id", vpcIDStr).Info("Calling AWS API via awsClient.GetSubnetsInVPC")
-	subnetIDs, err := a.awsClient.GetSubnetsInVPC(ctx, vpcIDStr)
-	if err != nil {
-		a.Logger.WithError(err).Error("AWS API call failed for GetSubnetsInVPC")
-		return nil, fmt.Errorf("failed to get subnets in VPC %s: %w", vpcIDStr, err)
-	}
-
-	a.Logger.WithFields(map[string]interface{}{
-		"vpc_id":     vpcIDStr,
-		"subnet_ids": subnetIDs,
-		"count":      len(subnetIDs),
-	}).Info("AWS API call successful, received subnet IDs")
-
-	// Use the first subnet as the primary value for dependency resolution
-	primarySubnet := ""
-	if len(subnetIDs) > 0 {
-		primarySubnet = subnetIDs[0]
-	}
-
-	return map[string]interface{}{
-		"value":        primarySubnet, // For {{step-id.resourceId}} resolution (first subnet)
-		"subnet_ids":   subnetIDs,     // Full list of subnet IDs
-		"vpc_id":       vpcIDStr,      // VPC ID for reference
-		"count":        len(subnetIDs),
-		"type":         "subnets",
-		"retrieved_at": time.Now().Format(time.RFC3339),
-		"description":  fmt.Sprintf("Found %d subnets in VPC %s (primary: %s)", len(subnetIDs), vpcIDStr, primarySubnet),
-		"source":       "aws_api_call",
-	}, nil
-}
-
-// retrieveSelectSubnetsForALB retrieves subnets suitable for ALB creation
-func (a *StateAwareAgent) retrieveSelectSubnetsForALB(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
-	a.Logger.WithField("step_id", planStep.ID).Info("Starting subnet selection for ALB")
-
-	// Get scheme from parameters (default to "internet-facing")
-	scheme := "internet-facing"
-	if schemeParam, exists := planStep.Parameters["scheme"]; exists {
-		if schemeStr, ok := schemeParam.(string); ok {
-			scheme = schemeStr
-		}
-	}
-
-	// Get VPC ID from parameters if provided
-	var vpcID string
-	if vpcIDParam, exists := planStep.Parameters["vpc_id"]; exists {
-		if vpcIDStr, ok := vpcIDParam.(string); ok {
-			// Check if it's a step reference that needs resolution
-			if strings.Contains(vpcIDStr, "{{") && strings.Contains(vpcIDStr, "}}") {
-				resolvedVPCID, err := a.resolveDependencyReference(vpcIDStr)
-				if err != nil {
-					a.Logger.WithError(err).WithField("vpc_id_reference", vpcIDStr).Error("Failed to resolve VPC ID reference")
-					return nil, fmt.Errorf("failed to resolve VPC ID reference %s: %w", vpcIDStr, err)
-				}
-				vpcID = resolvedVPCID
-				a.Logger.WithFields(map[string]interface{}{
-					"vpc_id_reference": vpcIDStr,
-					"resolved_vpc_id":  vpcID,
-				}).Info("Resolved VPC ID from step reference")
-			} else {
-				vpcID = vpcIDStr
-			}
-		}
-	}
-
-	// Create the subnet selection tool and call it directly
-	subnetSelector := tools.NewSelectSubnetsForALBTool(a.awsClient, a.Logger)
-	selectionArgs := map[string]interface{}{
-		"scheme": scheme,
-	}
-
-	if vpcID != "" {
-		selectionArgs["vpcId"] = vpcID
-	}
-
-	a.Logger.WithFields(map[string]interface{}{
-		"scheme": scheme,
-		"vpc_id": vpcID,
-	}).Info("Calling subnet selection tool for ALB")
-
-	selectionResult, err := subnetSelector.Execute(ctx, selectionArgs)
-	if err != nil {
-		a.Logger.WithError(err).Error("Failed to execute subnet selection tool")
-		return nil, fmt.Errorf("failed to select subnets for ALB: %w", err)
-	}
-
-	if selectionResult.IsError {
-		a.Logger.Error("Subnet selection tool returned error", "error", selectionResult.Content[0])
-		return nil, fmt.Errorf("subnet selection failed: %v", selectionResult.Content[0])
-	}
-
-	// Parse the tool result
-	if len(selectionResult.Content) > 0 {
-		if textContent, ok := selectionResult.Content[0].(*mcp.TextContent); ok {
-			var resultData map[string]interface{}
-			if err := json.Unmarshal([]byte(textContent.Text), &resultData); err != nil {
-				a.Logger.WithError(err).Error("Failed to parse subnet selection response")
-				return nil, fmt.Errorf("failed to parse subnet selection response: %w", err)
-			}
-
-			a.Logger.WithFields(map[string]interface{}{
-				"result_data": resultData,
-			}).Info("Successfully parsed subnet selection result")
-
-			// Extract subnet IDs from the result
-			var subnetIDs []string
-			if subnetIDsData, exists := resultData["subnetIds"]; exists {
-				if subnetIDsSlice, ok := subnetIDsData.([]interface{}); ok {
-					subnetIDs = make([]string, len(subnetIDsSlice))
-					for i, subnetID := range subnetIDsSlice {
-						if subnetIDStr, ok := subnetID.(string); ok {
-							subnetIDs[i] = subnetIDStr
-						}
-					}
-				}
-			}
-
-			return map[string]interface{}{
-				"value":        subnetIDs,      // For {{step-id.resourceId}} resolution
-				"subnet_ids":   subnetIDs,      // Full list of subnet IDs
-				"scheme":       scheme,         // ALB scheme for reference
-				"count":        len(subnetIDs), // Number of selected subnets
-				"type":         "alb_subnets",  // Resource type
-				"retrieved_at": time.Now().Format(time.RFC3339),
-				"description":  fmt.Sprintf("Selected %d subnets for %s ALB", len(subnetIDs), scheme),
-				"source":       "subnet_selection_tool",
-			}, nil
-		}
-	}
-
-	return nil, fmt.Errorf("invalid or empty response from subnet selection tool")
-}
-
-// retrieveLoadBalancerArn retrieves load balancer ARN from a previous step
-func (a *StateAwareAgent) retrieveLoadBalancerArn(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
-	a.Logger.WithField("step_id", planStep.ID).Info("Starting load balancer ARN retrieval")
-
-	// Get the step reference from parameters
-	stepRef, exists := planStep.Parameters["step_ref"]
-	if !exists {
-		return nil, fmt.Errorf("step_ref parameter is required for load_balancer_arn retrieval")
-	}
-
-	stepRefStr, ok := stepRef.(string)
-	if !ok {
-		return nil, fmt.Errorf("step_ref must be a string")
-	}
-
-	a.Logger.WithField("step_ref", stepRefStr).Info("Resolving load balancer ARN from step reference")
-
-	// Use dependency resolution to get the ARN
-	loadBalancerArn, err := a.resolveDependencyReference(stepRefStr)
-	if err != nil {
-		a.Logger.WithError(err).Error("Failed to resolve load balancer ARN reference")
-		return nil, fmt.Errorf("failed to resolve load balancer ARN reference %s: %w", stepRefStr, err)
-	}
-
-	a.Logger.WithFields(map[string]interface{}{
-		"step_ref":          stepRefStr,
-		"load_balancer_arn": loadBalancerArn,
-	}).Info("Successfully resolved load balancer ARN")
-
-	return map[string]interface{}{
-		"value":           loadBalancerArn,     // For {{step-id.resourceId}} resolution
-		"loadBalancerArn": loadBalancerArn,     // Explicit ARN field
-		"arn":             loadBalancerArn,     // Alternative key for ARN
-		"type":            "load_balancer_arn", // Resource type
-		"retrieved_at":    time.Now().Format(time.RFC3339),
-		"description":     fmt.Sprintf("Load balancer ARN resolved from %s", stepRefStr),
-		"source":          "step_reference",
-	}, nil
-}
-
-// retrieveTargetGroupArn retrieves the target group ARN from a previous step
-func (a *StateAwareAgent) retrieveTargetGroupArn(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
-	a.Logger.WithField("step_id", planStep.ID).Info("Retrieving target group ARN")
-
-	// Extract the step_ref parameter
-	stepRef, exists := planStep.Parameters["step_ref"]
-	if !exists {
-		return nil, fmt.Errorf("step_ref parameter is required for target_group_arn retrieval")
-	}
-
-	stepRefStr, ok := stepRef.(string)
-	if !ok {
-		return nil, fmt.Errorf("step_ref must be a string")
-	}
-
-	a.Logger.WithField("step_ref", stepRefStr).Info("Resolving target group ARN from step reference")
-
-	// Use the existing dependency resolution mechanism
-	targetGroupArn, err := a.resolveDependencyReference(stepRefStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve target group ARN from step reference %s: %w", stepRefStr, err)
-	}
-
-	a.Logger.WithFields(map[string]interface{}{
-		"target_group_arn": targetGroupArn,
-		"step_ref":         stepRefStr,
-	}).Info("Successfully resolved target group ARN")
-
-	return map[string]interface{}{
-		"value":          targetGroupArn,     // For {{step-id.resourceId}} resolution
-		"targetGroupArn": targetGroupArn,     // Explicit ARN field
-		"arn":            targetGroupArn,     // Alternative key for ARN
-		"type":           "target_group_arn", // Resource type
-		"retrieved_at":   time.Now().Format(time.RFC3339),
-		"description":    fmt.Sprintf("Target group ARN resolved from %s", stepRefStr),
-		"source":         "step_reference",
-	}, nil
 }
 
 // executeNativeMCPTool executes MCP tools directly with AI-provided parameters
@@ -1014,16 +582,58 @@ func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep
 		// Resolve dependency references like {{step-1.resourceId}}
 		if strValue, ok := value.(string); ok {
 			if strings.Contains(strValue, "{{") && strings.Contains(strValue, "}}") {
+				a.Logger.WithFields(map[string]interface{}{
+					"key":            key,
+					"original_value": strValue,
+					"step_id":        planStep.ID,
+					"tool_name":      toolName,
+				}).Debug("Attempting to resolve dependency reference")
+
 				resolvedValue, err := a.resolveDependencyReference(strValue)
 				if err != nil {
-					a.Logger.WithError(err).WithField("reference", strValue).Warn("Failed to resolve dependency reference")
+					a.Logger.WithError(err).WithFields(map[string]interface{}{
+						"reference": strValue,
+						"key":       key,
+					}).Error("Failed to resolve dependency reference")
 					arguments[key] = value // Use original value if resolution fails
 				} else {
+					a.Logger.WithFields(map[string]interface{}{
+						"key":            key,
+						"original_value": strValue,
+						"resolved_value": resolvedValue,
+					}).Info("Successfully resolved dependency reference")
 					arguments[key] = resolvedValue
 				}
 			} else {
 				arguments[key] = value
 			}
+		} else if arrayValue, ok := value.([]interface{}); ok {
+			// Handle arrays that might contain dependency references
+			resolvedArray := make([]interface{}, len(arrayValue))
+			for i, item := range arrayValue {
+				if strItem, ok := item.(string); ok && strings.Contains(strItem, "{{") && strings.Contains(strItem, "}}") {
+					resolvedValue, err := a.resolveDependencyReference(strItem)
+					if err != nil {
+						a.Logger.WithError(err).WithFields(map[string]interface{}{
+							"reference": strItem,
+							"index":     i,
+							"key":       key,
+						}).Warn("Failed to resolve dependency reference in array")
+						resolvedArray[i] = item // Use original value if resolution fails
+					} else {
+						resolvedArray[i] = resolvedValue
+						a.Logger.WithFields(map[string]interface{}{
+							"reference":      strItem,
+							"resolved_value": resolvedValue,
+							"index":          i,
+							"key":            key,
+						}).Debug("Successfully resolved dependency reference in array")
+					}
+				} else {
+					resolvedArray[i] = item
+				}
+			}
+			arguments[key] = resolvedArray
 		} else {
 			arguments[key] = value
 		}
@@ -1062,9 +672,27 @@ func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep
 	// Store the mapping of plan step ID to actual resource ID
 	a.storeResourceMapping(planStep.ID, resourceID)
 
+	// Wait for resource to be ready if it has dependencies
+	if err := a.waitForResourceReady(toolName, resourceID); err != nil {
+		a.Logger.WithError(err).WithFields(map[string]interface{}{
+			"step_id":     planStep.ID,
+			"tool_name":   toolName,
+			"resource_id": resourceID,
+		}).Error("Failed to wait for resource to be ready")
+		return nil, fmt.Errorf("resource %s not ready: %w", resourceID, err)
+	}
+
 	// Update state manager with the new resource
 	if err := a.updateStateFromMCPResult(planStep, result); err != nil {
-		a.Logger.WithError(err).Warn("Failed to update state after resource creation")
+		a.Logger.WithError(err).WithFields(map[string]interface{}{
+			"step_id":     planStep.ID,
+			"tool_name":   toolName,
+			"resource_id": resourceID,
+			"result":      result,
+		}).Error("CRITICAL: Failed to update state after resource creation - this may cause state inconsistency")
+
+		// Still continue execution but ensure this is visible
+		return nil, fmt.Errorf("failed to update state after creating resource %s: %w", resourceID, err)
 	}
 
 	// Create result map for return
@@ -1076,85 +704,6 @@ func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep
 	}
 
 	return resultMap, nil
-}
-
-// addMissingRequiredParameters adds intelligent defaults for missing required parameters
-func (a *StateAwareAgent) addMissingRequiredParameters(toolName string, arguments map[string]interface{}, toolInfo MCPToolInfo) error {
-	if toolInfo.InputSchema == nil {
-		return nil // No schema to validate against
-	}
-
-	properties, ok := toolInfo.InputSchema["properties"].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	// Get required fields
-	requiredFields := make(map[string]bool)
-	if required, ok := toolInfo.InputSchema["required"].([]interface{}); ok {
-		for _, field := range required {
-			if fieldStr, ok := field.(string); ok {
-				requiredFields[fieldStr] = true
-			}
-		}
-	}
-
-	// Add defaults for missing required fields
-	for paramName := range properties {
-		if requiredFields[paramName] {
-			if _, exists := arguments[paramName]; !exists {
-				// Parameter is required but missing, add default
-				if defaultValue := a.getDefaultValue(toolName, paramName, arguments); defaultValue != nil {
-					arguments[paramName] = defaultValue
-					a.Logger.WithFields(map[string]interface{}{
-						"tool_name":  toolName,
-						"param_name": paramName,
-						"default":    defaultValue,
-					}).Debug("Added default value for missing required parameter")
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// validateNativeMCPArguments validates arguments against the tool's schema
-func (a *StateAwareAgent) validateNativeMCPArguments(toolName string, arguments map[string]interface{}, toolInfo MCPToolInfo) error {
-	if toolInfo.InputSchema == nil {
-		return nil // No schema to validate against
-	}
-
-	properties, ok := toolInfo.InputSchema["properties"].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	// Get required fields
-	requiredFields := make(map[string]bool)
-	if required, ok := toolInfo.InputSchema["required"].([]interface{}); ok {
-		for _, field := range required {
-			if fieldStr, ok := field.(string); ok {
-				requiredFields[fieldStr] = true
-			}
-		}
-	}
-
-	// Validate required fields are present and non-empty
-	for paramName := range properties {
-		if requiredFields[paramName] {
-			val, exists := arguments[paramName]
-			if !exists || val == nil {
-				return fmt.Errorf("required parameter %s is missing for tool %s", paramName, toolName)
-			}
-			// Check for empty strings
-			if strVal, ok := val.(string); ok && strVal == "" {
-				return fmt.Errorf("required parameter %s is empty for tool %s", paramName, toolName)
-			}
-		}
-	}
-
-	return nil
 }
 
 // executeUpdateAction handles resource updates using real MCP tools
@@ -1233,17 +782,33 @@ func (a *StateAwareAgent) executeValidateAction(planStep *types.ExecutionPlanSte
 
 // updateStateFromMCPResult updates the state manager with results from MCP operations
 func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlanStep, result map[string]interface{}) error {
+	a.Logger.WithFields(map[string]interface{}{
+		"step_id":      planStep.ID,
+		"step_name":    planStep.Name,
+		"resource_id":  planStep.ResourceID,
+		"mcp_response": result,
+	}).Info("Starting state update from MCP result")
+
 	// Create a simple properties map from MCP result
 	resultData := map[string]interface{}{
 		"mcp_response": result,
 		"status":       "created_via_mcp",
 	}
 
+	// Extract resource type
+	resourceType := extractResourceTypeFromStep(planStep)
+
+	a.Logger.WithFields(map[string]interface{}{
+		"step_id":       planStep.ID,
+		"resource_type": resourceType,
+		"properties":    resultData,
+	}).Debug("Extracted resource type and prepared properties")
+
 	// Create a resource state entry
 	resourceState := &types.ResourceState{
 		ID:           planStep.ResourceID,
 		Name:         planStep.Name,
-		Type:         extractResourceTypeFromStep(planStep),
+		Type:         resourceType,
 		Status:       "created",
 		Properties:   resultData,
 		Dependencies: planStep.DependsOn,
@@ -1251,8 +816,58 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 		UpdatedAt:    time.Now(),
 	}
 
+	a.Logger.WithFields(map[string]interface{}{
+		"step_id":           planStep.ID,
+		"resource_state_id": resourceState.ID,
+		"resource_type":     resourceState.Type,
+		"dependencies":      resourceState.Dependencies,
+	}).Info("Calling AddResourceToState")
+
 	// Add to state manager via MCP server
-	return a.addResourceToState(resourceState)
+	if err := a.AddResourceToState(resourceState); err != nil {
+		a.Logger.WithError(err).WithFields(map[string]interface{}{
+			"step_id":           planStep.ID,
+			"resource_state_id": resourceState.ID,
+			"resource_type":     resourceState.Type,
+		}).Error("Failed to add resource to state via MCP server")
+		return fmt.Errorf("failed to add resource %s to state: %w", resourceState.ID, err)
+	}
+
+	// Also store the resource with the step ID as the key for dependency resolution
+	// This ensures that {{step-create-xxx.resourceId}} references can be resolved
+	if planStep.ID != planStep.ResourceID {
+		stepResourceState := &types.ResourceState{
+			ID:           planStep.ID, // Use step ID as the key
+			Name:         planStep.Name + " (Step Reference)",
+			Type:         resourceType,
+			Status:       "created",
+			Properties:   resultData,
+			Dependencies: planStep.DependsOn,
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		}
+
+		if err := a.AddResourceToState(stepResourceState); err != nil {
+			a.Logger.WithError(err).WithFields(map[string]interface{}{
+				"step_id":          planStep.ID,
+				"step_resource_id": stepResourceState.ID,
+			}).Warn("Failed to add step-based resource to state - dependency resolution may be affected")
+			// Don't fail the whole operation for this, just log the warning
+		} else {
+			a.Logger.WithFields(map[string]interface{}{
+				"step_id":          planStep.ID,
+				"step_resource_id": stepResourceState.ID,
+			}).Info("Successfully added step-based resource reference to state for dependency resolution")
+		}
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"step_id":           planStep.ID,
+		"resource_state_id": resourceState.ID,
+		"resource_type":     resourceState.Type,
+	}).Info("Successfully added resource to state")
+
+	return nil
 }
 
 // Helper function to extract resource type from plan step
@@ -1314,307 +929,8 @@ func extractResourceTypeFromStep(planStep *types.ExecutionPlanStep) string {
 	return "unknown"
 }
 
-// Production-grade helper methods for resource management
-
-// resolveDependencyReference resolves references like {{step-1.resourceId}} to actual resource IDs
-func (a *StateAwareAgent) resolveDependencyReference(reference string) (string, error) {
-	// Extract step ID from reference like {{step-1.resourceId}}
-	if !strings.HasPrefix(reference, "{{") || !strings.HasSuffix(reference, "}}") {
-		return reference, nil // Not a reference
-	}
-
-	refContent := strings.TrimSuffix(strings.TrimPrefix(reference, "{{"), "}}")
-	parts := strings.Split(refContent, ".")
-
-	// Support multiple reference formats: {{step-1.resourceId}}, {{step-1}}, {{step-1.targetGroupArn}}, etc.
-	var stepID string
-	var requestedField string
-	if len(parts) == 2 {
-		stepID = parts[0]
-		requestedField = parts[1]
-	} else if len(parts) == 1 {
-		stepID = parts[0]
-		requestedField = "resourceId" // Default to resourceId for backward compatibility
-	} else {
-		return "", fmt.Errorf("invalid reference format: %s (expected {{step-id.field}} or {{step-id}})", reference)
-	}
-
-	a.mappingsMutex.RLock()
-	resourceID, exists := a.resourceMappings[stepID]
-	a.mappingsMutex.RUnlock()
-
-	if !exists {
-		// Fallback: try to get state via MCP and extract the resource ID
-		stateJSON, err := a.ExportInfrastructureState(context.Background(), false) // Only managed state
-		if err == nil {
-			// Parse the state and look for the step ID
-			var stateData map[string]interface{}
-			if json.Unmarshal([]byte(stateJSON), &stateData) == nil {
-				if managedState, ok := stateData["managed_state"].(map[string]interface{}); ok {
-					if resources, ok := managedState["resources"].(map[string]interface{}); ok {
-						if resource, ok := resources[stepID].(map[string]interface{}); ok {
-							// Extract AWS resource ID from the resource properties
-							if properties, ok := resource["properties"].(map[string]interface{}); ok {
-								if mcpResponse, ok := properties["mcp_response"].(map[string]interface{}); ok {
-									// First, try to find the specifically requested field
-									if requestedField != "resourceId" {
-										if id, ok := mcpResponse[requestedField].(string); ok && id != "" {
-											// Cache it for future use
-											a.mappingsMutex.Lock()
-											a.resourceMappings[stepID] = id
-											a.mappingsMutex.Unlock()
-
-											a.Logger.WithFields(map[string]interface{}{
-												"reference":       reference,
-												"step_id":         stepID,
-												"resource_id":     id,
-												"source":          "state_fallback",
-												"requested_field": requestedField,
-											}).Info("Resolved specific field dependency from state")
-
-											return id, nil
-										}
-									}
-
-									// Fall back to trying common AWS resource ID fields with field-specific prioritization
-									var fieldsToTry []string
-									switch requestedField {
-									case "targetGroupArn", "arn":
-										// For target group ARN requests, prioritize ARN fields
-										fieldsToTry = []string{"targetGroupArn", "arn", "targetGroupId"}
-									case "loadBalancerArn":
-										// For load balancer ARN requests, prioritize ARN fields
-										fieldsToTry = []string{"loadBalancerArn", "arn", "loadBalancerId"}
-									case "securityGroupId":
-										fieldsToTry = []string{"securityGroupId", "groupId"}
-									case "instanceId":
-										fieldsToTry = []string{"instanceId", "instance_id"}
-									case "vpcId":
-										fieldsToTry = []string{"vpcId", "vpc_id"}
-									case "subnetId":
-										fieldsToTry = []string{"subnetId", "subnet_id"}
-									default:
-										// General fallback order for resourceId
-										fieldsToTry = []string{"securityGroupId", "instanceId", "targetGroupArn", "loadBalancerArn", "vpcId", "subnetId", "targetGroupId", "loadBalancerId", "arn"}
-									}
-
-									for _, field := range fieldsToTry {
-										if id, ok := mcpResponse[field].(string); ok && id != "" {
-											// Cache it for future use
-											a.mappingsMutex.Lock()
-											a.resourceMappings[stepID] = id
-											a.mappingsMutex.Unlock()
-
-											a.Logger.WithFields(map[string]interface{}{
-												"reference":   reference,
-												"step_id":     stepID,
-												"resource_id": id,
-												"source":      "state_fallback",
-												"field":       field,
-											}).Debug("Resolved dependency reference from state")
-
-											return id, nil
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		return "", fmt.Errorf("resource ID not found for step: %s", stepID)
-	}
-
-	a.Logger.WithFields(map[string]interface{}{
-		"reference":   reference,
-		"step_id":     stepID,
-		"resource_id": resourceID,
-	}).Debug("Resolved dependency reference")
-
-	return resourceID, nil
-}
-
-// getDefaultAMIForRegion returns the default AMI ID for the current region by dynamically looking up the latest Amazon Linux 2 AMI
-func (a *StateAwareAgent) getDefaultAMIForRegion() string {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Try to get the latest Amazon Linux 2 AMI dynamically
-	amiID, err := a.awsClient.GetLatestAmazonLinux2AMI(ctx)
-	if err != nil {
-		a.Logger.WithError(err).Warn("Failed to get latest Amazon Linux 2 AMI, using fallback")
-
-		// Final fallback
-		return ""
-	}
-
-	a.Logger.WithField("amiId", amiID).Info("Using dynamically discovered Amazon Linux 2 AMI")
-	return amiID
-}
-
-// LEGACY FUNCTIONS REMOVED - Using native MCP integration approach
-
-// getDefaultValue provides default values for required parameters
-func (a *StateAwareAgent) getDefaultValue(toolName, paramName string, params map[string]interface{}) interface{} {
-	switch toolName {
-	case "create-ec2-instance":
-		switch paramName {
-		case "instanceType":
-			// Use params to choose appropriate instance type based on workload
-			if workload, exists := params["workload_type"]; exists {
-				switch workload {
-				case "compute-intensive":
-					return "c5.large"
-				case "memory-intensive":
-					return "r5.large"
-				case "storage-intensive":
-					return "i3.large"
-				default:
-					return "t3.micro"
-				}
-			}
-			return "t3.micro"
-		case "imageId":
-			// First, try to find AMI from a previous API retrieval step
-			if amiStepRef, exists := params["ami_step_ref"]; exists {
-				stepRef := fmt.Sprintf("%v", amiStepRef)
-				if amiID, err := a.resolveDependencyReference(stepRef); err == nil {
-					a.Logger.WithFields(map[string]interface{}{
-						"ami_id":   amiID,
-						"step_ref": stepRef,
-						"source":   "api_retrieval_step",
-					}).Info("Using AMI ID from API retrieval step")
-					return amiID
-				} else {
-					a.Logger.WithError(err).WithField("step_ref", stepRef).Warn("Failed to resolve AMI step reference, falling back to direct API call")
-				}
-			}
-
-			// Fallback to direct API call (legacy approach)
-			amiID := a.getDefaultAMIForRegion()
-			if amiID != "" {
-				a.Logger.WithFields(map[string]interface{}{
-					"ami_id": amiID,
-					"source": "direct_api_call",
-				}).Info("Using AMI ID from direct API call")
-				return amiID
-			}
-
-			// If all else fails, return empty string to trigger an error
-			a.Logger.Warn("No AMI ID available from API retrieval step or direct call")
-			return ""
-		case "keyName":
-			// Try to use key name from params if available
-			if keyName, exists := params["ssh_key"]; exists {
-				return keyName
-			}
-			return nil // Let AWS use account default
-		}
-	case "create-vpc":
-		switch paramName {
-		case "cidrBlock":
-			// Use params to determine appropriate CIDR block
-			if cidr, exists := params["cidr"]; exists {
-				return cidr
-			}
-			if environment, exists := params["environment"]; exists {
-				switch environment {
-				case "production":
-					return "10.0.0.0/16"
-				case "staging":
-					return "10.1.0.0/16"
-				case "development":
-					return "10.2.0.0/16"
-				default:
-					return "10.0.0.0/16"
-				}
-			}
-			return "10.0.0.0/16"
-		case "name":
-			// Generate name based on params
-			if name, exists := params["resource_name"]; exists {
-				return name
-			}
-			if environment, exists := params["environment"]; exists {
-				return fmt.Sprintf("vpc-%s", environment)
-			}
-			return "ai-agent-vpc"
-		}
-	case "create-security-group":
-		switch paramName {
-		case "description":
-			// Generate description based on params
-			if desc, exists := params["description"]; exists {
-				return desc
-			}
-			if purpose, exists := params["purpose"]; exists {
-				return fmt.Sprintf("Security group for %s", purpose)
-			}
-			return "Security group created by AI Agent"
-		}
-	}
-	return nil
-}
-
-// extractResourceIDFromResponse extracts the actual AWS resource ID from MCP response
-func (a *StateAwareAgent) extractResourceIDFromResponse(result map[string]interface{}, toolName string) (string, error) {
-	// Try to extract resource ID from the response
-	if resourceID, exists := result["resource_id"]; exists {
-		if resourceIDStr, ok := resourceID.(string); ok {
-			return resourceIDStr, nil
-		}
-	}
-
-	// Try different field names based on tool type
-	switch toolName {
-	case "create-ec2-instance":
-		if instanceID, exists := result["instanceId"]; exists {
-			if instanceIDStr, ok := instanceID.(string); ok {
-				return instanceIDStr, nil
-			}
-		}
-	case "create-security-group":
-		if groupID, exists := result["securityGroupId"]; exists {
-			if groupIDStr, ok := groupID.(string); ok {
-				return groupIDStr, nil
-			}
-		}
-		// Also try the legacy field name for backward compatibility
-		if groupID, exists := result["groupId"]; exists {
-			if groupIDStr, ok := groupID.(string); ok {
-				return groupIDStr, nil
-			}
-		}
-	case "create-vpc":
-		if vpcID, exists := result["vpcId"]; exists {
-			if vpcIDStr, ok := vpcID.(string); ok {
-				return vpcIDStr, nil
-			}
-		}
-	}
-
-	a.Logger.WithField("response", result).Debug("Could not extract resource ID from MCP response")
-
-	// Generate a fallback ID
-	return fmt.Sprintf("generated-%s-%d", toolName, time.Now().Unix()), nil
-}
-
-// storeResourceMapping stores the mapping between plan step ID and actual AWS resource ID
-func (a *StateAwareAgent) storeResourceMapping(stepID, resourceID string) {
-	a.mappingsMutex.Lock()
-	defer a.mappingsMutex.Unlock()
-	a.resourceMappings[stepID] = resourceID
-
-	a.Logger.WithFields(map[string]interface{}{
-		"step_id":     stepID,
-		"resource_id": resourceID,
-	}).Debug("Stored resource mapping")
-}
-
-// GetAvailableToolsContext returns a formatted string of available tools for the AI to understand
-func (a *StateAwareAgent) GetAvailableToolsContext() string {
+// getAvailableToolsContext returns a formatted string of available tools for the AI to understand
+func (a *StateAwareAgent) getAvailableToolsContext() string {
 	a.capabilityMutex.RLock()
 	toolsCount := len(a.mcpTools)
 	a.capabilityMutex.RUnlock()
@@ -1622,7 +938,7 @@ func (a *StateAwareAgent) GetAvailableToolsContext() string {
 	if toolsCount == 0 {
 		// Try to ensure capabilities are available
 		if err := a.ensureMCPCapabilities(); err != nil {
-			a.Logger.WithError(err).Warn("Failed to ensure MCP capabilities in GetAvailableToolsContext")
+			a.Logger.WithError(err).Warn("Failed to ensure MCP capabilities in getAvailableToolsContext")
 			return "No MCP tools available. MCP server may not be properly initialized. Please check server status."
 		}
 
@@ -1795,7 +1111,20 @@ func (a *StateAwareAgent) GetAvailableToolsContext() string {
 	context.WriteString("  * max_azs: limit number of AZs returned (optional)\n")
 	context.WriteString("- \"select_subnets_for_alb\": Select subnets for ALB creation\n")
 	context.WriteString("  * scheme: internet-facing, internal (default: internet-facing)\n")
-	context.WriteString("  * vpc_id: specific VPC ID (optional, uses default VPC if not specified)\n\n")
+	context.WriteString("  * vpc_id: specific VPC ID (optional, uses default VPC if not specified)\n")
+	context.WriteString("- \"vpc_id\": Get existing VPC ID from state file\n")
+	context.WriteString("  * resource_name: name of VPC to find (e.g., \"production-vpc\")\n")
+	context.WriteString("  * resource_id: specific VPC ID to find (optional)\n")
+	context.WriteString("- \"subnet_id\": Get existing subnet ID from state file\n")
+	context.WriteString("  * resource_name: name of subnet to find\n")
+	context.WriteString("  * resource_id: specific subnet ID to find (optional)\n")
+	context.WriteString("- \"security_group_id\": Get existing security group ID from state file\n")
+	context.WriteString("  * resource_name: name of security group to find\n")
+	context.WriteString("- \"instance_id\": Get existing EC2 instance ID from state file\n")
+	context.WriteString("  * resource_name: name of instance to find\n")
+	context.WriteString("- \"existing_resource\": Get any existing resource from state file\n")
+	context.WriteString("  * resource_name: name of resource to find\n")
+	context.WriteString("  * resource_id: specific resource ID to find (optional)\n\n")
 
 	context.WriteString("=== EXTENDED API VALUE RETRIEVAL EXAMPLES ===\n\n")
 
@@ -1838,7 +1167,28 @@ func (a *StateAwareAgent) GetAvailableToolsContext() string {
 	context.WriteString("  }\n")
 	context.WriteString("}\n\n")
 
-	context.WriteString("Example 5 - CORRECT EC2 Instance Pattern:\n")
+	context.WriteString("Example 5 - Get Existing VPC from State File:\n")
+	context.WriteString("{\n")
+	context.WriteString("  \"id\": \"step-get-vpc\",\n")
+	context.WriteString("  \"name\": \"Get Production VPC ID\",\n")
+	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
+	context.WriteString("  \"parameters\": {\n")
+	context.WriteString("    \"value_type\": \"vpc_id\",\n")
+	context.WriteString("    \"resource_name\": \"production-vpc\"\n")
+	context.WriteString("  }\n")
+	context.WriteString("}\n\n")
+
+	context.WriteString("Example 6 - Get Existing Security Group from State:\n")
+	context.WriteString("{\n")
+	context.WriteString("  \"id\": \"step-get-sg\",\n")
+	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
+	context.WriteString("  \"parameters\": {\n")
+	context.WriteString("    \"value_type\": \"security_group_id\",\n")
+	context.WriteString("    \"resource_name\": \"web-security-group\"\n")
+	context.WriteString("  }\n")
+	context.WriteString("}\n\n")
+
+	context.WriteString("Example 7 - CORRECT EC2 Instance Pattern:\n")
 	context.WriteString("{\n")
 	context.WriteString("  \"id\": \"step-get-subnet\",\n")
 	context.WriteString("  \"name\": \"Get Default Subnet\",\n")
@@ -1952,16 +1302,394 @@ func (a *StateAwareAgent) GetAvailableToolsContext() string {
 // persistCurrentState saves the current infrastructure state to persistent storage
 // This ensures that successfully completed steps are not lost if later steps fail
 func (a *StateAwareAgent) persistCurrentState() error {
-	a.Logger.Debug("Persisting current infrastructure state")
+	a.Logger.Info("Starting state persistence via MCP server")
 
 	// Use MCP server to save the current state
 	result, err := a.callMCPTool("save-state", map[string]interface{}{
 		"force": true, // Force save even if state hasn't changed much
 	})
 	if err != nil {
+		a.Logger.WithError(err).Error("Failed to call save-state MCP tool")
 		return fmt.Errorf("failed to save state via MCP: %w", err)
 	}
 
-	a.Logger.WithField("result", result).Debug("State persistence completed via MCP server")
+	a.Logger.WithField("result", result).Info("State persistence completed successfully via MCP server")
 	return nil
+}
+
+// extractResourceIDFromResponse extracts the actual AWS resource ID from MCP response
+func (a *StateAwareAgent) extractResourceIDFromResponse(result map[string]interface{}, toolName string) (string, error) {
+	a.Logger.WithFields(map[string]interface{}{
+		"tool_name": toolName,
+		"response":  result,
+	}).Debug("Extracting resource ID from MCP response")
+
+	// Try to extract resource ID from the response
+	if resourceID, exists := result["resource_id"]; exists {
+		if resourceIDStr, ok := resourceID.(string); ok {
+			a.Logger.WithFields(map[string]interface{}{
+				"tool_name":   toolName,
+				"resource_id": resourceIDStr,
+				"source":      "resource_id_field",
+			}).Info("Successfully extracted resource ID from resource_id field")
+			return resourceIDStr, nil
+		}
+	}
+
+	// Try different field names based on tool type
+	switch toolName {
+	case "create-ec2-instance":
+		if instanceID, exists := result["instanceId"]; exists {
+			if instanceIDStr, ok := instanceID.(string); ok {
+				return instanceIDStr, nil
+			}
+		}
+	case "create-security-group":
+		if groupID, exists := result["securityGroupId"]; exists {
+			if groupIDStr, ok := groupID.(string); ok {
+				return groupIDStr, nil
+			}
+		}
+		// Also try the legacy field name for backward compatibility
+		if groupID, exists := result["groupId"]; exists {
+			if groupIDStr, ok := groupID.(string); ok {
+				return groupIDStr, nil
+			}
+		}
+	case "create-vpc":
+		if vpcID, exists := result["vpcId"]; exists {
+			if vpcIDStr, ok := vpcID.(string); ok {
+				return vpcIDStr, nil
+			}
+		}
+	case "create-internet-gateway":
+		// Handle Internet Gateway creation
+		if igwID, exists := result["internetGatewayId"]; exists {
+			if igwIDStr, ok := igwID.(string); ok {
+				a.Logger.WithFields(map[string]interface{}{
+					"tool_name": toolName,
+					"igw_id":    igwIDStr,
+					"source":    "internetGatewayId_field",
+				}).Info("Successfully extracted Internet Gateway ID from internetGatewayId field")
+				return igwIDStr, nil
+			}
+		}
+		if igwID, exists := result["internet_gateway_id"]; exists {
+			if igwIDStr, ok := igwID.(string); ok {
+				a.Logger.WithFields(map[string]interface{}{
+					"tool_name": toolName,
+					"igw_id":    igwIDStr,
+					"source":    "internet_gateway_id_field",
+				}).Info("Successfully extracted Internet Gateway ID from internet_gateway_id field")
+				return igwIDStr, nil
+			}
+		}
+		a.Logger.WithFields(map[string]interface{}{
+			"tool_name": toolName,
+			"response":  result,
+		}).Warn("Could not find internetGatewayId or internet_gateway_id in Internet Gateway creation response")
+	case "create-subnet", "create-db-subnet", "create-public-subnet", "create-private-subnet":
+		// Handle various subnet creation tools
+		if subnetID, exists := result["subnetId"]; exists {
+			if subnetIDStr, ok := subnetID.(string); ok {
+				a.Logger.WithFields(map[string]interface{}{
+					"tool_name": toolName,
+					"subnet_id": subnetIDStr,
+					"source":    "subnetId_field",
+				}).Info("Successfully extracted subnet ID from subnetId field")
+				return subnetIDStr, nil
+			}
+		}
+		// Also try subnet_id for different naming conventions
+		if subnetID, exists := result["subnet_id"]; exists {
+			if subnetIDStr, ok := subnetID.(string); ok {
+				a.Logger.WithFields(map[string]interface{}{
+					"tool_name": toolName,
+					"subnet_id": subnetIDStr,
+					"source":    "subnet_id_field",
+				}).Info("Successfully extracted subnet ID from subnet_id field")
+				return subnetIDStr, nil
+			}
+		}
+		a.Logger.WithFields(map[string]interface{}{
+			"tool_name": toolName,
+			"response":  result,
+		}).Warn("Could not find subnetId or subnet_id in subnet creation response")
+	case "create-rds-db-instance", "create-database":
+		// Handle RDS instance creation
+		if dbInstanceID, exists := result["dbInstanceId"]; exists {
+			if dbInstanceIDStr, ok := dbInstanceID.(string); ok {
+				return dbInstanceIDStr, nil
+			}
+		}
+		if dbInstanceID, exists := result["db_instance_id"]; exists {
+			if dbInstanceIDStr, ok := dbInstanceID.(string); ok {
+				return dbInstanceIDStr, nil
+			}
+		}
+	case "create-db-subnet-group":
+		// Handle DB subnet group creation
+		if dbSubnetGroupName, exists := result["dbSubnetGroupName"]; exists {
+			if dbSubnetGroupNameStr, ok := dbSubnetGroupName.(string); ok {
+				return dbSubnetGroupNameStr, nil
+			}
+		}
+		if dbSubnetGroupName, exists := result["db_subnet_group_name"]; exists {
+			if dbSubnetGroupNameStr, ok := dbSubnetGroupName.(string); ok {
+				return dbSubnetGroupNameStr, nil
+			}
+		}
+	case "create-nat-gateway":
+		// Handle NAT gateway creation
+		if natGatewayID, exists := result["natGatewayId"]; exists {
+			if natGatewayIDStr, ok := natGatewayID.(string); ok {
+				a.Logger.WithFields(map[string]interface{}{
+					"tool_name":      toolName,
+					"nat_gateway_id": natGatewayIDStr,
+					"source":         "natGatewayId_field",
+				}).Info("Successfully extracted NAT gateway ID from natGatewayId field")
+				return natGatewayIDStr, nil
+			}
+		}
+		if natGatewayID, exists := result["nat_gateway_id"]; exists {
+			if natGatewayIDStr, ok := natGatewayID.(string); ok {
+				a.Logger.WithFields(map[string]interface{}{
+					"tool_name":      toolName,
+					"nat_gateway_id": natGatewayIDStr,
+					"source":         "nat_gateway_id_field",
+				}).Info("Successfully extracted NAT gateway ID from nat_gateway_id field")
+				return natGatewayIDStr, nil
+			}
+		}
+		a.Logger.WithFields(map[string]interface{}{
+			"tool_name": toolName,
+			"response":  result,
+		}).Warn("Could not find natGatewayId or nat_gateway_id in NAT gateway creation response")
+	case "create-public-route-table", "create-private-route-table", "create-route-table":
+		// Handle route table creation
+		if routeTableID, exists := result["routeTableId"]; exists {
+			if routeTableIDStr, ok := routeTableID.(string); ok {
+				a.Logger.WithFields(map[string]interface{}{
+					"tool_name":      toolName,
+					"route_table_id": routeTableIDStr,
+					"source":         "routeTableId_field",
+				}).Info("Successfully extracted route table ID from routeTableId field")
+				return routeTableIDStr, nil
+			}
+		}
+		if routeTableID, exists := result["route_table_id"]; exists {
+			if routeTableIDStr, ok := routeTableID.(string); ok {
+				a.Logger.WithFields(map[string]interface{}{
+					"tool_name":      toolName,
+					"route_table_id": routeTableIDStr,
+					"source":         "route_table_id_field",
+				}).Info("Successfully extracted route table ID from route_table_id field")
+				return routeTableIDStr, nil
+			}
+		}
+		if resourceID, exists := result["resourceId"]; exists {
+			if resourceIDStr, ok := resourceID.(string); ok {
+				a.Logger.WithFields(map[string]interface{}{
+					"tool_name":   toolName,
+					"resource_id": resourceIDStr,
+					"source":      "resourceId_field",
+				}).Info("Successfully extracted route table ID from resourceId field")
+				return resourceIDStr, nil
+			}
+		}
+		a.Logger.WithFields(map[string]interface{}{
+			"tool_name": toolName,
+			"response":  result,
+		}).Warn("Could not find routeTableId, route_table_id, or resourceId in route table creation response")
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"tool_name": toolName,
+		"response":  result,
+	}).Warn("Could not extract resource ID from MCP response, generating fallback ID")
+
+	// Generate a fallback ID
+	fallbackID := fmt.Sprintf("generated-%s-%d", toolName, time.Now().Unix())
+
+	a.Logger.WithFields(map[string]interface{}{
+		"tool_name":   toolName,
+		"fallback_id": fallbackID,
+	}).Warn("Using generated fallback resource ID")
+
+	return fallbackID, nil
+}
+
+// waitForResourceReady waits for AWS resources to be in a ready state before continuing
+func (a *StateAwareAgent) waitForResourceReady(toolName, resourceID string) error {
+	// Determine if this resource type needs waiting
+	needsWaiting := false
+	maxWaitTime := 5 * time.Minute
+	checkInterval := 15 * time.Second
+
+	switch toolName {
+	case "create-nat-gateway":
+		needsWaiting = true
+		maxWaitTime = 5 * time.Minute // NAT gateways typically take 2-3 minutes
+	case "create-rds-db-instance", "create-database":
+		needsWaiting = true
+		maxWaitTime = 15 * time.Minute // RDS instances can take longer
+	case "create-internet-gateway", "create-vpc", "create-subnet":
+		// These are typically available immediately
+		needsWaiting = false
+	default:
+		// For other resources, don't wait
+		needsWaiting = false
+	}
+
+	if !needsWaiting {
+		a.Logger.WithFields(map[string]interface{}{
+			"tool_name":   toolName,
+			"resource_id": resourceID,
+		}).Debug("Resource type does not require waiting")
+		return nil
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"tool_name":      toolName,
+		"resource_id":    resourceID,
+		"max_wait_time":  maxWaitTime,
+		"check_interval": checkInterval,
+	}).Info("Waiting for resource to be ready")
+
+	startTime := time.Now()
+	timeout := time.After(maxWaitTime)
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			elapsed := time.Since(startTime)
+			return fmt.Errorf("timeout waiting for %s %s to be ready after %v", toolName, resourceID, elapsed)
+
+		case <-ticker.C:
+			ready, err := a.checkResourceState(toolName, resourceID)
+			if err != nil {
+				a.Logger.WithError(err).WithFields(map[string]interface{}{
+					"tool_name":   toolName,
+					"resource_id": resourceID,
+				}).Warn("Error checking resource state, will retry")
+				continue
+			}
+
+			if ready {
+				elapsed := time.Since(startTime)
+				a.Logger.WithFields(map[string]interface{}{
+					"tool_name":   toolName,
+					"resource_id": resourceID,
+					"elapsed":     elapsed,
+				}).Info("Resource is ready")
+				return nil
+			}
+
+			elapsed := time.Since(startTime)
+			a.Logger.WithFields(map[string]interface{}{
+				"tool_name":   toolName,
+				"resource_id": resourceID,
+				"elapsed":     elapsed,
+			}).Debug("Resource not ready yet, continuing to wait")
+		}
+	}
+}
+
+// checkResourceState checks if a specific AWS resource is in a ready state
+func (a *StateAwareAgent) checkResourceState(toolName, resourceID string) (bool, error) {
+	switch toolName {
+	case "create-nat-gateway":
+		return a.checkNATGatewayState(resourceID)
+	case "create-rds-db-instance", "create-database":
+		return a.checkRDSInstanceState(resourceID)
+	default:
+		// For unknown resource types, assume they're ready
+		return true, nil
+	}
+}
+
+// checkNATGatewayState checks if a NAT gateway is available
+func (a *StateAwareAgent) checkNATGatewayState(natGatewayID string) (bool, error) {
+	// Try to use MCP tool to describe the NAT gateway if available
+	result, err := a.callMCPTool("describe-nat-gateways", map[string]interface{}{
+		"natGatewayIds": []string{natGatewayID},
+	})
+	if err != nil {
+		// If describe tool is not available, use a simple time-based approach
+		a.Logger.WithFields(map[string]interface{}{
+			"nat_gateway_id": natGatewayID,
+			"error":          err.Error(),
+		}).Warn("describe-nat-gateways tool not available, using time-based wait")
+
+		// NAT gateways typically take 2-3 minutes to become available
+		// We'll wait a fixed amount of time and then assume it's ready
+		time.Sleep(30 * time.Second)
+		return true, nil
+	}
+
+	// Parse the response to check the state
+	if natGateways, ok := result["natGateways"].([]interface{}); ok && len(natGateways) > 0 {
+		if natGateway, ok := natGateways[0].(map[string]interface{}); ok {
+			if state, ok := natGateway["state"].(string); ok {
+				a.Logger.WithFields(map[string]interface{}{
+					"nat_gateway_id": natGatewayID,
+					"state":          state,
+				}).Debug("NAT gateway state check")
+
+				return state == "available", nil
+			}
+		}
+	}
+
+	return false, fmt.Errorf("could not determine NAT gateway state from response")
+}
+
+// checkRDSInstanceState checks if an RDS instance is available
+func (a *StateAwareAgent) checkRDSInstanceState(dbInstanceID string) (bool, error) {
+	// Try to use MCP tool to describe the RDS instance if available
+	result, err := a.callMCPTool("describe-db-instances", map[string]interface{}{
+		"dbInstanceIdentifier": dbInstanceID,
+	})
+	if err != nil {
+		// If describe tool is not available, use a simple time-based approach
+		a.Logger.WithFields(map[string]interface{}{
+			"db_instance_id": dbInstanceID,
+			"error":          err.Error(),
+		}).Warn("describe-db-instances tool not available, using time-based wait")
+
+		// RDS instances typically take 5-10 minutes to become available
+		// We'll wait a fixed amount of time and then assume it's ready
+		time.Sleep(60 * time.Second)
+		return true, nil
+	}
+
+	// Parse the response to check the state
+	if dbInstances, ok := result["dbInstances"].([]interface{}); ok && len(dbInstances) > 0 {
+		if dbInstance, ok := dbInstances[0].(map[string]interface{}); ok {
+			if status, ok := dbInstance["dbInstanceStatus"].(string); ok {
+				a.Logger.WithFields(map[string]interface{}{
+					"db_instance_id": dbInstanceID,
+					"status":         status,
+				}).Debug("RDS instance state check")
+
+				return status == "available", nil
+			}
+		}
+	}
+
+	return false, fmt.Errorf("could not determine RDS instance state from response")
+}
+
+// storeResourceMapping stores the mapping between plan step ID and actual AWS resource ID
+func (a *StateAwareAgent) storeResourceMapping(stepID, resourceID string) {
+	a.mappingsMutex.Lock()
+	defer a.mappingsMutex.Unlock()
+	a.resourceMappings[stepID] = resourceID
+
+	a.Logger.WithFields(map[string]interface{}{
+		"step_id":     stepID,
+		"resource_id": resourceID,
+	}).Debug("Stored resource mapping")
 }
