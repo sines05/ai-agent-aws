@@ -5,7 +5,6 @@ server:
 
 aws:
   region: "us-west-2"
-  profile: "default"
 
 mcp:
   server_name: "aws-infrastructure-server"

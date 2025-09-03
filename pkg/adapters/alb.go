@@ -8,6 +8,7 @@ import (
 	"github.com/versus-control/ai-infrastructure-agent/pkg/aws"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/interfaces"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/types"
+	util "github.com/versus-control/ai-infrastructure-agent/pkg/utilities"
 )
 
 // ALBAdapter implements the AWSResourceAdapter interface for Application Load Balancers
@@ -129,7 +130,7 @@ func (a *ALBSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 		}
 
 		// Validate subnet requirements before proceeding
-		subnetIds := getStringSlice(paramsMap, "subnetIds")
+		subnetIds := util.GetStringSlice(paramsMap, "subnetIds")
 		if len(subnetIds) == 0 {
 			return nil, fmt.Errorf("subnetIds are required for load balancer creation")
 		}
@@ -138,13 +139,13 @@ func (a *ALBSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 		}
 
 		albParams := aws.CreateLoadBalancerParams{
-			Name:           getString(paramsMap, "name"),
-			Scheme:         getString(paramsMap, "scheme"),
-			Type:           getString(paramsMap, "type"),
-			IpAddressType:  getString(paramsMap, "ipAddressType"),
+			Name:           util.GetStringFromMap(paramsMap, "name"),
+			Scheme:         util.GetStringFromMap(paramsMap, "scheme"),
+			Type:           util.GetStringFromMap(paramsMap, "type"),
+			IpAddressType:  util.GetStringFromMap(paramsMap, "ipAddressType"),
 			Subnets:        subnetIds,
-			SecurityGroups: getStringSlice(paramsMap, "securityGroupIds"),
-			Tags:           getStringMap(paramsMap, "tags"),
+			SecurityGroups: util.GetStringSlice(paramsMap, "securityGroupIds"),
+			Tags:           util.GetStringMap(paramsMap, "tags"),
 		}
 
 		loadBalancer, err := a.client.CreateApplicationLoadBalancer(ctx, albParams)
@@ -167,20 +168,20 @@ func (a *ALBSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 		}
 
 		tgParams := aws.CreateTargetGroupParams{
-			Name:                       getString(paramsMap, "name"),
-			Protocol:                   getString(paramsMap, "protocol"),
-			Port:                       getInt32(paramsMap, "port", 80),
-			VpcID:                      getString(paramsMap, "vpcId"),
-			TargetType:                 getString(paramsMap, "targetType"),
-			HealthCheckEnabled:         getBool(paramsMap, "healthCheckEnabled", true),
-			HealthCheckPath:            getString(paramsMap, "healthCheckPath"),
-			HealthCheckProtocol:        getString(paramsMap, "healthCheckProtocol"),
-			HealthCheckIntervalSeconds: getInt32(paramsMap, "healthCheckIntervalSeconds", 30),
-			HealthCheckTimeoutSeconds:  getInt32(paramsMap, "healthCheckTimeoutSeconds", 5),
-			HealthyThresholdCount:      getInt32(paramsMap, "healthyThresholdCount", 2),
-			UnhealthyThresholdCount:    getInt32(paramsMap, "unhealthyThresholdCount", 2),
-			Matcher:                    getString(paramsMap, "matcher"),
-			Tags:                       getStringMap(paramsMap, "tags"),
+			Name:                       util.GetStringFromMap(paramsMap, "name"),
+			Protocol:                   util.GetStringFromMap(paramsMap, "protocol"),
+			Port:                       util.GetInt32FromMap(paramsMap, "port", 80),
+			VpcID:                      util.GetStringFromMap(paramsMap, "vpcId"),
+			TargetType:                 util.GetStringFromMap(paramsMap, "targetType"),
+			HealthCheckEnabled:         util.GetBoolFromMap(paramsMap, "healthCheckEnabled", true),
+			HealthCheckPath:            util.GetStringFromMap(paramsMap, "healthCheckPath"),
+			HealthCheckProtocol:        util.GetStringFromMap(paramsMap, "healthCheckProtocol"),
+			HealthCheckIntervalSeconds: util.GetInt32FromMap(paramsMap, "healthCheckIntervalSeconds", 30),
+			HealthCheckTimeoutSeconds:  util.GetInt32FromMap(paramsMap, "healthCheckTimeoutSeconds", 5),
+			HealthyThresholdCount:      util.GetInt32FromMap(paramsMap, "healthyThresholdCount", 2),
+			UnhealthyThresholdCount:    util.GetInt32FromMap(paramsMap, "unhealthyThresholdCount", 2),
+			Matcher:                    util.GetStringFromMap(paramsMap, "matcher"),
+			Tags:                       util.GetStringMap(paramsMap, "tags"),
 		}
 
 		targetGroup, err := a.client.CreateTargetGroup(ctx, tgParams)
@@ -226,11 +227,11 @@ func (a *ALBSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 		}
 
 		listenerParams := aws.CreateListenerParams{
-			LoadBalancerArn:       getString(paramsMap, "loadBalancerArn"),
-			Protocol:              getString(paramsMap, "protocol"),
-			Port:                  getInt32(paramsMap, "port", 80),
+			LoadBalancerArn:       util.GetStringFromMap(paramsMap, "loadBalancerArn"),
+			Protocol:              util.GetStringFromMap(paramsMap, "protocol"),
+			Port:                  util.GetInt32FromMap(paramsMap, "port", 80),
 			DefaultTargetGroupArn: getTargetGroupArn(paramsMap),
-			CertificateArn:        getString(paramsMap, "certificateArn"),
+			CertificateArn:        util.GetStringFromMap(paramsMap, "certificateArn"),
 		}
 
 		listener, err := a.client.CreateListener(ctx, listenerParams)
@@ -265,8 +266,8 @@ func (a *ALBSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 			return nil, fmt.Errorf("invalid parameters for register-targets")
 		}
 
-		targetGroupArn := getString(paramsMap, "targetGroupArn")
-		instanceIds := getStringSlice(paramsMap, "instanceIds")
+		targetGroupArn := util.GetStringFromMap(paramsMap, "targetGroupArn")
+		instanceIds := util.GetStringSlice(paramsMap, "instanceIds")
 
 		if targetGroupArn == "" {
 			return nil, fmt.Errorf("targetGroupArn is required")
@@ -299,8 +300,8 @@ func (a *ALBSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 			return nil, fmt.Errorf("invalid parameters for deregister-targets")
 		}
 
-		targetGroupArn := getString(paramsMap, "targetGroupArn")
-		instanceIds := getStringSlice(paramsMap, "instanceIds")
+		targetGroupArn := util.GetStringFromMap(paramsMap, "targetGroupArn")
+		instanceIds := util.GetStringSlice(paramsMap, "instanceIds")
 
 		err := a.client.DeregisterTargets(ctx, targetGroupArn, instanceIds)
 		if err != nil {
@@ -336,14 +337,6 @@ func (a *ALBSpecializedAdapter) GetSpecialOperations() []string {
 	}
 }
 
-// Helper functions for parameter extraction
-func getString(params map[string]interface{}, key string) string {
-	if val, ok := params[key].(string); ok {
-		return val
-	}
-	return ""
-}
-
 // getTargetGroupArn handles both targetGroupArn and defaultTargetGroupArn parameter names
 func getTargetGroupArn(params map[string]interface{}) string {
 	// First try the new parameter name from CreateListener tool
@@ -355,56 +348,4 @@ func getTargetGroupArn(params map[string]interface{}) string {
 		return val
 	}
 	return ""
-}
-
-func getStringSlice(params map[string]interface{}, key string) []string {
-	if val, ok := params[key].([]interface{}); ok {
-		result := make([]string, len(val))
-		for i, v := range val {
-			if str, ok := v.(string); ok {
-				result[i] = str
-			}
-		}
-		return result
-	}
-
-	// Try []string directly
-	if val, ok := params[key].([]string); ok {
-		return val
-	}
-
-	return []string{}
-}
-
-func getStringMap(params map[string]interface{}, key string) map[string]string {
-	if val, ok := params[key].(map[string]interface{}); ok {
-		result := make(map[string]string)
-		for k, v := range val {
-			if str, ok := v.(string); ok {
-				result[k] = str
-			}
-		}
-		return result
-	}
-	return map[string]string{}
-}
-
-func getInt32(params map[string]interface{}, key string, defaultVal int32) int32 {
-	if val, ok := params[key].(float64); ok {
-		return int32(val)
-	}
-	if val, ok := params[key].(int); ok {
-		return int32(val)
-	}
-	if val, ok := params[key].(int32); ok {
-		return val
-	}
-	return defaultVal
-}
-
-func getBool(params map[string]interface{}, key string, defaultVal bool) bool {
-	if val, ok := params[key].(bool); ok {
-		return val
-	}
-	return defaultVal
 }

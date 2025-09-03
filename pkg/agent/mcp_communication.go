@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/versus-control/ai-infrastructure-agent/pkg/types"
+	util "github.com/versus-control/ai-infrastructure-agent/pkg/utilities"
 )
 
 // ========== Interface defines ==========
@@ -20,23 +21,30 @@ import (
 //   - startMCPProcess()                 : Start the MCP server subprocess for tool execution
 //   - stopMCPProcess()                  : Stop the MCP server process
 //   - initializeMCP()                   : Initialize MCP connection and handshake
-//   - discoverMCPCapabilities()         : Discover available tools and resources from MCP server
-//   - callMCPTool()                     : Call a tool via the MCP server
+//   - ensureMCPCapabilities()           : Ensure MCP capabilities are discovered and available
 //   - sendMCPRequest()                  : Send JSON-RPC request to MCP server
 //   - sendMCPNotification()             : Send notification to MCP server
+//   - discoverMCPCapabilities()         : Discover available tools and resources from MCP server
+//   - logDiscoveredCapabilities()       : Log all discovered tools and resources for debugging
+//   - discoverMCPTools()                : Discover available tools from the MCP server
+//   - discoverMCPResources()            : Discover available resources from the MCP server
+//   - callMCPTool()                     : Call a tool via the MCP server
+//   - getStringFromMap()                : Helper function to safely extract string from map
+//
 //   - AnalyzeInfrastructureState()      : Call MCP server to analyze infrastructure state
 //   - DetectInfrastructureConflicts()   : Call MCP server to detect conflicts
 //   - PlanInfrastructureDeployment()    : Call MCP server to plan deployment
 //   - VisualizeDependencyGraph()        : Call MCP server to visualize dependency graph
 //   - ExportInfrastructureState()       : Call MCP server to export infrastructure state
-//   - addResourceToState()              : Add resource to state via MCP server
+//   - ExportInfrastructureStateWithOptions() : Export state with full control options
+//   - AddResourceToState()              : Add resource to state via MCP server
 //
 // Usage Example:
 //   1. agent.startMCPProcess()
 //   2. state, resources, conflicts := agent.AnalyzeInfrastructureState(ctx, true)
 //   3. deploymentOrder := agent.PlanInfrastructureDeployment(ctx, nil, false)
 
-// ========== MCP Communication Functions ==========
+// ========== MCP Process Management ==========
 
 // startMCPProcess starts the MCP server process for tool execution
 func (a *StateAwareAgent) startMCPProcess() error {
@@ -166,6 +174,8 @@ func (a *StateAwareAgent) initializeMCP() error {
 	return nil
 }
 
+// ========== MCP Capability Discovery ==========
+
 // ensureMCPCapabilities ensures that MCP capabilities are discovered and available
 func (a *StateAwareAgent) ensureMCPCapabilities() error {
 	a.capabilityMutex.RLock()
@@ -196,6 +206,8 @@ func (a *StateAwareAgent) ensureMCPCapabilities() error {
 	a.Logger.WithField("tools_count", finalToolsCount).Info("MCP capabilities discovered successfully")
 	return nil
 }
+
+// ========== MCP Communication Layer ==========
 
 // sendMCPRequest sends a request to the MCP server and waits for response
 func (a *StateAwareAgent) sendMCPRequest(request map[string]interface{}) (map[string]interface{}, error) {
@@ -533,6 +545,8 @@ func (a *StateAwareAgent) callMCPTool(name string, arguments map[string]interfac
 	return resultMap, nil
 }
 
+// ========== Infrastructure Operations ==========
+
 // AnalyzeInfrastructureState calls the MCP server to analyze infrastructure state
 func (a *StateAwareAgent) AnalyzeInfrastructureState(ctx context.Context, scanLive bool) (*types.InfrastructureState, []*types.ResourceState, []*types.ChangeDetection, error) {
 	// Use direct MCP call to get the raw text response for analyze tool
@@ -617,8 +631,8 @@ func (a *StateAwareAgent) AnalyzeInfrastructureState(ctx context.Context, scanLi
 					if resMap, ok := resData.(map[string]interface{}); ok {
 						resource := &types.ResourceState{
 							ID:         id,
-							Type:       getStringFromMap(resMap, "type"),
-							Status:     getStringFromMap(resMap, "status"),
+							Type:       util.GetStringFromMap(resMap, "type"),
+							Status:     util.GetStringFromMap(resMap, "status"),
 							Properties: resMap,
 						}
 						// Set default status if not provided
@@ -637,9 +651,9 @@ func (a *StateAwareAgent) AnalyzeInfrastructureState(ctx context.Context, scanLi
 				for _, resData := range discoveredArray {
 					if resMap, ok := resData.(map[string]interface{}); ok {
 						resource := &types.ResourceState{
-							ID:         getStringFromMap(resMap, "id"),
-							Type:       getStringFromMap(resMap, "type"),
-							Status:     getStringFromMap(resMap, "status"),
+							ID:         util.GetStringFromMap(resMap, "id"),
+							Type:       util.GetStringFromMap(resMap, "type"),
+							Status:     util.GetStringFromMap(resMap, "status"),
 							Properties: resMap,
 						}
 						// Set default status if not provided
@@ -658,9 +672,9 @@ func (a *StateAwareAgent) AnalyzeInfrastructureState(ctx context.Context, scanLi
 				for _, driftData := range driftArray {
 					if driftMap, ok := driftData.(map[string]interface{}); ok {
 						detection := &types.ChangeDetection{
-							Resource:   getStringFromMap(driftMap, "resource"),
-							ChangeType: getStringFromMap(driftMap, "changeType"),
-							Reason:     getStringFromMap(driftMap, "reason"),
+							Resource:   util.GetStringFromMap(driftMap, "resource"),
+							ChangeType: util.GetStringFromMap(driftMap, "changeType"),
+							Reason:     util.GetStringFromMap(driftMap, "reason"),
 						}
 						driftDetections = append(driftDetections, detection)
 					}
@@ -678,16 +692,6 @@ func (a *StateAwareAgent) AnalyzeInfrastructureState(ctx context.Context, scanLi
 	}).Info("Infrastructure state analysis completed")
 
 	return currentState, discoveredResources, driftDetections, nil
-}
-
-// Helper function to safely extract string from map
-func getStringFromMap(m map[string]interface{}, key string) string {
-	if val, exists := m[key]; exists {
-		if str, ok := val.(string); ok {
-			return str
-		}
-	}
-	return ""
 }
 
 // DetectInfrastructureConflicts calls the MCP server to detect conflicts
@@ -790,8 +794,7 @@ func (a *StateAwareAgent) ExportInfrastructureStateWithOptions(ctx context.Conte
 		"params": map[string]interface{}{
 			"name": "export-infrastructure-state",
 			"arguments": map[string]interface{}{
-				"include_discovered": includeDiscovered,
-				"include_managed":    includeManaged,
+				"include_managed": includeManaged,
 			},
 		},
 	}
@@ -832,8 +835,8 @@ func (a *StateAwareAgent) ExportInfrastructureStateWithOptions(ctx context.Conte
 	return "", fmt.Errorf("failed to extract state JSON from MCP response")
 }
 
-// addResourceToState calls the MCP server to add a resource to state
-func (a *StateAwareAgent) addResourceToState(resourceState *types.ResourceState) error {
+// AddResourceToState calls the MCP server to add a resource to state
+func (a *StateAwareAgent) AddResourceToState(resourceState *types.ResourceState) error {
 	a.Logger.WithField("resource_id", resourceState.ID).Info("Adding resource to state via MCP server")
 
 	// Call the MCP tool to add the resource to state

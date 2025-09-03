@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/versus-control/ai-infrastructure-agent/internal/logging"
@@ -360,10 +361,11 @@ func (t *CreateInternetGatewayTool) Execute(ctx context.Context, arguments map[s
 
 	name, _ := arguments["name"].(string)
 
-	// Create internet gateway parameters
-	params := aws.CreateInternetGatewayParams{
-		Name: name,
-		Tags: map[string]string{},
+	// Create parameters map that includes both IGW params and vpcId
+	params := map[string]interface{}{
+		"vpcId": vpcID,
+		"name":  name,
+		"tags":  map[string]string{},
 	}
 
 	// Use the specialized adapter to create and attach the internet gateway
@@ -386,7 +388,7 @@ func (t *CreateInternetGatewayTool) Execute(ctx context.Context, arguments map[s
 // CreateNATGatewayTool implements MCPTool for creating NAT gateways
 type CreateNATGatewayTool struct {
 	*BaseTool
-	awsClient *aws.Client
+	adapter interfaces.SpecializedOperations
 }
 
 // NewCreateNATGatewayTool creates a new NAT gateway creation tool
@@ -397,10 +399,6 @@ func NewCreateNATGatewayTool(awsClient *aws.Client, logger *logging.Logger) inte
 			"subnetId": map[string]interface{}{
 				"type":        "string",
 				"description": "The subnet ID for the NAT gateway",
-			},
-			"allocationId": map[string]interface{}{
-				"type":        "string",
-				"description": "The allocation ID of an Elastic IP address",
 			},
 			"name": map[string]interface{}{
 				"type":        "string",
@@ -417,7 +415,7 @@ func NewCreateNATGatewayTool(awsClient *aws.Client, logger *logging.Logger) inte
 			inputSchema: inputSchema,
 			logger:      logger,
 		},
-		awsClient: awsClient,
+		adapter: adapters.NewVPCSpecializedAdapter(awsClient, logger),
 	}
 }
 
@@ -427,15 +425,21 @@ func (t *CreateNATGatewayTool) Execute(ctx context.Context, arguments map[string
 		return t.CreateErrorResponse("subnetId is required")
 	}
 
-	allocationID, _ := arguments["allocationId"].(string)
 	name, _ := arguments["name"].(string)
 
-	message := fmt.Sprintf("NAT gateway creation initiated in subnet %s", subnetID)
+	// Create NAT gateway using VPC adapter
+	natGateway, err := t.adapter.ExecuteSpecialOperation(ctx, "create-nat-gateway", arguments)
+	if err != nil {
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to create NAT gateway: %s", err.Error()))
+	}
+
+	message := fmt.Sprintf("Successfully created NAT gateway %s in subnet %s", natGateway.ID, subnetID)
 	data := map[string]interface{}{
+		"natGatewayId": natGateway.ID,
 		"subnetId":     subnetID,
-		"allocationId": allocationID,
 		"name":         name,
 		"type":         "nat-gateway",
+		"resource":     natGateway,
 	}
 
 	return t.CreateSuccessResponse(message, data)
@@ -444,7 +448,7 @@ func (t *CreateNATGatewayTool) Execute(ctx context.Context, arguments map[string
 // CreatePublicRouteTableTool implements MCPTool for creating public route tables
 type CreatePublicRouteTableTool struct {
 	*BaseTool
-	awsClient *aws.Client
+	adapter interfaces.SpecializedOperations
 }
 
 // NewCreatePublicRouteTableTool creates a new public route table creation tool
@@ -471,7 +475,7 @@ func NewCreatePublicRouteTableTool(awsClient *aws.Client, logger *logging.Logger
 			inputSchema: inputSchema,
 			logger:      logger,
 		},
-		awsClient: awsClient,
+		adapter: adapters.NewVPCSpecializedAdapter(awsClient, logger),
 	}
 }
 
@@ -483,11 +487,20 @@ func (t *CreatePublicRouteTableTool) Execute(ctx context.Context, arguments map[
 
 	name, _ := arguments["name"].(string)
 
-	message := fmt.Sprintf("Public route table creation initiated in VPC %s", vpcID)
+	// Create route table using VPC adapter
+	routeTable, err := t.adapter.ExecuteSpecialOperation(ctx, "create-route-table", arguments)
+	if err != nil {
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to create public route table: %s", err.Error()))
+	}
+
+	message := fmt.Sprintf("Successfully created public route table %s in VPC %s", routeTable.ID, vpcID)
 	data := map[string]interface{}{
-		"vpcId": vpcID,
-		"name":  name,
-		"type":  "public",
+		"routeTableId": routeTable.ID,
+		"resourceId":   routeTable.ID, // Keep for backward compatibility
+		"vpcId":        vpcID,
+		"name":         name,
+		"type":         "public",
+		"resource":     routeTable,
 	}
 
 	return t.CreateSuccessResponse(message, data)
@@ -496,7 +509,7 @@ func (t *CreatePublicRouteTableTool) Execute(ctx context.Context, arguments map[
 // CreatePrivateRouteTableTool implements MCPTool for creating private route tables
 type CreatePrivateRouteTableTool struct {
 	*BaseTool
-	awsClient *aws.Client
+	adapter interfaces.SpecializedOperations
 }
 
 // NewCreatePrivateRouteTableTool creates a new private route table creation tool
@@ -523,7 +536,7 @@ func NewCreatePrivateRouteTableTool(awsClient *aws.Client, logger *logging.Logge
 			inputSchema: inputSchema,
 			logger:      logger,
 		},
-		awsClient: awsClient,
+		adapter: adapters.NewVPCSpecializedAdapter(awsClient, logger),
 	}
 }
 
@@ -535,20 +548,36 @@ func (t *CreatePrivateRouteTableTool) Execute(ctx context.Context, arguments map
 
 	name, _ := arguments["name"].(string)
 
-	message := fmt.Sprintf("Private route table creation initiated in VPC %s", vpcID)
-	data := map[string]interface{}{
+	// Use the adapter to create the route table
+	params := map[string]interface{}{
 		"vpcId": vpcID,
 		"name":  name,
 		"type":  "private",
 	}
 
-	return t.CreateSuccessResponse(message, data)
+	result, err := t.adapter.ExecuteSpecialOperation(ctx, "create-route-table", params)
+	if err != nil {
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to create private route table: %v", err))
+	}
+
+	responseData := map[string]interface{}{
+		"routeTableId": result.ID,
+		"resourceId":   result.ID, // Keep for backward compatibility
+		"type":         result.Type,
+		"region":       result.Region,
+		"state":        result.State,
+		"vpcId":        vpcID,
+		"name":         name,
+		"routeType":    "private",
+	}
+
+	return t.CreateSuccessResponse("Private route table created successfully", responseData)
 }
 
 // AssociateRouteTableTool implements MCPTool for associating route tables with subnets
 type AssociateRouteTableTool struct {
 	*BaseTool
-	awsClient *aws.Client
+	adapter interfaces.SpecializedOperations
 }
 
 // NewAssociateRouteTableTool creates a new route table association tool
@@ -562,7 +591,7 @@ func NewAssociateRouteTableTool(awsClient *aws.Client, logger *logging.Logger) i
 			},
 			"subnetId": map[string]interface{}{
 				"type":        "string",
-				"description": "The subnet ID to associate",
+				"description": "The subnet ID to associate with the route table",
 			},
 		},
 		"required": []string{"routeTableId", "subnetId"},
@@ -575,7 +604,7 @@ func NewAssociateRouteTableTool(awsClient *aws.Client, logger *logging.Logger) i
 			inputSchema: inputSchema,
 			logger:      logger,
 		},
-		awsClient: awsClient,
+		adapter: adapters.NewVPCSpecializedAdapter(awsClient, logger),
 	}
 }
 
@@ -590,16 +619,138 @@ func (t *AssociateRouteTableTool) Execute(ctx context.Context, arguments map[str
 		return t.CreateErrorResponse("subnetId is required")
 	}
 
-	message := fmt.Sprintf("Associated route table %s with subnet %s", routeTableID, subnetID)
-	data := map[string]interface{}{
+	params := map[string]interface{}{
 		"routeTableId": routeTableID,
 		"subnetId":     subnetID,
+	}
+
+	result, err := t.adapter.ExecuteSpecialOperation(ctx, "associate-route-table", params)
+	if err != nil {
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to associate route table with subnet: %v", err))
+	}
+
+	message := fmt.Sprintf("Successfully associated route table %s with subnet %s", routeTableID, subnetID)
+	data := map[string]interface{}{
+		"routeTableId":  routeTableID,
+		"subnetId":      subnetID,
+		"associationId": result.ID,
 	}
 
 	return t.CreateSuccessResponse(message, data)
 }
 
-// SelectSubnetsForALBTool implements MCPTool for selecting suitable subnets for ALB creation
+// AddRouteTool implements MCPTool for adding routes to route tables
+type AddRouteTool struct {
+	*BaseTool
+	adapter interfaces.SpecializedOperations
+}
+
+// NewAddRouteTool creates a new route addition tool
+func NewAddRouteTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+	inputSchema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"routeTableId": map[string]interface{}{
+				"type":        "string",
+				"description": "The route table ID",
+			},
+			"destinationCidrBlock": map[string]interface{}{
+				"type":        "string",
+				"description": "The destination CIDR block for the route",
+			},
+			"natGatewayId": map[string]interface{}{
+				"type":        "string",
+				"description": "The NAT gateway ID for the route target (for private routes)",
+			},
+			"internetGatewayId": map[string]interface{}{
+				"type":        "string",
+				"description": "The internet gateway ID for the route target (for public routes)",
+			},
+		},
+		"required": []string{"routeTableId", "destinationCidrBlock"},
+	}
+
+	return &AddRouteTool{
+		BaseTool: &BaseTool{
+			name:        "add-route",
+			description: "Add a route to a route table",
+			inputSchema: inputSchema,
+			logger:      logger,
+		},
+		adapter: adapters.NewVPCSpecializedAdapter(awsClient, logger),
+	}
+}
+
+func (t *AddRouteTool) Execute(ctx context.Context, arguments map[string]interface{}) (*mcp.CallToolResult, error) {
+	routeTableID, ok := arguments["routeTableId"].(string)
+	if !ok || routeTableID == "" {
+		return t.CreateErrorResponse("routeTableId is required")
+	}
+
+	// Validate that routeTableId looks like a route table ID
+	if !strings.HasPrefix(routeTableID, "rtb-") {
+		return t.CreateErrorResponse(fmt.Sprintf("Invalid route table ID format: %s (expected format: rtb-xxxxxxxx). Make sure you're using the correct dependency reference for route table creation", routeTableID))
+	}
+
+	destinationCidr, ok := arguments["destinationCidrBlock"].(string)
+	if !ok || destinationCidr == "" {
+		return t.CreateErrorResponse("destinationCidrBlock is required")
+	}
+
+	natGatewayID, _ := arguments["natGatewayId"].(string)
+	internetGatewayID, _ := arguments["internetGatewayId"].(string)
+
+	if natGatewayID == "" && internetGatewayID == "" {
+		return t.CreateErrorResponse("Either natGatewayId or internetGatewayId is required for route creation")
+	}
+
+	if natGatewayID != "" && internetGatewayID != "" {
+		return t.CreateErrorResponse("Specify either natGatewayId or internetGatewayId, not both")
+	}
+
+	params := map[string]interface{}{
+		"routeTableId":         routeTableID,
+		"destinationCidrBlock": destinationCidr,
+	}
+
+	var targetType string
+	var targetID string
+	if natGatewayID != "" {
+		// Validate NAT gateway ID format
+		if !strings.HasPrefix(natGatewayID, "nat-") {
+			return t.CreateErrorResponse(fmt.Sprintf("Invalid NAT gateway ID format: %s (expected format: nat-xxxxxxxx)", natGatewayID))
+		}
+		params["natGatewayId"] = natGatewayID
+		targetType = "NAT Gateway"
+		targetID = natGatewayID
+	} else {
+		// Validate internet gateway ID format
+		if !strings.HasPrefix(internetGatewayID, "igw-") {
+			return t.CreateErrorResponse(fmt.Sprintf("Invalid internet gateway ID format: %s (expected format: igw-xxxxxxxx)", internetGatewayID))
+		}
+		params["internetGatewayId"] = internetGatewayID
+		targetType = "Internet Gateway"
+		targetID = internetGatewayID
+	}
+
+	result, err := t.adapter.ExecuteSpecialOperation(ctx, "add-route", params)
+	if err != nil {
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to add route: %v", err))
+	}
+
+	message := fmt.Sprintf("Successfully added route %s -> %s %s in route table %s",
+		destinationCidr, targetType, targetID, routeTableID)
+
+	data := map[string]interface{}{
+		"routeTableId":         routeTableID,
+		"destinationCidrBlock": destinationCidr,
+		"targetId":             targetID,
+		"targetType":           targetType,
+		"result":               result,
+	}
+
+	return t.CreateSuccessResponse(message, data)
+} // SelectSubnetsForALBTool implements MCPTool for selecting suitable subnets for ALB creation
 type SelectSubnetsForALBTool struct {
 	*BaseTool
 	awsClient *aws.Client

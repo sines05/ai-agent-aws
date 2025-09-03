@@ -27,8 +27,7 @@ type ServerConfig struct {
 
 // AWSConfig contains AWS-specific configuration
 type AWSConfig struct {
-	Region  string `mapstructure:"region"`
-	Profile string `mapstructure:"profile"`
+	Region string `mapstructure:"region"`
 }
 
 // MCPConfig contains Model Context Protocol configuration
@@ -112,9 +111,6 @@ func Load() (*Config, error) {
 	if apiKey := os.Getenv("ANTHROPIC_API_KEY"); apiKey != "" {
 		config.Agent.AnthropicAPIKey = apiKey
 	}
-	if awsProfile := os.Getenv("AWS_PROFILE"); awsProfile != "" {
-		config.AWS.Profile = awsProfile
-	}
 	if awsRegion := os.Getenv("AWS_REGION"); awsRegion != "" {
 		config.AWS.Region = awsRegion
 	}
@@ -130,7 +126,6 @@ func setDefaults() {
 
 	// AWS defaults
 	viper.SetDefault("aws.region", "us-west-2")
-	viper.SetDefault("aws.profile", "")
 
 	// MCP defaults
 	viper.SetDefault("mcp.server_name", "ai-infrastructure-agent")

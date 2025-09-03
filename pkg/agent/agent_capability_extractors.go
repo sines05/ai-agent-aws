@@ -9,21 +9,29 @@ import (
 
 // ========== Interface defines ==========
 
-// DecisionExtractorsInterface defines resource capability extraction functionality
+// CapabilityExtractorsInterface defines resource capability extraction functionality
 //
 // Available Functions:
-//   - extractSecurityGroupCapabilities() : Extract security group specific capabilities (VPC, ports, services)
-//   - extractVPCCapabilities()           : Extract VPC specific capabilities (CIDR, subnets, default status)
-//   - extractEC2Capabilities()           : Extract EC2 instance capabilities (type, state, networking)
-//   - extractLoadBalancerCapabilities()  : Extract load balancer capabilities (type, scheme, health checks)
-//   - extractResourceCapabilities()      : Generic capability extraction for any AWS resource type
+//   - extractSecurityGroupCapabilities() : Extract security group capabilities
+//   - extractVPCCapabilities()           : Extract VPC capabilities
+//   - extractEC2Capabilities()           : Extract EC2 instance capabilities
+//   - extractSubnetCapabilities()        : Extract subnet capabilities
+//   - extractLoadBalancerCapabilities()  : Extract load balancer capabilities
+//   - extractTargetGroupCapabilities()   : Extract target group capabilities
+//   - extractAutoScalingGroupCapabilities() : Extract ASG capabilities
+//   - extractLaunchTemplateCapabilities() : Extract launch template capabilities
+//   - extractDBInstanceCapabilities()    : Extract RDS instance capabilities
+//   - extractGenericCapabilities()       : Extract generic resource capabilities
+//
+// This file provides specialized capability extraction for different AWS
+// resource types to enable intelligent infrastructure analysis and planning.
 //
 // Usage Example:
 //   1. capabilities := make(map[string]interface{})
 //   2. agent.extractSecurityGroupCapabilities(resource, capabilities)
 //   3. Use capabilities for resource correlation and decision making
 
-// ========== Resource Capability Extractors ==========
+// ========== Resource Capability Extraction Functions ==========
 
 // extractSecurityGroupCapabilities extracts security group specific capabilities
 func (a *StateAwareAgent) extractSecurityGroupCapabilities(resource *types.ResourceState, capabilities map[string]interface{}) {

@@ -29,7 +29,7 @@ func main() {
 	logger.Info("Starting AWS MCP Server...")
 
 	// Initialize AWS client
-	awsClient, err := aws.NewClient(cfg.AWS.Region, "", logger)
+	awsClient, err := aws.NewClient(cfg.AWS.Region, logger)
 	if err != nil {
 		logger.WithError(err).Fatal("Failed to initialize AWS client")
 	}

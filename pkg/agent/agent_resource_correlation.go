@@ -9,20 +9,22 @@ import (
 
 // ========== Interface defines ==========
 
-// DecisionCorrelationInterface defines resource correlation and matching functionality
+// ResourceCorrelationInterface defines resource correlation and matching functionality
 //
 // Available Functions:
 //   - analyzeResourceCorrelation()  : Analyze correlation between managed and discovered AWS resources
-//   - findResourceMatch()           : Find matching discovered resource for a managed resource
-//   - calculateMatchScore()         : Calculate similarity score between two resources
-//   - buildResourceMatch()          : Build comprehensive resource match with capabilities
+//   - extractAWSResourceID()        : Extract AWS resource ID from managed resource properties
+//   - extractResourceCapabilities() : Extract resource capabilities dynamically
+//
+// This file handles correlation between managed infrastructure state and
+// discovered AWS resources for intelligent decision making and resource reuse.
 //
 // Usage Example:
 //   1. correlation := agent.analyzeResourceCorrelation(currentState, discoveredResources)
 //   2. match := correlation["managed-resource-id"]
 //   3. Use match.DiscoveredResource.ID for resource reuse in infrastructure decisions
 
-// ========== Resource Correlation Functions ==========
+// ========== Resource Correlation and Matching Functions ==========
 
 // analyzeResourceCorrelation analyzes correlation between managed and discovered resources
 func (a *StateAwareAgent) analyzeResourceCorrelation(currentState *types.InfrastructureState, discoveredResources []*types.ResourceState) map[string]*ResourceMatch {

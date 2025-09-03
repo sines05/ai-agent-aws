@@ -93,6 +93,8 @@ func (f *ToolFactoryImpl) CreateTool(toolType string, dependencies interface{}) 
 		return NewCreatePrivateRouteTableTool(deps.AWSClient, f.logger), nil
 	case "associate-route-table":
 		return NewAssociateRouteTableTool(deps.AWSClient, f.logger), nil
+	case "add-route":
+		return NewAddRouteTool(deps.AWSClient, f.logger), nil
 
 	// Security Group Tools
 	case "create-security-group":
@@ -198,6 +200,7 @@ func (f *ToolFactoryImpl) GetSupportedToolTypes() []string {
 		"create-public-route-table",
 		"create-private-route-table",
 		"associate-route-table",
+		"add-route",
 
 		// Security Group Tools
 		"create-security-group",

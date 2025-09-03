@@ -4,30 +4,62 @@ import (
 	"context"
 	"fmt"
 	"strings"
-
-	"github.com/versus-control/ai-infrastructure-agent/internal/config"
-	"github.com/versus-control/ai-infrastructure-agent/internal/logging"
+	"sync"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/googleai"
 	"github.com/tmc/langchaingo/llms/openai"
+	"github.com/versus-control/ai-infrastructure-agent/internal/config"
+	"github.com/versus-control/ai-infrastructure-agent/internal/logging"
+	"github.com/versus-control/ai-infrastructure-agent/pkg/aws"
 )
 
 // ========== Interface defines ==========
 
-// InitializationInterface defines agent initialization and LLM setup functionality
+// AgentFactoryInterface defines agent creation and initialization functionality
 //
 // Available Functions:
-//   - Initialize()               : Initialize the agent and load existing state via MCP
-//   - testLLMConnectivity()     : Test basic connectivity to the Language Model
-//   - initializeLLM()           : Initialize specific LLM provider (OpenAI, Google AI, etc.)
+//   - NewStateAwareAgent()        : Create a new state-aware AI agent instance
+//   - Initialize()                : Initialize agent and test connectivity
+//   - Cleanup()                   : Clean up agent resources and connections
+//
+//   - initializeLLM()             : Initialize the Language Model (OpenAI, Gemini, etc.)
+//   - testLLMConnectivity()       : Test LLM connection and basic functionality
+//
+// This file handles all agent creation, initialization, and cleanup operations.
+// It ensures proper setup of LLM connections, MCP processes, and resource mappings.
 //
 // Usage Example:
-//   1. agent := NewStateAwareAgent(...)
-//   2. err := agent.Initialize(ctx)
-//   3. // Agent is ready to process requests
+//   1. agent := NewStateAwareAgent(config, awsClient, stateFile, region, logger, awsConfig)
+//   2. agent.Initialize(ctx)
+//   3. defer agent.Cleanup()
 
-// ========== Initialization Functions ==========
+// ========== Agent Factory and Initialization Functions ==========
+
+// NewStateAwareAgent creates a new state-aware AI agent
+func NewStateAwareAgent(agentConfig *config.AgentConfig, awsClient *aws.Client, stateFilePath, region string, logger *logging.Logger, awsConfig *config.AWSConfig) (*StateAwareAgent, error) {
+	// Initialize LLM based on provider
+	llm, err := initializeLLM(agentConfig, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize LLM: %w", err)
+	}
+
+	agent := &StateAwareAgent{
+		llm:              llm,
+		config:           agentConfig,
+		awsConfig:        awsConfig,
+		awsClient:        awsClient,
+		Logger:           logger,
+		mcpProcess:       nil, // Will be initialized when needed
+		resourceMappings: make(map[string]string),
+		mappingsMutex:    sync.RWMutex{},
+		mcpTools:         make(map[string]MCPToolInfo),
+		mcpResources:     make(map[string]MCPResourceInfo),
+		capabilityMutex:  sync.RWMutex{},
+	}
+
+	return agent, nil
+}
 
 // Initialize initializes the agent and loads existing state
 func (a *StateAwareAgent) Initialize(ctx context.Context) error {
@@ -49,30 +81,9 @@ func (a *StateAwareAgent) Initialize(ctx context.Context) error {
 	return nil
 }
 
-// testLLMConnectivity tests basic connectivity to the LLM
-func (a *StateAwareAgent) testLLMConnectivity(ctx context.Context) error {
-	a.Logger.Debug("Testing LLM connectivity")
-
-	testPrompt := "Respond with exactly this JSON: {\"status\": \"ok\", \"message\": \"connectivity test successful\"}"
-
-	response, err := llms.GenerateFromSinglePrompt(ctx, a.llm, testPrompt,
-		llms.WithTemperature(0.1),
-		llms.WithMaxTokens(100))
-
-	if err != nil {
-		return fmt.Errorf("LLM test call failed: %w", err)
-	}
-
-	if len(response) == 0 {
-		return fmt.Errorf("LLM returned empty response during connectivity test")
-	}
-
-	a.Logger.WithFields(map[string]interface{}{
-		"test_response_length": len(response),
-		"test_response":        response,
-	}).Info("LLM connectivity test successful")
-
-	return nil
+// Cleanup ensures proper cleanup of resources
+func (a *StateAwareAgent) Cleanup() {
+	a.stopMCPProcess()
 }
 
 // initializeLLM initializes the appropriate LLM based on the provider configuration
@@ -135,4 +146,30 @@ func initializeLLM(agentConfig *config.AgentConfig, logger *logging.Logger) (llm
 	default:
 		return nil, fmt.Errorf("unsupported LLM provider: %s. Supported providers: openai, gemini", provider)
 	}
+}
+
+// testLLMConnectivity tests basic connectivity to the LLM
+func (a *StateAwareAgent) testLLMConnectivity(ctx context.Context) error {
+	a.Logger.Debug("Testing LLM connectivity")
+
+	testPrompt := "Respond with exactly this JSON: {\"status\": \"ok\", \"message\": \"connectivity test successful\"}"
+
+	response, err := llms.GenerateFromSinglePrompt(ctx, a.llm, testPrompt,
+		llms.WithTemperature(0.1),
+		llms.WithMaxTokens(100))
+
+	if err != nil {
+		return fmt.Errorf("LLM test call failed: %w", err)
+	}
+
+	if len(response) == 0 {
+		return fmt.Errorf("LLM returned empty response during connectivity test")
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"test_response_length": len(response),
+		"test_response":        response,
+	}).Info("LLM connectivity test successful")
+
+	return nil
 }

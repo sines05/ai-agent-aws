@@ -79,6 +79,8 @@ func (v *VPCAdapter) GetSupportedOperations() []string {
 		"create-subnet",
 		"create-internet-gateway",
 		"create-route-table",
+		"associate-route-table",
+		"add-route",
 	}
 }
 
@@ -215,18 +217,78 @@ func NewVPCSpecializedAdapter(client *aws.Client, logger *logging.Logger) interf
 func (v *VPCSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, operation string, params interface{}) (*types.AWSResource, error) {
 	switch operation {
 	case "create-subnet":
-		subnetParams, ok := params.(aws.CreateSubnetParams)
+		// Handle both parameter formats for flexibility
+		if subnetParams, ok := params.(aws.CreateSubnetParams); ok {
+			// Direct parameter struct format
+			return v.client.CreateSubnet(ctx, subnetParams)
+		}
+
+		// Map format (for MCP tools or other callers)
+		paramsMap, ok := params.(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("subnet parameters required for create-subnet operation")
 		}
+
+		vpcID, ok := paramsMap["vpcId"].(string)
+		if !ok || vpcID == "" {
+			return nil, fmt.Errorf("vpcId is required for subnet creation")
+		}
+
+		cidrBlock, ok := paramsMap["cidrBlock"].(string)
+		if !ok || cidrBlock == "" {
+			return nil, fmt.Errorf("cidrBlock is required for subnet creation")
+		}
+
+		availabilityZone, _ := paramsMap["availabilityZone"].(string)
+		name, _ := paramsMap["name"].(string)
+		mapPublicIpOnLaunch, _ := paramsMap["mapPublicIpOnLaunch"].(bool)
+
+		// Extract tags if provided
+		tags := make(map[string]string)
+		if tagsMap, ok := paramsMap["tags"].(map[string]interface{}); ok {
+			for k, v := range tagsMap {
+				if strVal, ok := v.(string); ok {
+					tags[k] = strVal
+				}
+			}
+		}
+
+		// Add name tag if provided
+		if name != "" {
+			tags["Name"] = name
+		}
+
+		// Create subnet parameters
+		subnetParams := aws.CreateSubnetParams{
+			VpcID:               vpcID,
+			CidrBlock:           cidrBlock,
+			AvailabilityZone:    availabilityZone,
+			MapPublicIpOnLaunch: mapPublicIpOnLaunch,
+			Name:                name,
+			Tags:                tags,
+		}
+
 		return v.client.CreateSubnet(ctx, subnetParams)
 
 	case "create-internet-gateway":
-		igwParams, ok := params.(aws.CreateInternetGatewayParams)
+		paramsMap, ok := params.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("internet gateway parameters required")
+			return nil, fmt.Errorf("internet gateway parameters required as map")
 		}
-		vpcID, _ := params.(map[string]interface{})["vpcId"].(string)
+
+		vpcID, ok := paramsMap["vpcId"].(string)
+		if !ok || vpcID == "" {
+			return nil, fmt.Errorf("vpcId is required for internet gateway creation")
+		}
+
+		name, _ := paramsMap["name"].(string)
+
+		// Create the IGW parameters
+		igwParams := aws.CreateInternetGatewayParams{
+			Name: name,
+			Tags: map[string]string{},
+		}
+
 		return v.client.CreateInternetGateway(ctx, igwParams, vpcID)
 
 	case "create-route-table":
@@ -243,6 +305,122 @@ func (v *VPCSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 
 		return v.client.CreateRouteTable(ctx, vpcID, name)
 
+	case "create-nat-gateway":
+		natParams, ok := params.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("NAT gateway parameters required")
+		}
+
+		subnetID, ok := natParams["subnetId"].(string)
+		if !ok || subnetID == "" {
+			return nil, fmt.Errorf("subnetId is required for NAT gateway creation")
+		}
+
+		name, _ := natParams["name"].(string)
+
+		// Create NAT gateway parameters
+		natGwParams := aws.CreateNATGatewayParams{
+			SubnetID: subnetID,
+			Name:     name,
+			Tags: map[string]string{
+				"Name": name,
+			},
+		}
+
+		return v.client.CreateNATGateway(ctx, natGwParams)
+
+	case "associate-route-table":
+		assocParams, ok := params.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("route table association parameters required")
+		}
+
+		routeTableID, ok := assocParams["routeTableId"].(string)
+		if !ok || routeTableID == "" {
+			return nil, fmt.Errorf("routeTableId is required for route table association")
+		}
+
+		subnetID, ok := assocParams["subnetId"].(string)
+		if !ok || subnetID == "" {
+			return nil, fmt.Errorf("subnetId is required for route table association")
+		}
+
+		err := v.client.AssociateRouteTable(ctx, routeTableID, subnetID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Return a resource representing the association
+		return &types.AWSResource{
+			ID:     fmt.Sprintf("%s-%s", routeTableID, subnetID),
+			Type:   "route-table-association",
+			Region: v.client.GetRegion(),
+			State:  "associated",
+			Details: map[string]interface{}{
+				"routeTableId": routeTableID,
+				"subnetId":     subnetID,
+			},
+		}, nil
+
+	case "add-route":
+		routeParams, ok := params.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("route parameters required")
+		}
+
+		routeTableID, ok := routeParams["routeTableId"].(string)
+		if !ok || routeTableID == "" {
+			return nil, fmt.Errorf("routeTableId is required for route creation")
+		}
+
+		destinationCidr, ok := routeParams["destinationCidrBlock"].(string)
+		if !ok || destinationCidr == "" {
+			return nil, fmt.Errorf("destinationCidrBlock is required for route creation")
+		}
+
+		natGatewayID, _ := routeParams["natGatewayId"].(string)
+		internetGatewayID, _ := routeParams["internetGatewayId"].(string)
+
+		if natGatewayID == "" && internetGatewayID == "" {
+			return nil, fmt.Errorf("either natGatewayId or internetGatewayId is required for route creation")
+		}
+
+		if natGatewayID != "" && internetGatewayID != "" {
+			return nil, fmt.Errorf("specify either natGatewayId or internetGatewayId, not both")
+		}
+
+		var err error
+		var targetID string
+		var targetType string
+
+		if natGatewayID != "" {
+			err = v.client.CreateRouteForNAT(ctx, routeTableID, destinationCidr, natGatewayID)
+			targetID = natGatewayID
+			targetType = "nat-gateway"
+		} else {
+			err = v.client.CreateRoute(ctx, routeTableID, destinationCidr, internetGatewayID)
+			targetID = internetGatewayID
+			targetType = "internet-gateway"
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		// Return a resource representing the route
+		return &types.AWSResource{
+			ID:     fmt.Sprintf("%s-%s", routeTableID, destinationCidr),
+			Type:   "route",
+			Region: v.client.GetRegion(),
+			State:  "active",
+			Details: map[string]interface{}{
+				"routeTableId":         routeTableID,
+				"destinationCidrBlock": destinationCidr,
+				"targetId":             targetID,
+				"targetType":           targetType,
+			},
+		}, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported specialized operation: %s", operation)
 	}
@@ -250,5 +428,5 @@ func (v *VPCSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 
 // GetSpecialOperations returns the specialized operations available
 func (v *VPCSpecializedAdapter) GetSpecialOperations() []string {
-	return []string{"create-subnet", "create-internet-gateway", "create-route-table"}
+	return []string{"create-subnet", "create-internet-gateway", "create-route-table", "create-nat-gateway", "associate-route-table", "add-route"}
 }

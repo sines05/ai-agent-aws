@@ -1,19 +1,22 @@
 package agent
 
 // ========== Interface defines ==========
-
-// DecisionHelpersInterface defines utility functions for decision-making process
+// UtilityHelpersInterface defines utility helper functionality
 //
 // Available Functions:
 //   - countRules()                  : Count number of rules in security group rule sets
 //   - extractOpenPorts()            : Extract all open ports from security group rules
-//   - analyzePortCapabilities()     : Analyze port capabilities for service detection
-//   - generateResourceName()        : Generate unique resource names based on patterns
+//   - addPortsFromRule()            : Add ports from a single rule to port set
+//   - hasPortInRules()              : Check if security group rules include specific port
+//   - ruleIncludesPort()            : Check if single rule includes target port
+//
+// This file provides utility functions for security group analysis, port
+// management, and other common infrastructure analysis operations.
 //
 // Usage Example:
 //   1. portCount := agent.countRules(securityGroupRules)
 //   2. openPorts := agent.extractOpenPorts(ingressRules)
-//   3. capabilities := agent.analyzePortCapabilities(openPorts)
+//   3. hasHTTP := agent.hasPortInRules(rules, 80)
 
 // ========== Utility Helper Functions ==========
 

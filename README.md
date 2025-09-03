@@ -349,6 +349,20 @@ go build ./...
 
 </details>
 
+<details>
+<summary><strong>Decision validation failed: decision confidence too low: 0.000000</strong></summary>
+
+Try increase max_tokens:
+
+```yaml
+agent:
+  provider: "gemini"              # Use Google AI (Gemini)
+  model: "gemini-2.5-flash-lite"
+  max_tokens: 10000 # <-- increase
+```
+
+</details>
+
 ## Security Considerations
 
 - **API Keys**: Never commit API keys to version control
@@ -369,6 +383,7 @@ go build ./...
 - 🔄 Enhanced conflict resolution
 - 🔄 Cost optimization recommendations
 - 🔄 Infrastructure templates
+- 🔄 Multi States
 - 🔄 Role-based access control
 
 ## 🤝 Community & Support
