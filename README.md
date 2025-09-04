@@ -20,6 +20,10 @@
 
 AI Infrastructure Agent is an intelligent system that allows you to manage AWS infrastructure using natural language commands. Powered by advanced AI models (OpenAI GPT, Google Gemini, or Anthropic Claude), it translates your infrastructure requests into executable AWS operations while maintaining safety through conflict detection and resolution.
 
+<h1 align="center" style="border-bottom: none">
+  <img alt="Web Dashboard" src="docs/images/web-dashboard.svg">
+</h1>
+
 ### Key Features
 
 - **Natural Language Interface** - Describe what you want, not how to build it
@@ -30,10 +34,6 @@ AI Infrastructure Agent is an intelligent system that allows you to manage AWS i
 - **Terraform-like state** - Maintains accurate infrastructure state
 
 ## Example Usage
-
-<h1 align="center" style="border-bottom: none">
-  <img alt="Web Dashboard" src="docs/images/web-dashboard.png">
-</h1>
 
 Imagine you want to create AWS infrastructure with a simple request:
 
