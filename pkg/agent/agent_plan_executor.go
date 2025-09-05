@@ -839,7 +839,7 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 		stepResourceState := &types.ResourceState{
 			ID:           planStep.ID, // Use step ID as the key
 			Name:         planStep.Name + " (Step Reference)",
-			Type:         resourceType,
+			Type:         "step_reference",
 			Status:       "created",
 			Properties:   resultData,
 			Dependencies: planStep.DependsOn,
