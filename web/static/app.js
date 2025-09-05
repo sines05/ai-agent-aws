@@ -438,7 +438,6 @@ function displayState(state) {
     
     if (dataSource === 'discovered' && Array.isArray(actualState.resources)) {
         // Handle discovered resources format (array of ResourceState objects)
-        resourceCount = actualState.resources.length;
         // Convert array to object for consistent display
         resources = {};
         actualState.resources.forEach((resource, index) => {
@@ -452,10 +451,13 @@ function displayState(state) {
                 }
             };
         });
+        // Count only non-step_reference resources for display
+        resourceCount = actualState.resources.filter(r => r.type !== 'step_reference').length;
     } else {
         // Handle managed state format (object with resources)
-        resourceCount = Object.keys(actualState.resources || {}).length;
         resources = actualState.resources || {};
+        // Count only non-step_reference resources for display
+        resourceCount = Object.values(resources).filter(r => r.type !== 'step_reference').length;
     }
     
     let html = `
@@ -490,6 +492,11 @@ function displayState(state) {
     if (resourceCount > 0) {
         html += '<div class="data-grid">';
         for (const [id, resource] of Object.entries(resources)) {
+            // Skip step_reference resources as they are internal for dependency resolution
+            if (resource.type === 'step_reference') {
+                continue;
+            }
+            
             // Extract AWS resource ID from different formats
             let awsResourceId = 'N/A';
             if (dataSource === 'discovered' && resource.properties && resource.properties.aws_details) {
