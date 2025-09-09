@@ -11,6 +11,7 @@ import (
 	"github.com/tmc/langchaingo/llms/openai"
 	"github.com/versus-control/ai-infrastructure-agent/internal/config"
 	"github.com/versus-control/ai-infrastructure-agent/internal/logging"
+	"github.com/versus-control/ai-infrastructure-agent/pkg/agent/resources"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/aws"
 )
 
@@ -44,18 +45,49 @@ func NewStateAwareAgent(agentConfig *config.AgentConfig, awsClient *aws.Client, 
 		return nil, fmt.Errorf("failed to initialize LLM: %w", err)
 	}
 
+	// Initialize configuration loader
+	configLoader := config.NewConfigLoader("./settings")
+
+	// Load field mapping configuration
+	fieldMappingConfig, err := configLoader.LoadFieldMappings()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load field mapping config: %w", err)
+	}
+
+	// Load resource pattern configuration
+	resourcePatternConfig, err := configLoader.LoadResourcePatterns()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load resource pattern config: %w", err)
+	}
+
+	// Initialize pattern matcher
+	patternMatcher, err := resources.NewPatternMatcher(resourcePatternConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pattern matcher: %w", err)
+	}
+
+	// Initialize value type inferrer
+	valueTypeInferrer, err := resources.NewValueTypeInferrer(resourcePatternConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create value type inferrer: %w", err)
+	}
+
 	agent := &StateAwareAgent{
-		llm:              llm,
-		config:           agentConfig,
-		awsConfig:        awsConfig,
-		awsClient:        awsClient,
-		Logger:           logger,
-		mcpProcess:       nil, // Will be initialized when needed
-		resourceMappings: make(map[string]string),
-		mappingsMutex:    sync.RWMutex{},
-		mcpTools:         make(map[string]MCPToolInfo),
-		mcpResources:     make(map[string]MCPResourceInfo),
-		capabilityMutex:  sync.RWMutex{},
+		llm:               llm,
+		config:            agentConfig,
+		awsConfig:         awsConfig,
+		awsClient:         awsClient,
+		Logger:            logger,
+		mcpProcess:        nil, // Will be initialized when needed
+		resourceMappings:  make(map[string]string),
+		mappingsMutex:     sync.RWMutex{},
+		mcpTools:          make(map[string]MCPToolInfo),
+		mcpResources:      make(map[string]MCPResourceInfo),
+		capabilityMutex:   sync.RWMutex{},
+		configLoader:      configLoader,
+		patternMatcher:    patternMatcher,
+		valueTypeInferrer: valueTypeInferrer,
+		fieldResolver:     resources.NewFieldResolver(fieldMappingConfig),
 	}
 
 	return agent, nil

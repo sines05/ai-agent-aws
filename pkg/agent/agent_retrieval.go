@@ -28,6 +28,12 @@ import (
 //   - retrieveTargetGroupArn()        : Retrieve target group ARN from previous steps
 //   - retrieveDefaultAMIForRegion()        : Get region-specific default AMI
 //   - retrieveExistingResourceFromState()  : retrieves existing resources from the managed state file
+//   - retrieveLaunchTemplateId()      : Retrieve launch template ID from previous steps
+//   - retrieveSecurityGroupId()       : Retrieve security group ID from previous steps
+//   - retrieveDBSubnetGroupName()     : Retrieve DB subnet group name from previous steps
+//   - retrieveAutoScalingGroupArn()   : Retrieve Auto Scaling Group ARN from previous steps
+//   - retrieveAutoScalingGroupName()  : Retrieve Auto Scaling Group name from previous steps
+//   - retrieveRDSEndpoint()          : Retrieve RDS database endpoint from previous steps
 //
 // This file handles all AWS resource discovery and retrieval operations
 // needed for infrastructure planning and dependency resolution.
@@ -761,4 +767,276 @@ func (a *StateAwareAgent) retrieveExistingResourceFromState(planStep *types.Exec
 	}
 
 	return nil, fmt.Errorf("resource not found in state file - name: '%s', id: '%s', type: '%s'", resourceName, resourceID, resourceType)
+}
+
+// retrieveLaunchTemplateId retrieves launch template ID from a previous step
+func (a *StateAwareAgent) retrieveLaunchTemplateId(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.Logger.WithField("step_id", planStep.ID).Info("Starting launch template ID retrieval")
+
+	// Get the step reference from parameters
+	stepRef, exists := planStep.Parameters["step_ref"]
+	if !exists {
+		return nil, fmt.Errorf("step_ref parameter is required for launch_template_id retrieval")
+	}
+
+	stepRefStr, ok := stepRef.(string)
+	if !ok {
+		return nil, fmt.Errorf("step_ref must be a string")
+	}
+
+	a.Logger.WithField("step_ref", stepRefStr).Info("Resolving launch template ID from step reference")
+
+	// Use dependency resolution to get the ID
+	launchTemplateId, err := a.resolveDependencyReference(stepRefStr)
+	if err != nil {
+		a.Logger.WithError(err).Error("Failed to resolve launch template ID reference")
+		return nil, fmt.Errorf("failed to resolve launch template ID reference %s: %w", stepRefStr, err)
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"step_ref":           stepRefStr,
+		"launch_template_id": launchTemplateId,
+	}).Info("Successfully resolved launch template ID")
+
+	return map[string]interface{}{
+		"value":            launchTemplateId,     // For {{step-id.resourceId}} resolution
+		"launchTemplateId": launchTemplateId,     // Explicit ID field
+		"templateId":       launchTemplateId,     // Alternative key
+		"type":             "launch_template_id", // Resource type
+		"retrieved_at":     time.Now().Format(time.RFC3339),
+		"description":      fmt.Sprintf("Launch template ID resolved from %s", stepRefStr),
+		"source":           "step_reference",
+	}, nil
+}
+
+// retrieveSecurityGroupId retrieves security group ID from a previous step
+func (a *StateAwareAgent) retrieveSecurityGroupId(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.Logger.WithField("step_id", planStep.ID).Info("Starting security group ID retrieval")
+
+	// Get the step reference from parameters
+	stepRef, exists := planStep.Parameters["step_ref"]
+	if !exists {
+		return nil, fmt.Errorf("step_ref parameter is required for security_group_id retrieval")
+	}
+
+	stepRefStr, ok := stepRef.(string)
+	if !ok {
+		return nil, fmt.Errorf("step_ref must be a string")
+	}
+
+	a.Logger.WithField("step_ref", stepRefStr).Info("Resolving security group ID from step reference")
+
+	// Use dependency resolution to get the ID
+	securityGroupId, err := a.resolveDependencyReference(stepRefStr)
+	if err != nil {
+		a.Logger.WithError(err).Error("Failed to resolve security group ID reference")
+		return nil, fmt.Errorf("failed to resolve security group ID reference %s: %w", stepRefStr, err)
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"step_ref":          stepRefStr,
+		"security_group_id": securityGroupId,
+	}).Info("Successfully resolved security group ID")
+
+	return map[string]interface{}{
+		"value":           securityGroupId,     // For {{step-id.resourceId}} resolution
+		"securityGroupId": securityGroupId,     // Explicit ID field
+		"groupId":         securityGroupId,     // Alternative key
+		"type":            "security_group_id", // Resource type
+		"retrieved_at":    time.Now().Format(time.RFC3339),
+		"description":     fmt.Sprintf("Security group ID resolved from %s", stepRefStr),
+		"source":          "step_reference",
+	}, nil
+}
+
+// retrieveDBSubnetGroupName retrieves DB subnet group name from a previous step
+func (a *StateAwareAgent) retrieveDBSubnetGroupName(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.Logger.WithField("step_id", planStep.ID).Info("Starting DB subnet group name retrieval")
+
+	// Get the step reference from parameters
+	stepRef, exists := planStep.Parameters["step_ref"]
+	if !exists {
+		return nil, fmt.Errorf("step_ref parameter is required for db_subnet_group_name retrieval")
+	}
+
+	stepRefStr, ok := stepRef.(string)
+	if !ok {
+		return nil, fmt.Errorf("step_ref must be a string")
+	}
+
+	a.Logger.WithField("step_ref", stepRefStr).Info("Resolving DB subnet group name from step reference")
+
+	// For DB subnet group, we might need to get the name rather than ID
+	// First try to resolve normally
+	dbSubnetGroupId, err := a.resolveDependencyReference(stepRefStr)
+	if err != nil {
+		a.Logger.WithError(err).Error("Failed to resolve DB subnet group reference")
+		return nil, fmt.Errorf("failed to resolve DB subnet group reference %s: %w", stepRefStr, err)
+	}
+
+	// The DB subnet group creation typically returns the name as the ID
+	// but we should also check if we have the name stored separately
+	dbSubnetGroupName := dbSubnetGroupId
+
+	a.Logger.WithFields(map[string]interface{}{
+		"step_ref":             stepRefStr,
+		"db_subnet_group_name": dbSubnetGroupName,
+	}).Info("Successfully resolved DB subnet group name")
+
+	return map[string]interface{}{
+		"value":             dbSubnetGroupName,      // For {{step-id.resourceId}} resolution
+		"dbSubnetGroupName": dbSubnetGroupName,      // Explicit name field
+		"subnetGroupName":   dbSubnetGroupName,      // Alternative key
+		"type":              "db_subnet_group_name", // Resource type
+		"retrieved_at":      time.Now().Format(time.RFC3339),
+		"description":       fmt.Sprintf("DB subnet group name resolved from %s", stepRefStr),
+		"source":            "step_reference",
+	}, nil
+}
+
+// retrieveAutoScalingGroupArn retrieves Auto Scaling Group ARN from a previous step
+func (a *StateAwareAgent) retrieveAutoScalingGroupArn(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.Logger.WithField("step_id", planStep.ID).Info("Starting Auto Scaling Group ARN retrieval")
+
+	// Get the step reference from parameters
+	stepRef, exists := planStep.Parameters["step_ref"]
+	if !exists {
+		return nil, fmt.Errorf("step_ref parameter is required for auto_scaling_group_arn retrieval")
+	}
+
+	stepRefStr, ok := stepRef.(string)
+	if !ok {
+		return nil, fmt.Errorf("step_ref must be a string")
+	}
+
+	a.Logger.WithField("step_ref", stepRefStr).Info("Resolving Auto Scaling Group ARN from step reference")
+
+	// Use dependency resolution to get the ARN
+	asgArn, err := a.resolveDependencyReference(stepRefStr)
+	if err != nil {
+		a.Logger.WithError(err).Error("Failed to resolve Auto Scaling Group ARN reference")
+		return nil, fmt.Errorf("failed to resolve Auto Scaling Group ARN reference %s: %w", stepRefStr, err)
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"step_ref": stepRefStr,
+		"asg_arn":  asgArn,
+	}).Info("Successfully resolved Auto Scaling Group ARN")
+
+	return map[string]interface{}{
+		"value":               asgArn,                   // For {{step-id.resourceId}} resolution
+		"autoScalingGroupArn": asgArn,                   // Explicit ARN field
+		"asgArn":              asgArn,                   // Alternative key
+		"arn":                 asgArn,                   // Generic ARN field
+		"type":                "auto_scaling_group_arn", // Resource type
+		"retrieved_at":        time.Now().Format(time.RFC3339),
+		"description":         fmt.Sprintf("Auto Scaling Group ARN resolved from %s", stepRefStr),
+		"source":              "step_reference",
+	}, nil
+}
+
+// retrieveAutoScalingGroupName retrieves Auto Scaling Group name from a previous step
+func (a *StateAwareAgent) retrieveAutoScalingGroupName(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.Logger.WithField("step_id", planStep.ID).Info("Starting Auto Scaling Group name retrieval")
+
+	// Get the step reference from parameters
+	stepRef, exists := planStep.Parameters["step_ref"]
+	if !exists {
+		return nil, fmt.Errorf("step_ref parameter is required for auto_scaling_group_name retrieval")
+	}
+
+	stepRefStr, ok := stepRef.(string)
+	if !ok {
+		return nil, fmt.Errorf("step_ref must be a string")
+	}
+
+	a.Logger.WithField("step_ref", stepRefStr).Info("Resolving Auto Scaling Group name from step reference")
+
+	// For ASG, we might need to get the name from the resource properties
+	// First try to resolve the reference
+	asgId, err := a.resolveDependencyReference(stepRefStr)
+	if err != nil {
+		a.Logger.WithError(err).Error("Failed to resolve Auto Scaling Group reference")
+		return nil, fmt.Errorf("failed to resolve Auto Scaling Group reference %s: %w", stepRefStr, err)
+	}
+
+	// The ASG creation typically returns the name as the ID
+	asgName := asgId
+
+	a.Logger.WithFields(map[string]interface{}{
+		"step_ref": stepRefStr,
+		"asg_name": asgName,
+	}).Info("Successfully resolved Auto Scaling Group name")
+
+	return map[string]interface{}{
+		"value":                asgName,                   // For {{step-id.resourceId}} resolution
+		"autoScalingGroupName": asgName,                   // Explicit name field
+		"asgName":              asgName,                   // Alternative key
+		"name":                 asgName,                   // Generic name field
+		"type":                 "auto_scaling_group_name", // Resource type
+		"retrieved_at":         time.Now().Format(time.RFC3339),
+		"description":          fmt.Sprintf("Auto Scaling Group name resolved from %s", stepRefStr),
+		"source":               "step_reference",
+	}, nil
+}
+
+// retrieveRDSEndpoint retrieves RDS database endpoint from a previous step
+func (a *StateAwareAgent) retrieveRDSEndpoint(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.Logger.WithField("step_id", planStep.ID).Info("Starting RDS endpoint retrieval")
+
+	// Get the step reference from parameters
+	stepRef, exists := planStep.Parameters["step_ref"]
+	if !exists {
+		return nil, fmt.Errorf("step_ref parameter is required for rds_endpoint retrieval")
+	}
+
+	stepRefStr, ok := stepRef.(string)
+	if !ok {
+		return nil, fmt.Errorf("step_ref must be a string")
+	}
+
+	// Get the RDS instance identifier from the dependency reference
+	rdsInstanceId, err := a.resolveDependencyReference(stepRefStr)
+	if err != nil {
+		a.Logger.WithError(err).Error("Failed to resolve RDS instance reference")
+		return nil, fmt.Errorf("failed to resolve RDS instance reference %s: %w", stepRefStr, err)
+	}
+
+	a.Logger.WithField("rds_instance_id", rdsInstanceId).Info("Calling AWS API to get RDS endpoint")
+
+	// Call AWS API to get the RDS instance details including the endpoint
+	dbInstance, err := a.awsClient.GetDBInstance(ctx, rdsInstanceId)
+	if err != nil {
+		a.Logger.WithError(err).Error("AWS API call failed for GetDBInstance")
+		return nil, fmt.Errorf("failed to get RDS instance details for %s: %w", rdsInstanceId, err)
+	}
+
+	// Extract the endpoint from the DB instance Details
+	endpoint := ""
+	if dbInstance.Details != nil {
+		if endpointVal, ok := dbInstance.Details["endpoint"].(string); ok {
+			endpoint = endpointVal
+		}
+	}
+
+	if endpoint == "" {
+		return nil, fmt.Errorf("could not extract RDS endpoint from instance %s", rdsInstanceId)
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"step_ref":        stepRefStr,
+		"rds_instance_id": rdsInstanceId,
+		"rds_endpoint":    endpoint,
+	}).Info("Successfully resolved RDS endpoint via AWS API")
+
+	return map[string]interface{}{
+		"value":        endpoint,       // For {{step-id.resourceId}} resolution
+		"endpoint":     endpoint,       // Explicit endpoint field
+		"rdsEndpoint":  endpoint,       // Alternative key
+		"address":      endpoint,       // Generic address field
+		"type":         "rds_endpoint", // Resource type
+		"retrieved_at": time.Now().Format(time.RFC3339),
+		"description":  fmt.Sprintf("RDS endpoint resolved from %s", stepRefStr),
+		"source":       "aws_api_call",
+	}, nil
 }

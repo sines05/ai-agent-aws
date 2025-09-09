@@ -398,7 +398,7 @@ func (t *ListLaunchTemplatesTool) Execute(ctx context.Context, arguments map[str
 // UpdateAutoScalingGroupTool implements MCPTool for updating ASG capacity
 type UpdateAutoScalingGroupTool struct {
 	*BaseTool
-	awsClient *aws.Client
+	adapter interfaces.AWSResourceAdapter
 }
 
 // NewUpdateAutoScalingGroupTool creates a new ASG update tool
@@ -436,8 +436,8 @@ func NewUpdateAutoScalingGroupTool(awsClient *aws.Client, logger *logging.Logger
 	)
 
 	return &UpdateAutoScalingGroupTool{
-		BaseTool:  baseTool,
-		awsClient: awsClient,
+		BaseTool: baseTool,
+		adapter:  adapters.NewASGAdapter(awsClient, logger),
 	}
 }
 
@@ -453,7 +453,13 @@ func (t *UpdateAutoScalingGroupTool) Execute(ctx context.Context, arguments map[
 	}
 	desiredCapacity := int32(desiredCapacityFloat)
 
-	err := t.awsClient.UpdateAutoScalingGroup(ctx, asgName, desiredCapacity)
+	// Prepare parameters for adapter update
+	updateParams := map[string]interface{}{
+		"desiredCapacity": desiredCapacity,
+	}
+
+	// Use the adapter to update the ASG
+	updatedASG, err := t.adapter.Update(ctx, asgName, updateParams)
 	if err != nil {
 		t.logger.WithError(err).Error("Failed to update Auto Scaling Group")
 		return t.CreateErrorResponse(fmt.Sprintf("Failed to update ASG: %v", err))
@@ -464,6 +470,7 @@ func (t *UpdateAutoScalingGroupTool) Execute(ctx context.Context, arguments map[
 		"asgName":         asgName,
 		"desiredCapacity": desiredCapacity,
 		"status":          "updated",
+		"resource":        updatedASG,
 	}
 
 	return t.CreateSuccessResponse(message, data)
@@ -472,7 +479,7 @@ func (t *UpdateAutoScalingGroupTool) Execute(ctx context.Context, arguments map[
 // DeleteAutoScalingGroupTool implements MCPTool for deleting ASGs
 type DeleteAutoScalingGroupTool struct {
 	*BaseTool
-	awsClient *aws.Client
+	adapter interfaces.AWSResourceAdapter
 }
 
 // NewDeleteAutoScalingGroupTool creates a new ASG deletion tool
@@ -511,8 +518,8 @@ func NewDeleteAutoScalingGroupTool(awsClient *aws.Client, logger *logging.Logger
 	)
 
 	return &DeleteAutoScalingGroupTool{
-		BaseTool:  baseTool,
-		awsClient: awsClient,
+		BaseTool: baseTool,
+		adapter:  adapters.NewASGAdapter(awsClient, logger),
 	}
 }
 
@@ -524,7 +531,8 @@ func (t *DeleteAutoScalingGroupTool) Execute(ctx context.Context, arguments map[
 
 	forceDelete, _ := arguments["forceDelete"].(bool) // Default to false if not provided
 
-	err := t.awsClient.DeleteAutoScalingGroup(ctx, asgName, forceDelete)
+	// Use the adapter to delete the ASG
+	err := t.adapter.Delete(ctx, asgName)
 	if err != nil {
 		t.logger.WithError(err).Error("Failed to delete Auto Scaling Group")
 		return t.CreateErrorResponse(fmt.Sprintf("Failed to delete ASG: %v", err))
@@ -535,6 +543,102 @@ func (t *DeleteAutoScalingGroupTool) Execute(ctx context.Context, arguments map[
 		"asgName":     asgName,
 		"forceDelete": forceDelete,
 		"status":      "deleted",
+	}
+
+	return t.CreateSuccessResponse(message, data)
+}
+
+// AttachASGToTargetGroupTool implements MCPTool for attaching ASG to target groups
+type AttachASGToTargetGroupTool struct {
+	*BaseTool
+	adapter interfaces.SpecializedOperations
+}
+
+// NewAttachASGToTargetGroupTool creates a new ASG target group attachment tool
+func NewAttachASGToTargetGroupTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+	inputSchema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"asgName": map[string]interface{}{
+				"type":        "string",
+				"description": "The name of the Auto Scaling Group",
+			},
+			"targetGroupArns": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "string",
+				},
+				"description": "List of target group ARNs to attach to the ASG",
+			},
+		},
+		"required": []interface{}{"asgName", "targetGroupArns"},
+	}
+
+	baseTool := NewBaseTool(
+		"attach-asg-to-target-group",
+		"Attach an Auto Scaling Group to load balancer target groups",
+		"autoscaling",
+		inputSchema,
+		logger,
+	)
+
+	baseTool.AddExample(
+		"Attach ASG to target groups",
+		map[string]interface{}{
+			"asgName": "web-servers-asg",
+			"targetGroupArns": []string{
+				"arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/web-targets/50dc6c495c0c9188",
+			},
+		},
+		"Successfully attached ASG web-servers-asg to target group",
+	)
+
+	return &AttachASGToTargetGroupTool{
+		BaseTool: baseTool,
+		adapter:  adapters.NewASGSpecializedAdapter(awsClient, logger),
+	}
+}
+
+func (t *AttachASGToTargetGroupTool) Execute(ctx context.Context, arguments map[string]interface{}) (*mcp.CallToolResult, error) {
+	asgName, ok := arguments["asgName"].(string)
+	if !ok || asgName == "" {
+		return t.CreateErrorResponse("asgName is required")
+	}
+
+	// Handle target group ARNs
+	var targetGroupArns []string
+	if tgArns, ok := arguments["targetGroupArns"].([]interface{}); ok {
+		for _, tgArn := range tgArns {
+			if arn, ok := tgArn.(string); ok {
+				targetGroupArns = append(targetGroupArns, arn)
+			}
+		}
+	}
+
+	if len(targetGroupArns) == 0 {
+		return t.CreateErrorResponse("targetGroupArns is required and must not be empty")
+	}
+
+	// Prepare parameters for specialized adapter
+	attachParams := map[string]interface{}{
+		"autoScalingGroupName": asgName,
+		"targetGroupArns":      targetGroupArns,
+	}
+
+	// Use the specialized adapter to attach ASG to target groups
+	updatedASG, err := t.adapter.ExecuteSpecialOperation(ctx, "attach-target-groups", attachParams)
+	if err != nil {
+		t.logger.WithError(err).Error("Failed to attach ASG to target groups")
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to attach ASG to target groups: %v", err))
+	}
+
+	message := fmt.Sprintf("Successfully attached Auto Scaling Group %s to %d target group(s)", asgName, len(targetGroupArns))
+	data := map[string]interface{}{
+		"asgName":          asgName,
+		"targetGroupArns":  targetGroupArns,
+		"targetGroupCount": len(targetGroupArns),
+		"status":           "attached",
+		"resource":         updatedASG,
 	}
 
 	return t.CreateSuccessResponse(message, data)
