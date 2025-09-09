@@ -36,104 +36,64 @@ resource_identification:
   # Name-based patterns (less reliable, used as fallback)
   name_patterns:
     vpc:
-      - 'vpc'
-      - 'virtual.*private.*cloud'
-      - '.*-vpc$'
-      - '.*vpc.*'
+      - 'create.*vpc'
       
     subnet:
-      - 'subnet'
-      - 'sub-net'
-      - '.*-subnet$'
-      - 'public.*subnet'
-      - 'private.*subnet'
+      - 'create.*subnet'
       
     security_group:
-      - 'security.*group'
-      - 'sg'
-      - 'firewall'
-      - '.*-sg$'
-      - 'security.*'
+      - 'create.*security.*group'
       
     ec2_instance:
-      - 'instance'
-      - 'ec2'
-      - 'virtual.*machine'
-      - 'vm'
-      - 'server'
-      - '.*-instance$'
+      - 'create.*instance'
+      - 'create.*ec2'
       
     load_balancer:
-      - 'load.*balancer'
-      - 'alb'
-      - 'elb'
-      - 'nlb'
-      - 'application.*load.*balancer'
-      - 'network.*load.*balancer'
+      - 'create.*load.*balancer'
       
     target_group:
-      - 'target.*group'
-      - 'tg'
-      - '.*-tg$'
-      - 'targets'
+      - 'create.*target.*group'
       
     launch_template:
-      - 'launch.*template'
-      - 'lt'
-      - 'template'
-      - '.*-template$'
+      - 'create.*launch.*template'
       
     auto_scaling_group:
-      - 'auto.*scaling.*group'
-      - 'asg'
-      - 'scaling.*group'
-      - 'autoscaling'
-      - '.*-asg$'
+      - 'create.*auto.*scaling.*group'
+      - 'create.*scaling.*group'
       
     internet_gateway:
-      - 'internet.*gateway'
-      - 'igw'
-      - 'gateway'
-      - '.*-igw$'
+      - 'create.*internet.*gateway'
       
     nat_gateway:
-      - 'nat.*gateway'
-      - 'natgw'
-      - 'nat'
-      - '.*-natgw$'
+      - 'create.*nat.*gateway'
       
     route_table:
-      - 'route.*table'
-      - 'routing.*table'
-      - 'rtb'
-      - '.*-rtb$'
+      - 'create.*route.*table'
       
     rds_instance:
-      - 'rds'
-      - 'database'
-      - 'db.*instance'
-      - 'mysql'
-      - 'postgres'
-      - 'oracle'
-      - 'sqlserver'
+      - 'create.*rds'
       
     db_subnet_group:
-      - 'db.*subnet.*group'
-      - 'database.*subnet'
-      - 'subnet.*group'
+      - 'create.*db.*subnet.*group'
+      - 'create.*subnet.*group'
     
   # Description-based patterns (least reliable, used for inference)
   description_patterns:
     vpc:
+      - 'create.*new.*vpc'
+      - 'create.*vpc.*for.*'
       - 'virtual private cloud'
       - 'network isolation'
       - 'vpc creation'
       - 'vpc for.*'
       
     subnet:
-      - 'subnet creation'
-      - 'network segment'
-      - 'availability zone'
+      - 'create.*subnet.*in.*vpc'
+      - 'create.*first.*subnet'
+      - 'create.*second.*subnet'
+      - 'create.*public.*subnet'
+      - 'create.*private.*subnet'
+      - 'create.*database.*subnet'
       - 'public subnet'
       - 'private subnet'
       
@@ -161,6 +121,22 @@ resource_identification:
       - 'autoscaling group'
       - 'instance scaling'
       
+    internet_gateway:
+      - 'create.*internet.*gateway'
+      - 'internet gateway.*attach'
+      - 'internet gateway'
+      
+    route_table:
+      - 'create.*route.*table.*for'
+      - 'public route table'
+      - 'private route table'
+      - 'route table'
+      
+    db_subnet_group:
+      - 'create.*db.*subnet.*group'
+      - 'subnet.*group.*for.*rds'
+      - 'db subnet group'
+      
     rds_instance:
       - 'rds database'
       - 'relational database'
@@ -169,34 +145,35 @@ resource_identification:
 
 # Tool name to resource type mapping patterns
 tool_resource_patterns:
+  
   # VPC patterns
-  vpc: ['.*vpc.*', '.*virtual.*private.*cloud.*']
+  vpc: ['.*create.*vpc.*', '.*vpc.*', '.*virtual.*private.*cloud.*']
   
   # Subnet patterns  
-  subnet: ['.*subnet.*']
+  subnet: ['.*create.*subnet.*', '.*subnet.*']
   
   # Security Group patterns
-  security_group: ['.*security.*group.*', '.*sg.*']
+  security_group: ['.*create.*security.*group.*', '.*security.*group.*', '.*sg.*']
   
   # Database patterns
-  rds_instance: ['.*rds.*', '.*database.*', '.*db.*instance.*', '.*create.*db.*']
-  db_subnet_group: ['.*db.*subnet.*group.*']
+  rds_instance: ['.*create.*rds.*', '.*rds.*', '.*database.*', '.*db.*instance.*', '.*create.*db.*']
+  db_subnet_group: ['.*create.*db.*subnet.*group.*', '.*db.*subnet.*group.*']
   
   # EC2 patterns
-  ec2_instance: ['.*ec2.*instance.*', '.*create.*ec2.*', '.*vm.*']
+  ec2_instance: ['.*create.*ec2.*instance.*', '.*ec2.*instance.*', '.*create.*ec2.*', '.*vm.*']
   
   # Load Balancer patterns
-  load_balancer: ['.*load.*balancer.*', '.*alb.*', '.*elb.*', '.*nlb.*']
-  target_group: ['.*target.*group.*', '.*tg.*']
+  load_balancer: ['.*create.*load.*balancer.*', '.*load.*balancer.*', '.*alb.*', '.*elb.*', '.*nlb.*']
+  target_group: ['.*create.*target.*group.*', '.*target.*group.*', '.*tg.*']
   
   # Auto Scaling patterns
-  auto_scaling_group: ['.*auto.*scaling.*group.*', '.*asg.*']
-  launch_template: ['.*launch.*template.*', '.*lt.*']
+  auto_scaling_group: ['.*create.*auto.*scaling.*group.*', '.*auto.*scaling.*group.*', '.*asg.*']
+  launch_template: ['.*create.*launch.*template.*', '.*launch.*template.*', '.*lt.*']
   
   # Networking patterns
-  internet_gateway: ['.*internet.*gateway.*', '.*igw.*']
-  nat_gateway: ['.*nat.*gateway.*', '.*natgw.*']
-  route_table: ['.*route.*table.*', '.*rtb.*']
+  internet_gateway: ['.*create.*internet.*gateway$', '^create.*internet.*gateway$', 'create-internet-gateway']
+  nat_gateway: ['.*create.*nat.*gateway$', '^create.*nat.*gateway$', 'create-nat-gateway']
+  route_table: ['.*create.*route.*table$', '^create.*route.*table$', 'create-.*route-table']
 
 # Resource hierarchy and relationships
 resource_relationships:

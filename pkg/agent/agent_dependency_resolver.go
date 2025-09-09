@@ -32,14 +32,12 @@ import (
 func (a *StateAwareAgent) resolveDependencyReference(reference string) (string, error) {
 	a.Logger.WithField("reference", reference).Debug("Starting dependency reference resolution")
 
-	// Extract step ID from reference like {{step-1.resourceId}}
-	if !strings.HasPrefix(reference, "{{") || !strings.HasSuffix(reference, "}}") {
+	// Extract step ID from reference like {{step-1.resourceId}} or {{step-1.resourceId}}[0]
+	if !strings.HasPrefix(reference, "{{") || (!strings.HasSuffix(reference, "}}") && !strings.Contains(reference, "}[")) {
 		return reference, nil // Not a reference
 	}
 
-	refContent := strings.TrimSuffix(strings.TrimPrefix(reference, "{{"), "}}")
-
-	// Handle bracket notation: {{step-1.resourceId}}[0] -> convert to {{step-1.resourceId.0}}
+	// Handle bracket notation first: {{step-1.resourceId}}[0] -> convert to {{step-1.resourceId.0}}
 	if strings.Contains(reference, "}[") {
 		// Pattern: {{step-1.resourceId}}[0]
 		bracketPos := strings.Index(reference, "}[")
@@ -61,6 +59,8 @@ func (a *StateAwareAgent) resolveDependencyReference(reference string) (string, 
 			}
 		}
 	}
+
+	refContent := strings.TrimSuffix(strings.TrimPrefix(reference, "{{"), "}}")
 
 	parts := strings.Split(refContent, ".")
 

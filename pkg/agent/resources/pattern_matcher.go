@@ -109,7 +109,7 @@ func (p *PatternMatcher) IdentifyResourceType(planStep *types.ExecutionPlanStep)
 		}
 	}
 
-	return "unknown"
+	return ""
 }
 
 // IdentifyResourceTypeFromID identifies resource type from just the resource ID

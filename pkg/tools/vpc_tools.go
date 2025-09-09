@@ -26,6 +26,10 @@ func NewCreateVPCTool(awsClient *aws.Client, logger *logging.Logger) interfaces.
 				"type":        "string",
 				"description": "CIDR block for the VPC (e.g., '10.0.0.0/16')",
 			},
+			"name": map[string]interface{}{
+				"type":        "string",
+				"description": "Name tag for the VPC (will appear in AWS Console)",
+			},
 			"enableDnsHostnames": map[string]interface{}{
 				"type":        "boolean",
 				"description": "Enable DNS hostnames for the VPC",
@@ -60,12 +64,14 @@ func NewCreateVPCTool(awsClient *aws.Client, logger *logging.Logger) interfaces.
 func (t *CreateVPCTool) Execute(ctx context.Context, arguments map[string]interface{}) (*mcp.CallToolResult, error) {
 	// Extract parameters
 	cidrBlock, _ := arguments["cidrBlock"].(string)
+	name, _ := arguments["name"].(string)
 	enableDnsHostnames := getBoolValue(arguments, "enableDnsHostnames", true)
 	enableDnsSupport := getBoolValue(arguments, "enableDnsSupport", true)
 
 	// Build AWS parameters
 	createParams := aws.CreateVPCParams{
 		CidrBlock:          cidrBlock,
+		Name:               name,
 		EnableDnsHostnames: enableDnsHostnames,
 		EnableDnsSupport:   enableDnsSupport,
 		Tags:               make(map[string]string),
@@ -82,6 +88,7 @@ func (t *CreateVPCTool) Execute(ctx context.Context, arguments map[string]interf
 	data := map[string]interface{}{
 		"vpcId":              vpc.ID,
 		"cidrBlock":          cidrBlock,
+		"name":               name,
 		"enableDnsHostnames": enableDnsHostnames,
 		"enableDnsSupport":   enableDnsSupport,
 		"resource":           vpc,
@@ -160,6 +167,10 @@ func NewCreateSubnetTool(awsClient *aws.Client, logger *logging.Logger) interfac
 				"type":        "string",
 				"description": "Availability zone for the subnet",
 			},
+			"name": map[string]interface{}{
+				"type":        "string",
+				"description": "Name tag for the subnet (will appear in AWS Console)",
+			},
 			"mapPublicIpOnLaunch": map[string]interface{}{
 				"type":        "boolean",
 				"description": "Auto-assign public IP on instance launch",
@@ -191,6 +202,7 @@ func (t *CreateSubnetTool) Execute(ctx context.Context, arguments map[string]int
 	vpcId, _ := arguments["vpcId"].(string)
 	cidrBlock, _ := arguments["cidrBlock"].(string)
 	availabilityZone, _ := arguments["availabilityZone"].(string)
+	name, _ := arguments["name"].(string)
 	mapPublicIpOnLaunch := getBoolValue(arguments, "mapPublicIpOnLaunch", false)
 
 	// Build AWS parameters
@@ -198,6 +210,7 @@ func (t *CreateSubnetTool) Execute(ctx context.Context, arguments map[string]int
 		VpcID:               vpcId,
 		CidrBlock:           cidrBlock,
 		AvailabilityZone:    availabilityZone,
+		Name:                name,
 		MapPublicIpOnLaunch: mapPublicIpOnLaunch,
 		Tags:                make(map[string]string),
 	}
@@ -215,6 +228,7 @@ func (t *CreateSubnetTool) Execute(ctx context.Context, arguments map[string]int
 		"vpcId":               vpcId,
 		"cidrBlock":           cidrBlock,
 		"availabilityZone":    availabilityZone,
+		"name":                name,
 		"mapPublicIpOnLaunch": mapPublicIpOnLaunch,
 		"resource":            subnet,
 	}

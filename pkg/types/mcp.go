@@ -46,6 +46,7 @@ type InfrastructureState struct {
 type ResourceState struct {
 	ID           string                 `json:"id"`
 	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
 	Type         string                 `json:"type"`
 	Status       string                 `json:"status"`
 	DesiredState string                 `json:"desiredState"`

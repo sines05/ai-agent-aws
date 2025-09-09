@@ -753,6 +753,8 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 	a.Logger.WithFields(map[string]interface{}{
 		"step_id":       planStep.ID,
 		"resource_type": resourceType,
+		"name":          planStep.Name,
+		"description":   planStep.Description,
 		"properties":    resultData,
 	}).Debug("Extracted resource type and prepared properties")
 
@@ -760,6 +762,7 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 	resourceState := &types.ResourceState{
 		ID:           planStep.ResourceID,
 		Name:         planStep.Name,
+		Description:  planStep.Description,
 		Type:         resourceType,
 		Status:       "created",
 		Properties:   resultData,
@@ -790,7 +793,8 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 	if planStep.ID != planStep.ResourceID {
 		stepResourceState := &types.ResourceState{
 			ID:           planStep.ID, // Use step ID as the key
-			Name:         planStep.Name + " (Step Reference)",
+			Name:         planStep.Name,
+			Description:  planStep.Description + " (Step Reference)",
 			Type:         "step_reference",
 			Status:       "created",
 			Properties:   resultData,
@@ -834,19 +838,19 @@ func (a *StateAwareAgent) extractResourceTypeFromStep(planStep *types.ExecutionP
 	// Try to infer from ResourceID field using pattern matcher
 	if planStep.ResourceID != "" {
 		// Use pattern matcher to identify resource type from ID
-		resourceType := a.patternMatcher.IdentifyResourceTypeFromID(planStep.ResourceID)
-		if resourceType != "unknown" {
+		resourceType := a.patternMatcher.IdentifyResourceType(planStep)
+		if resourceType != "" && resourceType != "unknown" {
 			return resourceType
 		}
 	}
 
 	// Try to infer from step name or description using pattern matcher
 	resourceType := a.patternMatcher.InferResourceTypeFromDescription(planStep.Name + " " + planStep.Description)
-	if resourceType != "unknown" {
+	if resourceType != "" && resourceType != "unknown" {
 		return resourceType
 	}
 
-	return "unknown"
+	return ""
 }
 
 // getAvailableToolsContext returns a formatted string of available tools for the AI to understand
