@@ -372,6 +372,10 @@ func NewCreateDBSnapshotTool(awsClient *aws.Client, logger *logging.Logger) inte
 				"type":        "string",
 				"description": "The DB snapshot identifier",
 			},
+			"name": map[string]interface{}{
+				"type":        "string",
+				"description": "The name for the DB snapshot (for AWS Console display)",
+			},
 		},
 		"required": []string{"dbInstanceIdentifier", "dbSnapshotIdentifier"},
 	}
@@ -398,10 +402,17 @@ func (t *CreateDBSnapshotTool) Execute(ctx context.Context, arguments map[string
 		return t.CreateErrorResponse("dbSnapshotIdentifier is required")
 	}
 
+	name, _ := arguments["name"].(string)
+
 	// Prepare parameters for snapshot creation
 	params := map[string]interface{}{
 		"dbInstanceIdentifier": dbInstanceIdentifier,
 		"snapshotIdentifier":   dbSnapshotIdentifier,
+	}
+
+	// Add name parameter if provided
+	if name != "" {
+		params["name"] = name
 	}
 
 	// Use the RDS specialized adapter to create DB snapshot

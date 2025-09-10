@@ -254,6 +254,29 @@ func (a *ASGSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 
 		return a.client.GetAutoScalingGroup(ctx, asgName)
 
+	case "attach-target-groups":
+		attachParams, ok := params.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("attach parameters required")
+		}
+
+		asgName, _ := attachParams["autoScalingGroupName"].(string)
+		targetGroupArns, _ := attachParams["targetGroupArns"].([]string)
+
+		if asgName == "" {
+			return nil, fmt.Errorf("autoScalingGroupName is required for attach-target-groups operation")
+		}
+		if len(targetGroupArns) == 0 {
+			return nil, fmt.Errorf("targetGroupArns is required and must not be empty")
+		}
+
+		err := a.client.AttachLoadBalancerTargetGroups(ctx, asgName, targetGroupArns)
+		if err != nil {
+			return nil, err
+		}
+
+		return a.client.GetAutoScalingGroup(ctx, asgName)
+
 	default:
 		return nil, fmt.Errorf("unsupported specialized operation: %s", operation)
 	}
@@ -261,5 +284,5 @@ func (a *ASGSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 
 // GetSpecialOperations returns the specialized operations available
 func (a *ASGSpecializedAdapter) GetSpecialOperations() []string {
-	return []string{"create-launch-template", "scale-out", "scale-in", "set-desired-capacity"}
+	return []string{"create-launch-template", "scale-out", "scale-in", "set-desired-capacity", "attach-target-groups"}
 }

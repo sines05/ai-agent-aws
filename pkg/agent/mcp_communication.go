@@ -843,6 +843,7 @@ func (a *StateAwareAgent) AddResourceToState(resourceState *types.ResourceState)
 	result, err := a.callMCPTool("add-resource-to-state", map[string]interface{}{
 		"resource_id":   resourceState.ID,
 		"resource_name": resourceState.Name,
+		"description":   resourceState.Description,
 		"resource_type": resourceState.Type,
 		"status":        resourceState.Status,
 		"properties":    resourceState.Properties,

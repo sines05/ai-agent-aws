@@ -319,3 +319,45 @@ func (c *Client) convertLaunchTemplate(lt ec2types.LaunchTemplate) *types.AWSRes
 		LastSeen: time.Now(),
 	}
 }
+
+// AttachLoadBalancerTargetGroups attaches an Auto Scaling Group to load balancer target groups
+func (c *Client) AttachLoadBalancerTargetGroups(ctx context.Context, asgName string, targetGroupARNs []string) error {
+	input := &autoscaling.AttachLoadBalancerTargetGroupsInput{
+		AutoScalingGroupName: aws.String(asgName),
+		TargetGroupARNs:      targetGroupARNs,
+	}
+
+	_, err := c.autoscaling.AttachLoadBalancerTargetGroups(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to attach load balancer target groups to ASG %s: %w", asgName, err)
+	}
+
+	c.logger.WithFields(map[string]interface{}{
+		"asgName":          asgName,
+		"targetGroupCount": len(targetGroupARNs),
+		"targetGroupARNs":  targetGroupARNs,
+	}).Info("Successfully attached Auto Scaling Group to target groups")
+
+	return nil
+}
+
+// DetachLoadBalancerTargetGroups detaches an Auto Scaling Group from load balancer target groups
+func (c *Client) DetachLoadBalancerTargetGroups(ctx context.Context, asgName string, targetGroupARNs []string) error {
+	input := &autoscaling.DetachLoadBalancerTargetGroupsInput{
+		AutoScalingGroupName: aws.String(asgName),
+		TargetGroupARNs:      targetGroupARNs,
+	}
+
+	_, err := c.autoscaling.DetachLoadBalancerTargetGroups(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to detach load balancer target groups from ASG %s: %w", asgName, err)
+	}
+
+	c.logger.WithFields(map[string]interface{}{
+		"asgName":          asgName,
+		"targetGroupCount": len(targetGroupARNs),
+		"targetGroupARNs":  targetGroupARNs,
+	}).Info("Successfully detached Auto Scaling Group from target groups")
+
+	return nil
+}

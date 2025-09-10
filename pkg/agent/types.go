@@ -7,6 +7,7 @@ import (
 
 	"github.com/versus-control/ai-infrastructure-agent/internal/config"
 	"github.com/versus-control/ai-infrastructure-agent/internal/logging"
+	"github.com/versus-control/ai-infrastructure-agent/pkg/agent/resources"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/aws"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/types"
 
@@ -64,6 +65,12 @@ type StateAwareAgent struct {
 	mcpTools        map[string]MCPToolInfo     // Available tools from MCP server
 	mcpResources    map[string]MCPResourceInfo // Available resources from MCP server
 	capabilityMutex sync.RWMutex
+
+	// Configuration-driven components
+	configLoader      *config.ConfigLoader
+	fieldResolver     *resources.FieldResolver
+	patternMatcher    *resources.PatternMatcher
+	valueTypeInferrer *resources.ValueTypeInferrer
 
 	Logger *logging.Logger
 }

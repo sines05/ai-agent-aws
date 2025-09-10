@@ -902,6 +902,10 @@ func NewAddResourceToStateTool(deps *ToolDependencies, logger *logging.Logger) i
 				"type":        "string",
 				"description": "Resource name",
 			},
+			"description": map[string]interface{}{
+				"type":        "string",
+				"description": "Resource description",
+			},
 			"resource_type": map[string]interface{}{
 				"type":        "string",
 				"description": "Resource type",
@@ -1005,6 +1009,11 @@ func (t *AddResourceToStateTool) Execute(ctx context.Context, args map[string]in
 	resourceName := args["resource_name"].(string)
 	resourceType := args["resource_type"].(string)
 
+	description := ""
+	if val, ok := args["description"].(string); ok {
+		description = val
+	}
+
 	status := "created"
 	if val, ok := args["status"].(string); ok {
 		status = val
@@ -1037,6 +1046,7 @@ func (t *AddResourceToStateTool) Execute(ctx context.Context, args map[string]in
 	resourceState := &types.ResourceState{
 		ID:           resourceID,
 		Name:         resourceName,
+		Description:  description,
 		Type:         resourceType,
 		Status:       status,
 		Properties:   properties,

@@ -32,14 +32,12 @@ import (
 func (a *StateAwareAgent) resolveDependencyReference(reference string) (string, error) {
 	a.Logger.WithField("reference", reference).Debug("Starting dependency reference resolution")
 
-	// Extract step ID from reference like {{step-1.resourceId}}
-	if !strings.HasPrefix(reference, "{{") || !strings.HasSuffix(reference, "}}") {
+	// Extract step ID from reference like {{step-1.resourceId}} or {{step-1.resourceId}}[0]
+	if !strings.HasPrefix(reference, "{{") || (!strings.HasSuffix(reference, "}}") && !strings.Contains(reference, "}[")) {
 		return reference, nil // Not a reference
 	}
 
-	refContent := strings.TrimSuffix(strings.TrimPrefix(reference, "{{"), "}}")
-
-	// Handle bracket notation: {{step-1.resourceId}}[0] -> convert to {{step-1.resourceId.0}}
+	// Handle bracket notation first: {{step-1.resourceId}}[0] -> convert to {{step-1.resourceId.0}}
 	if strings.Contains(reference, "}[") {
 		// Pattern: {{step-1.resourceId}}[0]
 		bracketPos := strings.Index(reference, "}[")
@@ -61,6 +59,8 @@ func (a *StateAwareAgent) resolveDependencyReference(reference string) (string, 
 			}
 		}
 	}
+
+	refContent := strings.TrimSuffix(strings.TrimPrefix(reference, "{{"), "}}")
 
 	parts := strings.Split(refContent, ".")
 
@@ -210,38 +210,8 @@ func (a *StateAwareAgent) resolveDependencyReference(reference string) (string, 
 										}
 									}
 
-									// Fall back to trying common AWS resource ID fields with field-specific prioritization
-									var fieldsToTry []string
-									switch requestedField {
-									case "targetGroupArn", "arn":
-										// For target group ARN requests, prioritize ARN fields
-										fieldsToTry = []string{"targetGroupArn", "arn", "targetGroupId"}
-									case "loadBalancerArn":
-										// For load balancer ARN requests, prioritize ARN fields
-										fieldsToTry = []string{"loadBalancerArn", "arn", "loadBalancerId"}
-									case "securityGroupId":
-										fieldsToTry = []string{"securityGroupId", "groupId"}
-									case "instanceId":
-										fieldsToTry = []string{"instanceId", "instance_id"}
-									case "vpcId":
-										fieldsToTry = []string{"vpcId", "vpc_id"}
-									case "subnetId":
-										fieldsToTry = []string{"subnetId", "subnet_id"}
-									case "dbInstanceId":
-										fieldsToTry = []string{"dbInstanceId", "db_instance_id", "instanceId"}
-									case "dbSubnetGroupName":
-										fieldsToTry = []string{"dbSubnetGroupName", "db_subnet_group_name"}
-									case "routeTableId":
-										fieldsToTry = []string{"routeTableId", "route_table_id"}
-									case "internetGatewayId":
-										fieldsToTry = []string{"internetGatewayId", "internet_gateway_id"}
-									case "natGatewayId":
-										fieldsToTry = []string{"natGatewayId", "nat_gateway_id"}
-									default:
-										// General fallback order for resourceId - prioritize specific resource IDs before generic ones to prevent wrong resolution
-										// Order by specificity: primary resource IDs first, then secondary references
-										fieldsToTry = []string{"natGatewayId", "nat_gateway_id", "routeTableId", "route_table_id", "internetGatewayId", "internet_gateway_id", "securityGroupId", "instanceId", "subnetId", "subnet_id", "targetGroupArn", "loadBalancerArn", "vpcId", "dbInstanceId", "dbSubnetGroupName", "targetGroupId", "loadBalancerId", "arn"}
-									}
+									// Use configuration-driven field resolver instead of hardcoded switch statement
+									fieldsToTry := a.fieldResolver.GetFieldsForRequest(requestedField)
 
 									for _, field := range fieldsToTry {
 										if id, ok := mcpResponse[field].(string); ok && id != "" {
