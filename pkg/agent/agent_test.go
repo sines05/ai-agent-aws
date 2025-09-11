@@ -141,18 +141,17 @@ func comprehensiveThreeLayerPrompt() string {
 	prompt := `I need to deploy a complete production-ready three-tier web application infrastructure on AWS with the following requirements:
 
 Network Foundation (Phase 1):
-- Create a production VPC with CIDR 10.0.0.0/16 across two availability zones (ap-southeast-2a and ap-southeast-2b)
-- Set up public subnets (10.0.1.0/24 and 10.0.2.0/24) for internet-facing load balancers
-- Create private subnets for application servers (10.0.11.0/24 and 10.0.12.0/24)
+- Create a production VPC with a CIDR block of 10.0.0.0/16 across two availability zones.
+- Set up public subnets (10.0.1.0/24 and 10.0.2.0/24) for internet-facing load balancers.
+- Create private subnets for application servers (10.0.11.0/24 and 10.0.12.0/24).
 - Set up dedicated database subnets (10.0.21.0/24 and 10.0.22.0/24)
-- Configure Internet Gateway and NAT Gateway for proper routing
+- Configure Internet Gateway and NAT Gateway for proper routing.
 
 Security Architecture (Phase 2):
-- Implement defense-in-depth security with tiered security groups
+- Create defense-in-depth security with tiered security groups
 - Load balancer security group allowing HTTP/HTTPS from internet (0.0.0.0/0)
 - Application server security group accepting traffic only from load balancer
 - Database security group allowing MySQL (port 3306) only from application servers
-- All security groups should follow principle of least privilege
 
 Load Balancer Tier (Phase 3):
 - Deploy Application Load Balancer across public subnets in both AZs

@@ -14,6 +14,7 @@ import (
 type IDExtractor struct {
 	creationPatterns     []config.ExtractionPattern
 	modificationPatterns []config.ExtractionPattern
+	associationPatterns  []config.ExtractionPattern
 	deletionPatterns     []config.ExtractionPattern
 	queryPatterns        []config.ExtractionPattern
 	actionClassifier     *ActionClassifier
@@ -25,6 +26,7 @@ type IDExtractor struct {
 type ActionClassifier struct {
 	creationPatterns     []*regexp.Regexp
 	modificationPatterns []*regexp.Regexp
+	associationPatterns  []*regexp.Regexp
 	deletionPatterns     []*regexp.Regexp
 	queryPatterns        []*regexp.Regexp
 }
@@ -34,6 +36,7 @@ func NewIDExtractor(cfg *config.ResourceExtractionConfig) (*IDExtractor, error) 
 	extractor := &IDExtractor{
 		creationPatterns:     cfg.ResourceIDExtraction.CreationTools.Patterns,
 		modificationPatterns: cfg.ResourceIDExtraction.ModificationTools.Patterns,
+		associationPatterns:  cfg.ResourceIDExtraction.AssociationTools.Patterns,
 		deletionPatterns:     cfg.ResourceIDExtraction.DeletionTools.Patterns,
 		queryPatterns:        cfg.ResourceIDExtraction.QueryTools.Patterns,
 		fallbackStrategies:   &cfg.FallbackStrategies,
@@ -69,6 +72,15 @@ func NewActionClassifier(cfg *config.ToolActionTypes) (*ActionClassifier, error)
 			return nil, fmt.Errorf("failed to compile modification pattern %s: %w", pattern, err)
 		}
 		classifier.modificationPatterns = append(classifier.modificationPatterns, compiledPattern)
+	}
+
+	// Compile association patterns
+	for _, pattern := range cfg.AssociationTools.Patterns {
+		compiledPattern, err := regexp.Compile("(?i)" + pattern)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile association pattern %s: %w", pattern, err)
+		}
+		classifier.associationPatterns = append(classifier.associationPatterns, compiledPattern)
 	}
 
 	// Compile deletion patterns
@@ -108,6 +120,13 @@ func (ac *ActionClassifier) ClassifyTool(toolName string) string {
 		}
 	}
 
+	// Try association patterns
+	for _, pattern := range ac.associationPatterns {
+		if pattern.MatchString(toolName) {
+			return "association"
+		}
+	}
+
 	// Try deletion patterns
 	for _, pattern := range ac.deletionPatterns {
 		if pattern.MatchString(toolName) {
@@ -142,6 +161,9 @@ func (e *IDExtractor) ExtractResourceID(toolName string, resourceType string, pa
 	case "modification":
 		patterns = e.modificationPatterns
 		dataSource = parameters // Modified resources have IDs in parameters
+	case "association":
+		patterns = e.associationPatterns
+		dataSource = result // Association operations return new association IDs in result
 	case "deletion":
 		patterns = e.deletionPatterns
 		dataSource = parameters // Deletion operations specify IDs in parameters
@@ -189,6 +211,17 @@ func (e *IDExtractor) tryAllPatterns(resourceType string, parameters, result map
 		if e.matchesResourceType(pattern.ResourceTypes, resourceType) {
 			for _, fieldPath := range pattern.FieldPaths {
 				if value := e.extractFromPath(parameters, fieldPath); value != "" {
+					return value, nil
+				}
+			}
+		}
+	}
+
+	// Try association patterns with result data
+	for _, pattern := range e.associationPatterns {
+		if e.matchesResourceType(pattern.ResourceTypes, resourceType) {
+			for _, fieldPath := range pattern.FieldPaths {
+				if value := e.extractFromPath(result, fieldPath); value != "" {
 					return value, nil
 				}
 			}

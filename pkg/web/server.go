@@ -394,7 +394,6 @@ func (ws *WebServer) processRequestHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Use real AI agent
 	ws.aiAgent.Logger.WithFields(map[string]interface{}{
 		"request": request,
 		"dry_run": dryRun,

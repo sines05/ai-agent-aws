@@ -619,6 +619,9 @@ func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep
 		resourceID = planStep.ResourceID
 	}
 
+	// Update the plan step with the actual resource ID so it gets stored correctly
+	planStep.ResourceID = resourceID
+
 	// Store the mapping of plan step ID to actual resource ID
 	a.storeResourceMapping(planStep.ID, resourceID)
 
@@ -774,7 +777,7 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 		"resource_state_id": resourceState.ID,
 		"resource_type":     resourceState.Type,
 		"dependencies":      resourceState.Dependencies,
-	}).Info("Calling AddResourceToState")
+	}).Info("Calling AddResourceToState for main AWS resource")
 
 	// Add to state manager via MCP server
 	if err := a.AddResourceToState(resourceState); err != nil {
@@ -786,9 +789,20 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 		return fmt.Errorf("failed to add resource %s to state: %w", resourceState.ID, err)
 	}
 
+	a.Logger.WithFields(map[string]interface{}{
+		"step_id":           planStep.ID,
+		"resource_state_id": resourceState.ID,
+		"resource_type":     resourceState.Type,
+	}).Info("Successfully added main AWS resource to state")
+
 	// Also store the resource with the step ID as the key for dependency resolution
 	// This ensures that {{step-create-xxx.resourceId}} references can be resolved
 	if planStep.ID != planStep.ResourceID {
+		a.Logger.WithFields(map[string]interface{}{
+			"step_id":     planStep.ID,
+			"resource_id": planStep.ResourceID,
+			"condition":   "step_id != resource_id",
+		}).Info("Creating step reference entry for dependency resolution")
 		stepResourceState := &types.ResourceState{
 			ID:           planStep.ID, // Use step ID as the key
 			Name:         planStep.Name,
@@ -810,20 +824,26 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 			}
 			// Don't fail the whole operation for this, just log the warning
 		} else {
-			if a.config.EnableDebug {
-				a.Logger.WithFields(map[string]interface{}{
-					"step_id":          planStep.ID,
-					"step_resource_id": stepResourceState.ID,
-				}).Info("Successfully added step-based resource reference to state for dependency resolution")
-			}
+			a.Logger.WithFields(map[string]interface{}{
+				"step_id":          planStep.ID,
+				"step_resource_id": stepResourceState.ID,
+				"type":             "step_reference",
+			}).Info("Successfully added step reference to state for dependency resolution")
 		}
+	} else {
+		a.Logger.WithFields(map[string]interface{}{
+			"step_id":     planStep.ID,
+			"resource_id": planStep.ResourceID,
+			"reason":      "step_id equals resource_id",
+		}).Info("Skipping step reference creation - not needed for dependency resolution")
 	}
 
 	a.Logger.WithFields(map[string]interface{}{
-		"step_id":           planStep.ID,
-		"resource_state_id": resourceState.ID,
-		"resource_type":     resourceState.Type,
-	}).Info("Successfully added resource to state")
+		"step_id":                planStep.ID,
+		"main_resource_id":       resourceState.ID,
+		"main_resource_type":     resourceState.Type,
+		"step_reference_created": planStep.ID != planStep.ResourceID,
+	}).Info("Successfully completed state update from MCP result")
 
 	return nil
 }
@@ -1038,6 +1058,7 @@ func (a *StateAwareAgent) getAvailableToolsContext() string {
 	context.WriteString("- \"select_subnets_for_alb\": Select subnets for ALB creation\n")
 	context.WriteString("  * scheme: internet-facing, internal (default: internet-facing)\n")
 	context.WriteString("  * vpc_id: specific VPC ID (optional, uses default VPC if not specified)\n")
+	context.WriteString("  ⚠️  IMPORTANT: Always use this for ALB subnet selection, never use 'default_subnet'!\n")
 	context.WriteString("- \"vpc_id\": Get existing VPC ID from state file\n")
 	context.WriteString("  * resource_name: name of VPC to find (e.g., \"production-vpc\")\n")
 	context.WriteString("  * resource_id: specific VPC ID to find (optional)\n")
@@ -1198,7 +1219,42 @@ func (a *StateAwareAgent) getAvailableToolsContext() string {
 	context.WriteString("4. Retrieve AMI\n")
 	context.WriteString("5. Create instance with custom subnet\n\n")
 
-	context.WriteString("Pattern 4 - Multi-OS Deployment:\n")
+	context.WriteString("Pattern 5 - Application Load Balancer Setup:\n")
+	context.WriteString("1. Select appropriate subnets for ALB → step-alb-subnets\n")
+	context.WriteString("2. Get security group ID → step-alb-sg\n")
+	context.WriteString("3. Create ALB using selected subnets and security group\n")
+	context.WriteString("Example:\n")
+	context.WriteString("{\n")
+	context.WriteString("  \"id\": \"step-alb-subnets\",\n")
+	context.WriteString("  \"name\": \"Select Subnets for ALB\",\n")
+	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
+	context.WriteString("  \"parameters\": {\n")
+	context.WriteString("    \"value_type\": \"select_subnets_for_alb\",\n")
+	context.WriteString("    \"min_azs\": 2\n")
+	context.WriteString("  }\n")
+	context.WriteString("},\n")
+	context.WriteString("{\n")
+	context.WriteString("  \"id\": \"step-alb-sg\",\n")
+	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
+	context.WriteString("  \"parameters\": {\n")
+	context.WriteString("    \"value_type\": \"security_group_id\",\n")
+	context.WriteString("    \"resource_name\": \"alb-security-group\"\n")
+	context.WriteString("  }\n")
+	context.WriteString("},\n")
+	context.WriteString("{\n")
+	context.WriteString("  \"id\": \"step-create-alb\",\n")
+	context.WriteString("  \"name\": \"Create Application Load Balancer\",\n")
+	context.WriteString("  \"action\": \"create\",\n")
+	context.WriteString("  \"mcpTool\": \"create-alb\",\n")
+	context.WriteString("  \"toolParameters\": {\n")
+	context.WriteString("    \"name\": \"my-application-load-balancer\",\n")
+	context.WriteString("    \"subnets\": \"{{step-alb-subnets.resourceId}}\",\n")
+	context.WriteString("    \"securityGroups\": [\"{{step-alb-sg.resourceId}}\"]\n")
+	context.WriteString("  },\n")
+	context.WriteString("  \"dependsOn\": [\"step-alb-subnets\", \"step-alb-sg\"]\n")
+	context.WriteString("}\n\n")
+
+	context.WriteString("Pattern 6 - Multi-OS Deployment:\n")
 	context.WriteString("1. Get Linux AMI → step-linux-ami (os_type: ubuntu)\n")
 	context.WriteString("2. Get Windows AMI → step-windows-ami (os_type: windows)\n")
 	context.WriteString("3. Create Linux instances → {{step-linux-ami.resourceId}}\n")

@@ -184,6 +184,19 @@ resource_id_extraction:
       - field_paths: ["parameters.instanceIds[0]", "result.instances[0].instanceId"]
         resource_types: ["ec2_instance"]
         priority: 2
+        
+  association_tools:
+    # Association tools create new association resources - look in result like creation tools
+    patterns:
+      # Association patterns (return association IDs in result)
+      - field_paths: ["associationId", "result.associationId", "result.association_id"]
+        resource_types: ["route_table_association", "route_table"]
+        priority: 1
+        
+      # Universal association patterns
+      - field_paths: ["result.resourceId", "result.resource_id", "result.id"]
+        resource_types: ["*"]
+        priority: 2
 
 # Tool action type classification patterns
 tool_action_types:
@@ -202,12 +215,16 @@ tool_action_types:
       - "modify.*"
       - "attach.*"
       - "detach.*"
-      - "associate.*"
-      - "disassociate.*"
       - "add.*"
       - "remove.*"
       - "register.*"
       - "deregister.*"
+      
+  # Association tools are special - they modify relationships but create new association resources
+  association_tools:
+    patterns:
+      - "associate.*"
+      - "disassociate.*"
       
   deletion_tools:
     patterns:

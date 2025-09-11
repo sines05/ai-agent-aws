@@ -128,6 +128,7 @@ type ResourceExtractionConfig struct {
 type ResourceIDExtraction struct {
 	CreationTools     ToolPatterns `yaml:"creation_tools"`
 	ModificationTools ToolPatterns `yaml:"modification_tools"`
+	AssociationTools  ToolPatterns `yaml:"association_tools"`
 	DeletionTools     ToolPatterns `yaml:"deletion_tools"`
 	QueryTools        ToolPatterns `yaml:"query_tools"`
 }
@@ -148,6 +149,7 @@ type ExtractionPattern struct {
 type ToolActionTypes struct {
 	CreationTools     ActionPatterns `yaml:"creation_tools"`
 	ModificationTools ActionPatterns `yaml:"modification_tools"`
+	AssociationTools  ActionPatterns `yaml:"association_tools"`
 	DeletionTools     ActionPatterns `yaml:"deletion_tools"`
 	QueryTools        ActionPatterns `yaml:"query_tools"`
 }

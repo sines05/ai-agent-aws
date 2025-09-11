@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -225,6 +226,11 @@ func (a *StateAwareAgent) validateDecision(decision *types.AgentDecision, contex
 		}
 	}
 
+	// Validate execution plan for hardcoded AWS resource IDs
+	if err := a.validateExecutionPlanDependencies(decision.ExecutionPlan); err != nil {
+		return fmt.Errorf("execution plan validation failed: %w", err)
+	}
+
 	return nil
 }
 
@@ -371,7 +377,47 @@ func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *D
 	prompt.WriteString("}\n\n")
 
 	// === CRITICAL INSTRUCTIONS ===
-	prompt.WriteString("🚨 CRITICAL INSTRUCTIONS:\n")
+	prompt.WriteString("🚨 STEP DEPENDENCY REQUIREMENTS:\n")
+	prompt.WriteString("NEVER use hardcoded AWS resource IDs like sg-12345678, vpc-abcdef, ami-987654, etc.\n")
+	prompt.WriteString("ALWAYS create step dependencies and use {{step-id.resourceId}} references:\n\n")
+	prompt.WriteString("✅ CORRECT Load Balancer Pattern:\n")
+	prompt.WriteString("{\n")
+	prompt.WriteString("  \"id\": \"step-create-lb-sg\",\n")
+	prompt.WriteString("  \"action\": \"create\",\n")
+	prompt.WriteString("  \"mcpTool\": \"create-security-group\",\n")
+	prompt.WriteString("  \"toolParameters\": {\n")
+	prompt.WriteString("    \"groupName\": \"web-alb-sg\",\n")
+	prompt.WriteString("    \"description\": \"Security group for load balancer\",\n")
+	prompt.WriteString("    \"vpcId\": \"{{step-vpc.resourceId}}\"\n")
+	prompt.WriteString("  }\n")
+	prompt.WriteString("},\n")
+	prompt.WriteString("{\n")
+	prompt.WriteString("  \"id\": \"step-create-alb\",\n")
+	prompt.WriteString("  \"action\": \"create\",\n")
+	prompt.WriteString("  \"mcpTool\": \"create-load-balancer\",\n")
+	prompt.WriteString("  \"toolParameters\": {\n")
+	prompt.WriteString("    \"name\": \"web-app-alb\",\n")
+	prompt.WriteString("    \"securityGroupIds\": [\"{{step-create-lb-sg.resourceId}}\"]\n")
+	prompt.WriteString("  },\n")
+	prompt.WriteString("  \"dependsOn\": [\"step-create-lb-sg\"]\n")
+	prompt.WriteString("}\n\n")
+	prompt.WriteString("❌ WRONG - Hardcoded IDs will cause failures:\n")
+	prompt.WriteString("\"securityGroupIds\": [\"sg-05dc049424690e203\"]  // This ID may not exist!\n\n")
+
+	prompt.WriteString("� IMPORTANT: Distinguish between HARDCODED AWS IDs vs LEGITIMATE PARAMETERS:\n")
+	prompt.WriteString("✅ LEGITIMATE parameter values (these are fine):\n")
+	prompt.WriteString("  - Resource names: \"web-app-alb\", \"production-vpc\", \"public-subnet-1\"\n")
+	prompt.WriteString("  - Parameter types: \"vpc_id\", \"subnet_id\", \"security_group_id\", \"existing_resource\"\n")
+	prompt.WriteString("  - Schemes/types: \"internet-facing\", \"application\", \"HTTP\", \"HTTPS\"\n")
+	prompt.WriteString("  - CIDR blocks: \"10.0.0.0/16\", \"192.168.1.0/24\"\n")
+	prompt.WriteString("❌ HARDCODED AWS resource IDs (NEVER use these):\n")
+	prompt.WriteString("  - VPC IDs: \"vpc-12345678abcdef\"\n")
+	prompt.WriteString("  - Subnet IDs: \"subnet-87654321fedcba\"\n")
+	prompt.WriteString("  - Security Group IDs: \"sg-05dc049424690e203\"\n")
+	prompt.WriteString("  - Instance IDs: \"i-1234567890abcdef0\"\n")
+	prompt.WriteString("  - AMI IDs: \"ami-0abcdef1234567890\"\n\n")
+
+	prompt.WriteString("�🚨 CRITICAL INSTRUCTIONS:\n")
 	prompt.WriteString("1. ANALYZE ALL RESOURCES: Consider every resource shown above before making decisions\n")
 	prompt.WriteString("2. REUSE FIRST: Always check if existing resources can fulfill the request\n")
 	prompt.WriteString("3. USE EXACT TOOL NAMES: Only use MCP tool names shown in the tools context above\n")
@@ -380,9 +426,9 @@ func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *D
 	prompt.WriteString("6. JSON ONLY: Return only valid JSON - no markdown, no explanations, no extra text\n")
 	prompt.WriteString("7. STATE FILE AWARENESS: Remember that managed resources exist in the state file\n")
 	prompt.WriteString("8. ACTION TYPE USAGE:\n")
-	prompt.WriteString("   - create: For new AWS resources that don't exist\n")
-	prompt.WriteString("   - update: For modifying existing resources (adding routes, security rules, associations)\n")
-	prompt.WriteString("   - add: For adding components to existing resources (routes, rules, etc.)\n")
+	prompt.WriteString("   - create: For new AWS resources that don't exist (VPC, subnets, route table associations, routes, security rules)\n")
+	prompt.WriteString("   - update: For modifying properties of existing resources (changing tags, descriptions)\n")
+	prompt.WriteString("   - add: Reserved for future use\n")
 	prompt.WriteString("   - delete: For removing AWS resources\n")
 	prompt.WriteString("   - validate: For checking resource states or configurations\n")
 	prompt.WriteString("   - api_value_retrieval: For fetching real AWS values to replace placeholders\n")
@@ -396,9 +442,9 @@ func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *D
 	prompt.WriteString("Example 3 - No Action: If user requests something that already exists, return action: \"no_action\"\n\n")
 
 	prompt.WriteString("💡 ACTION EXAMPLES:\n")
-	prompt.WriteString("✅ CREATE: \"action\": \"create\" for new VPC, subnets, security groups, etc.\n")
-	prompt.WriteString("✅ UPDATE: \"action\": \"update\" for associating route tables with subnets\n")
-	prompt.WriteString("✅ ADD: \"action\": \"add\" for adding routes to route tables, adding security group rules\n")
+	prompt.WriteString("✅ CREATE: \"action\": \"create\" for new VPC, subnets, security groups, route table associations, routes, etc.\n")
+	prompt.WriteString("✅ CREATE: \"action\": \"create\" for associating route tables with subnets (creates new association resource)\n")
+	prompt.WriteString("✅ CREATE: \"action\": \"create\" for adding routes to route tables (creates new route resource)\n")
 	prompt.WriteString("❌ NEVER USE: associate, attach, connect, link, join, bind\n\n")
 
 	prompt.WriteString("BEGIN YOUR ANALYSIS AND PROVIDE YOUR JSON RESPONSE:\n")
@@ -547,4 +593,109 @@ func (a *StateAwareAgent) parseAIResponseWithPlan(decisionID, request, response 
 		ExecutionPlan: executionPlan,
 		Timestamp:     time.Now(),
 	}, nil
+}
+
+// validateExecutionPlanDependencies validates execution plan to detect hardcoded AWS resource IDs
+func (a *StateAwareAgent) validateExecutionPlanDependencies(executionPlan []*types.ExecutionPlanStep) error {
+	a.Logger.Debug("Validating execution plan for hardcoded AWS resource IDs")
+
+	// AWS resource ID patterns to detect - ONLY match actual AWS resource IDs, not parameter values
+	awsResourcePatterns := map[string]string{
+		"vpc":              `^vpc-[0-9a-f]{8,17}$`,
+		"subnet":           `^subnet-[0-9a-f]{8,17}$`,
+		"security-group":   `^sg-[0-9a-f]{8,17}$`,
+		"instance":         `^i-[0-9a-f]{8,17}$`,
+		"ami":              `^ami-[0-9a-f]{8,17}$`,
+		"load-balancer":    `^arn:aws:elasticloadbalancing:.*:.*:loadbalancer/.*$`,
+		"target-group":     `^arn:aws:elasticloadbalancing:.*:.*:targetgroup/.*$`,
+		"launch-template":  `^lt-[0-9a-f]{8,17}$`,
+		"route-table":      `^rtb-[0-9a-f]{8,17}$`,
+		"internet-gateway": `^igw-[0-9a-f]{8,17}$`,
+		"nat-gateway":      `^nat-[0-9a-f]{8,17}$`,
+		"elastic-ip":       `^eipalloc-[0-9a-f]{8,17}$`,
+	}
+
+	var hardcodedResources []string
+
+	for _, step := range executionPlan {
+		// Check tool parameters for hardcoded AWS resource IDs
+		if step.Parameters != nil {
+			hardcoded := a.detectHardcodedResourceIDs(step.Parameters, awsResourcePatterns, step.ID)
+			hardcodedResources = append(hardcodedResources, hardcoded...)
+		}
+	}
+
+	if len(hardcodedResources) > 0 {
+		a.Logger.WithFields(map[string]interface{}{
+			"hardcoded_resources": hardcodedResources,
+		}).Error("Detected hardcoded AWS resource IDs in execution plan")
+
+		return fmt.Errorf("execution plan contains hardcoded AWS resource IDs that may not exist: %s. Use step dependency references like {{step-create-sg.resourceId}} instead", strings.Join(hardcodedResources, ", "))
+	}
+
+	return nil
+}
+
+// detectHardcodedResourceIDs recursively checks for hardcoded AWS resource IDs in parameters
+func (a *StateAwareAgent) detectHardcodedResourceIDs(params map[string]interface{}, patterns map[string]string, stepID string) []string {
+	var hardcodedIDs []string
+
+	for key, value := range params {
+		switch v := value.(type) {
+		case string:
+			// Skip step references (they start with {{ and end with }})
+			if strings.HasPrefix(v, "{{") && strings.HasSuffix(v, "}}") {
+				continue
+			}
+
+			// Check against AWS resource patterns
+			for resourceType, pattern := range patterns {
+				if matched, _ := regexp.MatchString(pattern, v); matched {
+					hardcodedID := fmt.Sprintf("%s:%s (in %s.%s)", resourceType, v, stepID, key)
+					hardcodedIDs = append(hardcodedIDs, hardcodedID)
+
+					a.Logger.WithFields(map[string]interface{}{
+						"step_id":       stepID,
+						"parameter":     key,
+						"value":         v,
+						"resource_type": resourceType,
+					}).Warn("Detected hardcoded AWS resource ID")
+				}
+			}
+
+		case []interface{}:
+			// Handle arrays (like securityGroupIds)
+			for i, item := range v {
+				if itemStr, ok := item.(string); ok {
+					// Skip step references
+					if strings.HasPrefix(itemStr, "{{") && strings.HasSuffix(itemStr, "}}") {
+						continue
+					}
+
+					// Check against AWS resource patterns
+					for resourceType, pattern := range patterns {
+						if matched, _ := regexp.MatchString(pattern, itemStr); matched {
+							hardcodedID := fmt.Sprintf("%s:%s (in %s.%s[%d])", resourceType, itemStr, stepID, key, i)
+							hardcodedIDs = append(hardcodedIDs, hardcodedID)
+
+							a.Logger.WithFields(map[string]interface{}{
+								"step_id":       stepID,
+								"parameter":     key,
+								"array_index":   i,
+								"value":         itemStr,
+								"resource_type": resourceType,
+							}).Warn("Detected hardcoded AWS resource ID in array")
+						}
+					}
+				}
+			}
+
+		case map[string]interface{}:
+			// Recursive check for nested maps
+			nestedHardcoded := a.detectHardcodedResourceIDs(v, patterns, stepID)
+			hardcodedIDs = append(hardcodedIDs, nestedHardcoded...)
+		}
+	}
+
+	return hardcodedIDs
 }

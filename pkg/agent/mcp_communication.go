@@ -514,10 +514,24 @@ func (a *StateAwareAgent) callMCPTool(name string, arguments map[string]interfac
 
 		// Convert the mcp.CallToolResult to the expected format
 		if len(result.Content) > 0 {
-			// Extract the first content item as TextContent
+			// Extract the first content item using robust content extraction
+			var textData string
+			var extractSuccess bool
+
 			if textContent, ok := result.Content[0].(*mcp.TextContent); ok {
+				textData = textContent.Text
+				extractSuccess = true
+			} else if textContent, ok := result.Content[0].(mcp.TextContent); ok {
+				textData = textContent.Text
+				extractSuccess = true
+			} else if contentInterface, ok := result.Content[0].(interface{ GetText() string }); ok {
+				textData = contentInterface.GetText()
+				extractSuccess = true
+			}
+
+			if extractSuccess {
 				var toolResult map[string]interface{}
-				if err := json.Unmarshal([]byte(textContent.Text), &toolResult); err == nil {
+				if err := json.Unmarshal([]byte(textData), &toolResult); err == nil {
 					// Check for error in the tool result
 					if errorMsg, hasError := toolResult["error"]; hasError {
 						if success, hasSuccess := toolResult["success"]; hasSuccess {
@@ -535,7 +549,7 @@ func (a *StateAwareAgent) callMCPTool(name string, arguments map[string]interfac
 
 				// If JSON parsing fails, return the text as a "text" field
 				return map[string]interface{}{
-					"text": textContent.Text,
+					"text": textData,
 				}, nil
 			}
 		}
@@ -763,13 +777,15 @@ func (a *StateAwareAgent) AnalyzeInfrastructureState(ctx context.Context, scanLi
 		}
 	}
 
-	a.Logger.WithFields(map[string]interface{}{
-		"analysis_text":    analysisText,
-		"scan_live":        scanLive,
-		"managed_count":    len(currentState.Resources),
-		"discovered_count": len(discoveredResources),
-		"drift_count":      len(driftDetections),
-	}).Info("Infrastructure state analysis completed")
+	if a.config.EnableDebug {
+		a.Logger.WithFields(map[string]interface{}{
+			"analysis_text":    analysisText,
+			"scan_live":        scanLive,
+			"managed_count":    len(currentState.Resources),
+			"discovered_count": len(discoveredResources),
+			"drift_count":      len(driftDetections),
+		}).Info("Infrastructure state analysis completed")
+	}
 
 	return currentState, discoveredResources, driftDetections, nil
 }
