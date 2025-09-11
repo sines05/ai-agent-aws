@@ -23,17 +23,21 @@ func NewCreateLaunchTemplateTool(awsClient *aws.Client, logger *logging.Logger) 
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"templateName": map[string]interface{}{
+			"launchTemplateName": map[string]interface{}{
 				"type":        "string",
 				"description": "The name for the launch template",
 			},
-			"imageId": map[string]interface{}{
+			"versionDescription": map[string]interface{}{
 				"type":        "string",
-				"description": "The AMI ID to use",
+				"description": "Description for this template version",
 			},
 			"instanceType": map[string]interface{}{
 				"type":        "string",
 				"description": "The instance type",
+			},
+			"imageId": map[string]interface{}{
+				"type":        "string",
+				"description": "The AMI ID to use",
 			},
 			"keyName": map[string]interface{}{
 				"type":        "string",
@@ -46,8 +50,56 @@ func NewCreateLaunchTemplateTool(awsClient *aws.Client, logger *logging.Logger) 
 				},
 				"description": "List of security group IDs",
 			},
+			"networkInterfaces": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"associatePublicIpAddress": map[string]interface{}{
+							"type":        "boolean",
+							"description": "Whether to associate a public IP address",
+						},
+						"securityGroups": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"type": "string",
+							},
+							"description": "Security group IDs for network interface",
+						},
+					},
+				},
+				"description": "Network interface configurations",
+			},
+			"tagSpecifications": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"resourceType": map[string]interface{}{
+							"type":        "string",
+							"description": "Resource type to tag (e.g., 'instance')",
+						},
+						"tags": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"key": map[string]interface{}{
+										"type": "string",
+									},
+									"value": map[string]interface{}{
+										"type": "string",
+									},
+								},
+							},
+							"description": "Tags to apply",
+						},
+					},
+				},
+				"description": "Tag specifications for resources",
+			},
 		},
-		"required": []string{"templateName", "imageId", "instanceType"},
+		"required": []string{"instanceType", "imageId"},
 	}
 
 	baseTool := NewBaseTool(
@@ -80,9 +132,10 @@ func NewCreateLaunchTemplateTool(awsClient *aws.Client, logger *logging.Logger) 
 }
 
 func (t *CreateLaunchTemplateTool) Execute(ctx context.Context, arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	templateName, ok := arguments["templateName"].(string)
+	// Support both launchTemplateName and legacy templateName
+	templateName, ok := arguments["launchTemplateName"].(string)
 	if !ok || templateName == "" {
-		return t.CreateErrorResponse("templateName is required")
+		return t.CreateErrorResponse("launchTemplateName or templateName is required")
 	}
 
 	imageId, ok := arguments["imageId"].(string)
@@ -96,8 +149,8 @@ func (t *CreateLaunchTemplateTool) Execute(ctx context.Context, arguments map[st
 	}
 
 	keyName, _ := arguments["keyName"].(string)
+	versionDescription, _ := arguments["versionDescription"].(string)
 
-	// Handle security group IDs
 	var securityGroupIds []string
 	if sgIds, ok := arguments["securityGroupIds"].([]interface{}); ok {
 		for _, sgId := range sgIds {
@@ -107,7 +160,27 @@ func (t *CreateLaunchTemplateTool) Execute(ctx context.Context, arguments map[st
 		}
 	}
 
-	// Create launch template parameters
+	// Handle network interfaces
+	var networkInterfaces []map[string]interface{}
+	if netIfaces, ok := arguments["networkInterfaces"].([]interface{}); ok {
+		for _, netIface := range netIfaces {
+			if ni, ok := netIface.(map[string]interface{}); ok {
+				networkInterfaces = append(networkInterfaces, ni)
+			}
+		}
+	}
+
+	// Handle tag specifications
+	var tagSpecs []map[string]interface{}
+	if tagSpecifications, ok := arguments["tagSpecifications"].([]interface{}); ok {
+		for _, tagSpec := range tagSpecifications {
+			if ts, ok := tagSpec.(map[string]interface{}); ok {
+				tagSpecs = append(tagSpecs, ts)
+			}
+		}
+	}
+
+	// Create launch template parameters - need to extend this struct
 	params := aws.CreateLaunchTemplateParams{
 		LaunchTemplateName: templateName,
 		ImageID:            imageId,
@@ -115,6 +188,9 @@ func (t *CreateLaunchTemplateTool) Execute(ctx context.Context, arguments map[st
 		KeyName:            keyName,
 		SecurityGroupIDs:   securityGroupIds,
 		Tags:               map[string]string{},
+		VersionDescription: versionDescription,
+		NetworkInterfaces:  networkInterfaces,
+		TagSpecifications:  tagSpecs,
 	}
 
 	// Use the specialized adapter to create the launch template
@@ -125,13 +201,16 @@ func (t *CreateLaunchTemplateTool) Execute(ctx context.Context, arguments map[st
 
 	message := fmt.Sprintf("Created launch template %s (%s)", template.ID, templateName)
 	data := map[string]interface{}{
-		"templateId":       template.ID,
-		"templateName":     templateName,
-		"imageId":          imageId,
-		"instanceType":     instanceType,
-		"keyName":          keyName,
-		"securityGroupIds": securityGroupIds,
-		"resource":         template,
+		"templateId":         template.ID,
+		"templateName":       templateName,
+		"launchTemplateName": templateName,
+		"imageId":            imageId,
+		"instanceType":       instanceType,
+		"keyName":            keyName,
+		"securityGroupIds":   securityGroupIds,
+		"networkInterfaces":  networkInterfaces,
+		"tagSpecifications":  tagSpecs,
+		"resource":           template,
 	}
 
 	return t.CreateSuccessResponse(message, data)
@@ -148,13 +227,27 @@ func NewCreateAutoScalingGroupTool(awsClient *aws.Client, logger *logging.Logger
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"asgName": map[string]interface{}{
+			"autoScalingGroupName": map[string]interface{}{
 				"type":        "string",
 				"description": "The name for the auto scaling group",
 			},
+			"launchTemplate": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"launchTemplateName": map[string]interface{}{
+						"type":        "string",
+						"description": "The launch template name",
+					},
+					"version": map[string]interface{}{
+						"type":        "string",
+						"description": "The launch template version ($Latest, $Default, or version number)",
+					},
+				},
+				"description": "Launch template configuration",
+			},
 			"launchTemplateName": map[string]interface{}{
 				"type":        "string",
-				"description": "The launch template name to use",
+				"description": "The launch template name to use (legacy)",
 			},
 			"minSize": map[string]interface{}{
 				"type":        "number",
@@ -168,15 +261,29 @@ func NewCreateAutoScalingGroupTool(awsClient *aws.Client, logger *logging.Logger
 				"type":        "number",
 				"description": "Desired number of instances",
 			},
-			"subnetIds": map[string]interface{}{
+			"vpcZoneIdentifier": map[string]interface{}{
 				"type": "array",
 				"items": map[string]interface{}{
 					"type": "string",
 				},
 				"description": "List of subnet IDs",
 			},
+			"subnetIds": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "string",
+				},
+				"description": "List of subnet IDs (legacy)",
+			},
+			"targetGroupARNs": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "string",
+				},
+				"description": "List of target group ARNs",
+			},
 		},
-		"required": []string{"asgName", "launchTemplateName", "minSize", "maxSize", "desiredCapacity", "subnetIds"},
+		"required": []string{"minSize", "maxSize", "desiredCapacity"},
 	}
 
 	baseTool := NewBaseTool(
@@ -210,14 +317,37 @@ func NewCreateAutoScalingGroupTool(awsClient *aws.Client, logger *logging.Logger
 }
 
 func (t *CreateAutoScalingGroupTool) Execute(ctx context.Context, arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	asgName, ok := arguments["asgName"].(string)
+	// Support both autoScalingGroupName and legacy asgName
+	asgName, ok := arguments["autoScalingGroupName"].(string)
 	if !ok || asgName == "" {
-		return t.CreateErrorResponse("asgName is required")
+		return t.CreateErrorResponse("autoScalingGroupName or asgName is required")
 	}
 
-	launchTemplateName, ok := arguments["launchTemplateName"].(string)
-	if !ok || launchTemplateName == "" {
-		return t.CreateErrorResponse("launchTemplateName is required")
+	// Handle launch template configuration
+	var launchTemplateName, launchTemplateVersion string
+
+	// Check for new launchTemplate object format
+	if ltConfig, ok := arguments["launchTemplate"].(map[string]interface{}); ok {
+		if name, exists := ltConfig["launchTemplateName"].(string); exists {
+			launchTemplateName = name
+		}
+		if version, exists := ltConfig["version"].(string); exists {
+			launchTemplateVersion = version
+		}
+	} else {
+		// Fallback to legacy launchTemplateName
+		if legacyName, exists := arguments["launchTemplateName"].(string); exists && legacyName != "" {
+			launchTemplateName = legacyName
+			launchTemplateVersion = "$Latest" // Default version
+		}
+	}
+
+	if launchTemplateName == "" {
+		return t.CreateErrorResponse("launchTemplate configuration is required")
+	}
+
+	if launchTemplateVersion == "" {
+		launchTemplateVersion = "$Latest"
 	}
 
 	minSize, ok := arguments["minSize"].(float64)
@@ -237,7 +367,13 @@ func (t *CreateAutoScalingGroupTool) Execute(ctx context.Context, arguments map[
 
 	// Handle subnet IDs
 	var subnetIds []string
-	if sIds, ok := arguments["subnetIds"].([]interface{}); ok {
+	if vpcZoneIds, ok := arguments["vpcZoneIdentifier"].([]interface{}); ok {
+		for _, sId := range vpcZoneIds {
+			if id, ok := sId.(string); ok {
+				subnetIds = append(subnetIds, id)
+			}
+		}
+	} else if sIds, ok := arguments["subnetIds"].([]interface{}); ok {
 		for _, sId := range sIds {
 			if id, ok := sId.(string); ok {
 				subnetIds = append(subnetIds, id)
@@ -246,19 +382,31 @@ func (t *CreateAutoScalingGroupTool) Execute(ctx context.Context, arguments map[
 	}
 
 	if len(subnetIds) == 0 {
-		return t.CreateErrorResponse("subnetIds is required and must not be empty")
+		return t.CreateErrorResponse("vpcZoneIdentifier or subnetIds is required and must not be empty")
+	}
+
+	// Handle target group ARNs
+	var targetGroupARNs []string
+	if tgArns, ok := arguments["targetGroupARNs"].([]interface{}); ok {
+		for _, arn := range tgArns {
+			if arnStr, ok := arn.(string); ok {
+				targetGroupARNs = append(targetGroupARNs, arnStr)
+			}
+		}
 	}
 
 	// Create auto scaling group parameters
 	params := aws.CreateAutoScalingGroupParams{
-		AutoScalingGroupName: asgName,
-		LaunchTemplateName:   launchTemplateName,
-		MinSize:              int32(minSize),
-		MaxSize:              int32(maxSize),
-		DesiredCapacity:      int32(desiredCapacity),
-		VPCZoneIdentifiers:   subnetIds,
-		HealthCheckType:      "EC2", // Default
-		Tags:                 map[string]string{},
+		AutoScalingGroupName:  asgName,
+		LaunchTemplateName:    launchTemplateName,
+		LaunchTemplateVersion: launchTemplateVersion,
+		MinSize:               int32(minSize),
+		MaxSize:               int32(maxSize),
+		DesiredCapacity:       int32(desiredCapacity),
+		VPCZoneIdentifiers:    subnetIds,
+		TargetGroupARNs:       targetGroupARNs,
+		HealthCheckType:       "EC2", // Default
+		Tags:                  map[string]string{},
 	}
 
 	// Use the adapter to create the auto scaling group
@@ -269,14 +417,17 @@ func (t *CreateAutoScalingGroupTool) Execute(ctx context.Context, arguments map[
 
 	message := fmt.Sprintf("Created auto scaling group %s with launch template %s", asg.ID, launchTemplateName)
 	data := map[string]interface{}{
-		"asgId":              asg.ID,
-		"asgName":            asgName,
-		"launchTemplateName": launchTemplateName,
-		"minSize":            int32(minSize),
-		"maxSize":            int32(maxSize),
-		"desiredCapacity":    int32(desiredCapacity),
-		"subnetIds":          subnetIds,
-		"resource":           asg,
+		"asgId":                 asg.ID,
+		"autoScalingGroupName":  asgName,
+		"launchTemplateName":    launchTemplateName,
+		"launchTemplateVersion": launchTemplateVersion,
+		"minSize":               int32(minSize),
+		"maxSize":               int32(maxSize),
+		"desiredCapacity":       int32(desiredCapacity),
+		"vpcZoneIdentifier":     subnetIds,
+		"subnetIds":             subnetIds,
+		"targetGroupARNs":       targetGroupARNs,
+		"resource":              asg,
 	}
 
 	return t.CreateSuccessResponse(message, data)

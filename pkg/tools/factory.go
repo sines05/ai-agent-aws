@@ -134,6 +134,18 @@ func (f *ToolFactoryImpl) CreateTool(toolType string, dependencies interface{}) 
 	case "deregister-targets":
 		return NewDeregisterTargetsTool(deps.AWSClient, f.logger), nil
 
+	// AMI Tools
+	case "get-latest-amazon-linux-ami":
+		return NewGetLatestAmazonLinuxAMITool(deps.AWSClient, f.logger), nil
+	case "get-latest-ubuntu-ami":
+		return NewGetLatestUbuntuAMITool(deps.AWSClient, f.logger), nil
+	case "get-latest-windows-ami":
+		return NewGetLatestWindowsAMITool(deps.AWSClient, f.logger), nil
+
+	// Zone Tools
+	case "get-availability-zones":
+		return NewGetAvailabilityZonesTool(deps.AWSClient, f.logger), nil
+
 	// RDS Tools
 	case "create-db-subnet-group":
 		return NewCreateDBSubnetGroupTool(deps.AWSClient, f.logger), nil
@@ -223,6 +235,14 @@ func (f *ToolFactoryImpl) GetSupportedToolTypes() []string {
 		"list-target-groups",
 		"register-targets",
 		"deregister-targets",
+
+		// AMI Tools
+		"get-latest-amazon-linux-ami",
+		"get-latest-ubuntu-ami",
+		"get-latest-windows-ami",
+
+		// Zone Tools
+		"get-availability-zones",
 
 		// RDS Tools
 		"create-db-subnet-group",

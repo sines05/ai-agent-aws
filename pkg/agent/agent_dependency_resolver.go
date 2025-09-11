@@ -130,6 +130,11 @@ func (a *StateAwareAgent) resolveDependencyReference(reference string) (string, 
 	a.mappingsMutex.RUnlock()
 
 	if !exists {
+		// In test mode, avoid accessing real state - rely only on stored mappings - will update with state mocking
+		if a.testMode {
+			return "", fmt.Errorf("dependency reference not found in test mode: %s (step ID: %s not found in resource mappings)", reference, stepID)
+		}
+
 		// Fallback: try to get state via MCP and extract the resource ID
 		stateJSON, err := a.ExportInfrastructureState(context.Background(), false) // Only managed state
 		if err == nil {

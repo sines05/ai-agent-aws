@@ -135,12 +135,14 @@ func (a *StateAwareAgent) generateDecisionWithPlan(ctx context.Context, decision
 		return nil, fmt.Errorf("failed to generate AI response: %w", err)
 	}
 
-	// Comprehensive response logging
-	a.Logger.WithFields(map[string]interface{}{
-		"response_length":  len(response),
-		"response_empty":   len(response) == 0,
-		"response_content": response, // Log full response for debugging
-	}).Info("LLM Response received")
+	if a.config.EnableDebug {
+		// Comprehensive response logging
+		a.Logger.WithFields(map[string]interface{}{
+			"response_length":  len(response),
+			"response_empty":   len(response) == 0,
+			"response_content": response, // Log full response for debugging
+		}).Info("LLM Response received")
+	}
 
 	// Handle empty response immediately
 	if len(response) == 0 {
@@ -148,14 +150,16 @@ func (a *StateAwareAgent) generateDecisionWithPlan(ctx context.Context, decision
 		return nil, fmt.Errorf("LLM returned empty response - possible API key, model, or prompt issue")
 	}
 
-	// Log response characteristics for debugging
-	a.Logger.WithFields(map[string]interface{}{
-		"response_length":     len(response),
-		"max_tokens_config":   a.config.MaxTokens,
-		"starts_with_brace":   strings.HasPrefix(response, "{"),
-		"ends_with_brace":     strings.HasSuffix(response, "}"),
-		"probable_truncation": strings.HasPrefix(response, "{") && !strings.HasSuffix(response, "}"),
-	}).Debug("LLM Response Analysis")
+	if a.config.EnableDebug {
+		// Log response characteristics for debugging
+		a.Logger.WithFields(map[string]interface{}{
+			"response_length":     len(response),
+			"max_tokens_config":   a.config.MaxTokens,
+			"starts_with_brace":   strings.HasPrefix(response, "{"),
+			"ends_with_brace":     strings.HasSuffix(response, "}"),
+			"probable_truncation": strings.HasPrefix(response, "{") && !strings.HasSuffix(response, "}"),
+		}).Debug("LLM Response Analysis")
+	}
 
 	// Check for potential token limit issues
 	if len(response) > 0 && strings.HasPrefix(response, "{") && !strings.HasSuffix(response, "}") {
@@ -195,6 +199,21 @@ func (a *StateAwareAgent) validateDecision(decision *types.AgentDecision, contex
 
 	if !validActions[decision.Action] {
 		return fmt.Errorf("invalid action: %s", decision.Action)
+	}
+
+	planValidActions := map[string]bool{
+		"create":              true,
+		"update":              true,
+		"add":                 true,
+		"delete":              true,
+		"validate":            true,
+		"api_value_retrieval": true,
+	}
+
+	for _, planStep := range decision.ExecutionPlan {
+		if !planValidActions[planStep.Action] {
+			return fmt.Errorf("invalid plan action: %s", planStep.Action)
+		}
 	}
 
 	// Check for critical conflicts if auto-resolve is disabled
@@ -338,7 +357,7 @@ func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *D
 	prompt.WriteString("      \"id\": \"step-1\",\n")
 	prompt.WriteString("      \"name\": \"Step Description\",\n")
 	prompt.WriteString("      \"description\": \"Detailed step description\",\n")
-	prompt.WriteString("      \"action\": \"create|update|delete|validate\",\n")
+	prompt.WriteString("      \"action\": \"create|update|add|delete|validate|api_value_retrieval\",\n")
 	prompt.WriteString("      \"resourceId\": \"logical-resource-id\",\n")
 	prompt.WriteString("      \"mcpTool\": \"exact-mcp-tool-name\",\n")
 	prompt.WriteString("      \"toolParameters\": {\n")
@@ -359,13 +378,28 @@ func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *D
 	prompt.WriteString("4. PARAMETER ACCURACY: Use correct parameter names and types for each tool\n")
 	prompt.WriteString("5. DEPENDENCY REFERENCES: Use {{step-id.resourceId}} format for dependencies\n")
 	prompt.WriteString("6. JSON ONLY: Return only valid JSON - no markdown, no explanations, no extra text\n")
-	prompt.WriteString("7. STATE FILE AWARENESS: Remember that managed resources exist in the state file\n\n")
+	prompt.WriteString("7. STATE FILE AWARENESS: Remember that managed resources exist in the state file\n")
+	prompt.WriteString("8. ACTION TYPE USAGE:\n")
+	prompt.WriteString("   - create: For new AWS resources that don't exist\n")
+	prompt.WriteString("   - update: For modifying existing resources (adding routes, security rules, associations)\n")
+	prompt.WriteString("   - add: For adding components to existing resources (routes, rules, etc.)\n")
+	prompt.WriteString("   - delete: For removing AWS resources\n")
+	prompt.WriteString("   - validate: For checking resource states or configurations\n")
+	prompt.WriteString("   - api_value_retrieval: For fetching real AWS values to replace placeholders\n")
+	prompt.WriteString("   🚨 ONLY use these exact actions: create, update, add, delete, validate, api_value_retrieval\n")
+	prompt.WriteString("   🚨 NEVER use: associate, attach, connect, link, join, bind, or any other action names\n\n")
 
 	// === EXAMPLES ===
 	prompt.WriteString("💡 DECISION EXAMPLES:\n")
 	prompt.WriteString("Example 1 - Resource Reuse: If user wants a web server and you see existing VPC and security groups, reuse them\n")
 	prompt.WriteString("Example 2 - Minimal Changes: If user wants to add a database and VPC exists, only create database resources\n")
 	prompt.WriteString("Example 3 - No Action: If user requests something that already exists, return action: \"no_action\"\n\n")
+
+	prompt.WriteString("💡 ACTION EXAMPLES:\n")
+	prompt.WriteString("✅ CREATE: \"action\": \"create\" for new VPC, subnets, security groups, etc.\n")
+	prompt.WriteString("✅ UPDATE: \"action\": \"update\" for associating route tables with subnets\n")
+	prompt.WriteString("✅ ADD: \"action\": \"add\" for adding routes to route tables, adding security group rules\n")
+	prompt.WriteString("❌ NEVER USE: associate, attach, connect, link, join, bind\n\n")
 
 	prompt.WriteString("BEGIN YOUR ANALYSIS AND PROVIDE YOUR JSON RESPONSE:\n")
 
@@ -377,10 +411,12 @@ func (a *StateAwareAgent) parseAIResponseWithPlan(decisionID, request, response 
 	a.Logger.Debug("Parsing AI response for execution plan")
 
 	// Log the raw response for debugging - ALWAYS log this for troubleshooting
-	a.Logger.WithFields(map[string]interface{}{
-		"raw_response_length": len(response),
-		"raw_response":        response,
-	}).Info("AI Response received")
+	if a.config.EnableDebug {
+		a.Logger.WithFields(map[string]interface{}{
+			"raw_response_length": len(response),
+			"raw_response":        response,
+		}).Info("AI Response received")
+	}
 
 	// Check if response appears to be truncated JSON
 	if strings.HasPrefix(response, "{") && !strings.HasSuffix(response, "}") {
@@ -413,10 +449,12 @@ func (a *StateAwareAgent) parseAIResponseWithPlan(decisionID, request, response 
 		return nil, fmt.Errorf("no valid JSON found in AI response")
 	}
 
-	a.Logger.WithFields(map[string]interface{}{
-		"extracted_json_length": len(jsonStr),
-		"extracted_json":        jsonStr,
-	}).Info("Successfully extracted JSON from AI response")
+	if a.config.EnableDebug {
+		a.Logger.WithFields(map[string]interface{}{
+			"extracted_json_length": len(jsonStr),
+			"extracted_json":        jsonStr,
+		}).Info("Successfully extracted JSON from AI response")
+	}
 
 	// Parse JSON with execution plan - updated for native MCP tool support
 	var parsed struct {

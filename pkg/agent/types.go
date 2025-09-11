@@ -2,12 +2,15 @@ package agent
 
 import (
 	"bufio"
+	"context"
 	"os/exec"
 	"sync"
 
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/versus-control/ai-infrastructure-agent/internal/config"
 	"github.com/versus-control/ai-infrastructure-agent/internal/logging"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/agent/resources"
+	"github.com/versus-control/ai-infrastructure-agent/pkg/agent/retrieval"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/aws"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/types"
 
@@ -56,23 +59,35 @@ type StateAwareAgent struct {
 	config    *config.AgentConfig
 	awsConfig *config.AWSConfig
 	awsClient *aws.Client
+	Logger    *logging.Logger
 
+	// MCP properties
 	mcpProcess       *MCPProcess
-	resourceMappings map[string]string // Maps plan step IDs to actual AWS resource IDs
+	resourceMappings map[string]string
 	mappingsMutex    sync.RWMutex
-
-	// MCP Server capabilities discovered at startup
-	mcpTools        map[string]MCPToolInfo     // Available tools from MCP server
-	mcpResources    map[string]MCPResourceInfo // Available resources from MCP server
-	capabilityMutex sync.RWMutex
+	mcpTools         map[string]MCPToolInfo
+	mcpResources     map[string]MCPResourceInfo
+	capabilityMutex  sync.RWMutex
 
 	// Configuration-driven components
-	configLoader      *config.ConfigLoader
 	fieldResolver     *resources.FieldResolver
 	patternMatcher    *resources.PatternMatcher
 	valueTypeInferrer *resources.ValueTypeInferrer
 
-	Logger *logging.Logger
+	// Extractor for resource identification
+	extractionConfig *config.ResourceExtractionConfig
+	idExtractor      *resources.IDExtractor
+
+	// Retrieval functions registry
+	registry retrieval.RetrievalRegistryInterface
+
+	// Test mode flag to bypass real MCP server startup
+	testMode bool
+
+	// Mock MCP server for testing (only used when testMode is true)
+	mockMCPServer interface {
+		CallTool(ctx context.Context, toolName string, arguments map[string]interface{}) (*mcp.CallToolResult, error)
+	}
 }
 
 // MCPToolInfo represents information about an available MCP tool

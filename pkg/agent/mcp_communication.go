@@ -9,6 +9,9 @@ import (
 	"os/exec"
 	"sync"
 
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/versus-control/ai-infrastructure-agent/internal/logging"
+	"github.com/versus-control/ai-infrastructure-agent/pkg/tools"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/types"
 	util "github.com/versus-control/ai-infrastructure-agent/pkg/utilities"
 )
@@ -178,6 +181,11 @@ func (a *StateAwareAgent) initializeMCP() error {
 
 // ensureMCPCapabilities ensures that MCP capabilities are discovered and available
 func (a *StateAwareAgent) ensureMCPCapabilities() error {
+	// In test mode, skip real MCP discovery and use mock capabilities
+	if a.testMode {
+		return a.setupMockMCPCapabilities()
+	}
+
 	a.capabilityMutex.RLock()
 	toolsCount := len(a.mcpTools)
 	a.capabilityMutex.RUnlock()
@@ -204,6 +212,36 @@ func (a *StateAwareAgent) ensureMCPCapabilities() error {
 	}
 
 	a.Logger.WithField("tools_count", finalToolsCount).Info("MCP capabilities discovered successfully")
+	return nil
+}
+
+// setupMockMCPCapabilities sets up mock MCP capabilities for testing
+func (a *StateAwareAgent) setupMockMCPCapabilities() error {
+	a.capabilityMutex.Lock()
+	defer a.capabilityMutex.Unlock()
+
+	// Create a tool factory to get the real supported tools
+	factory := tools.NewToolFactory(nil, logging.NewLogger("mock", "info"))
+	realTools := factory.GetSupportedToolTypes()
+
+	// Initialize mock tools map with all real tools
+	mockTools := make(map[string]MCPToolInfo)
+
+	// Add all real tools - this covers the actual available tools
+	for _, toolName := range realTools {
+		mockTools[toolName] = MCPToolInfo{
+			Name:        toolName,
+			Description: fmt.Sprintf("Tool: %s", toolName),
+			InputSchema: map[string]interface{}{"type": "object"},
+		}
+	}
+
+	a.mcpTools = mockTools
+	a.Logger.WithFields(map[string]interface{}{
+		"tool_count": len(mockTools),
+		"real_tools": len(realTools),
+	}).Info("Mock MCP capabilities setup complete with real tools")
+
 	return nil
 }
 
@@ -466,6 +504,48 @@ func (a *StateAwareAgent) discoverMCPResources() error {
 
 // callMCPTool calls a tool via the MCP server
 func (a *StateAwareAgent) callMCPTool(name string, arguments map[string]interface{}) (map[string]interface{}, error) {
+	// In test mode, use the mock MCP server
+	if a.testMode && a.mockMCPServer != nil {
+		ctx := context.Background()
+		result, err := a.mockMCPServer.CallTool(ctx, name, arguments)
+		if err != nil {
+			return nil, fmt.Errorf("mock MCP tool call failed: %w", err)
+		}
+
+		// Convert the mcp.CallToolResult to the expected format
+		if len(result.Content) > 0 {
+			// Extract the first content item as TextContent
+			if textContent, ok := result.Content[0].(*mcp.TextContent); ok {
+				var toolResult map[string]interface{}
+				if err := json.Unmarshal([]byte(textContent.Text), &toolResult); err == nil {
+					// Check for error in the tool result
+					if errorMsg, hasError := toolResult["error"]; hasError {
+						if success, hasSuccess := toolResult["success"]; hasSuccess {
+							if successBool, ok := success.(bool); ok && !successBool {
+								return nil, fmt.Errorf("tool execution failed: %v", errorMsg)
+							}
+						} else {
+							// If no success field but error exists, treat as error
+							return nil, fmt.Errorf("tool execution failed: %v", errorMsg)
+						}
+					}
+					// Successfully parsed as JSON and no error
+					return toolResult, nil
+				}
+
+				// If JSON parsing fails, return the text as a "text" field
+				return map[string]interface{}{
+					"text": textContent.Text,
+				}, nil
+			}
+		}
+
+		// Fallback: return the result as is
+		return map[string]interface{}{
+			"success": true,
+		}, nil
+	}
+
 	if a.mcpProcess == nil {
 		if err := a.startMCPProcess(); err != nil {
 			return nil, fmt.Errorf("failed to start MCP process: %w", err)

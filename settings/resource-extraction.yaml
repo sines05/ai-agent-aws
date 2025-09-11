@@ -5,6 +5,7 @@
 # Used when tool-specific patterns don't match
 common_fallback_fields:
   # Try these common field names in order of priority
+  - "resource_id"
   - "resourceId"
   - "id" 
   - "subnetGroupId"
