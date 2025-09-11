@@ -49,6 +49,7 @@ type CreateNATGatewayParams struct {
 type CreateAutoScalingGroupParams struct {
 	AutoScalingGroupName   string
 	LaunchTemplateName     string
+	LaunchTemplateVersion  string // Launch template version ($Latest, $Default, or version number)
 	MinSize                int32
 	MaxSize                int32
 	DesiredCapacity        int32
@@ -61,6 +62,7 @@ type CreateAutoScalingGroupParams struct {
 
 type CreateLaunchTemplateParams struct {
 	LaunchTemplateName string
+	VersionDescription string // Description for this template version
 	ImageID            string
 	InstanceType       string
 	KeyName            string
@@ -68,6 +70,8 @@ type CreateLaunchTemplateParams struct {
 	UserData           string // Base64 encoded user data
 	IamInstanceProfile string
 	Tags               map[string]string
+	NetworkInterfaces  []map[string]interface{} // Network interface configurations
+	TagSpecifications  []map[string]interface{} // Tag specifications for resources
 }
 
 // Application Load Balancer Parameters

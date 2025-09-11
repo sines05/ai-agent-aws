@@ -388,10 +388,32 @@ func (a *StateAwareAgent) retrieveSelectSubnetsForALB(ctx context.Context, planS
 
 	// Parse the tool result
 	if len(selectionResult.Content) > 0 {
+		var textData string
+		var extractSuccess bool
+
+		// Try multiple approaches to extract text content, similar to ALB tools
 		if textContent, ok := selectionResult.Content[0].(*mcp.TextContent); ok {
+			textData = textContent.Text
+			extractSuccess = true
+			a.Logger.Debug("Successfully extracted text using TextContent pointer type assertion")
+		} else if textContent, ok := selectionResult.Content[0].(mcp.TextContent); ok {
+			// Try value type assertion
+			textData = textContent.Text
+			extractSuccess = true
+			a.Logger.Debug("Successfully extracted text using TextContent value type assertion")
+		} else {
+			// Try to extract from any content with GetText method
+			if contentInterface, ok := selectionResult.Content[0].(interface{ GetText() string }); ok {
+				textData = contentInterface.GetText()
+				extractSuccess = true
+				a.Logger.Debug("Successfully extracted text using GetText method")
+			}
+		}
+
+		if extractSuccess {
 			var resultData map[string]interface{}
-			if err := json.Unmarshal([]byte(textContent.Text), &resultData); err != nil {
-				a.Logger.WithError(err).Error("Failed to parse subnet selection response")
+			if err := json.Unmarshal([]byte(textData), &resultData); err != nil {
+				a.Logger.WithError(err).WithField("text_data", textData).Error("Failed to parse subnet selection response")
 				return nil, fmt.Errorf("failed to parse subnet selection response: %w", err)
 			}
 
@@ -422,6 +444,11 @@ func (a *StateAwareAgent) retrieveSelectSubnetsForALB(ctx context.Context, planS
 				"description":  fmt.Sprintf("Selected %d subnets for %s ALB", len(subnetIDs), scheme),
 				"source":       "subnet_selection_tool",
 			}, nil
+		} else {
+			a.Logger.WithFields(map[string]interface{}{
+				"actual_type":    fmt.Sprintf("%T", selectionResult.Content[0]),
+				"content_string": fmt.Sprintf("%v", selectionResult.Content[0]),
+			}).Error("Unable to extract text content from subnet selection result")
 		}
 	}
 
@@ -596,78 +623,181 @@ func (a *StateAwareAgent) retrieveExistingResourceFromState(planStep *types.Exec
 			resourceNameFromState, _ := resourceMap["name"].(string)
 			resourceIDFromState, _ := resourceMap["id"].(string)
 
+			// Check if this is a step_reference that contains actual resource info
+			var actualResourceType, actualResourceName, actualAwsResourceID string
+			isStepReference := resourceTypeFromState == "step_reference"
+
+			if isStepReference {
+				// Extract resource info from mcp_response for step references
+				if properties, ok := resourceMap["properties"].(map[string]interface{}); ok {
+					if mcpResponse, ok := properties["mcp_response"].(map[string]interface{}); ok {
+						// Get the actual resource name from mcp_response
+						if name, ok := mcpResponse["name"].(string); ok {
+							actualResourceName = name
+						}
+
+						// Determine resource type and AWS ID from mcp_response structure
+						if subnetID, ok := mcpResponse["subnetId"].(string); ok {
+							actualResourceType = "subnet"
+							actualAwsResourceID = subnetID
+						} else if vpcID, ok := mcpResponse["vpcId"].(string); ok {
+							actualResourceType = "vpc"
+							actualAwsResourceID = vpcID
+						} else if sgID, ok := mcpResponse["securityGroupId"].(string); ok {
+							actualResourceType = "security_group"
+							actualAwsResourceID = sgID
+						} else if instanceID, ok := mcpResponse["instanceId"].(string); ok {
+							actualResourceType = "ec2_instance"
+							actualAwsResourceID = instanceID
+						} else if resource, ok := mcpResponse["resource"].(map[string]interface{}); ok {
+							if resourceType, ok := resource["type"].(string); ok {
+								actualResourceType = resourceType
+							}
+							if resourceAwsID, ok := resource["id"].(string); ok {
+								actualAwsResourceID = resourceAwsID
+							}
+						}
+					}
+				}
+			}
+
 			a.Logger.WithFields(map[string]interface{}{
-				"state_resource_type": resourceTypeFromState,
-				"state_resource_name": resourceNameFromState,
-				"state_resource_id":   resourceIDFromState,
+				"state_resource_type":  resourceTypeFromState,
+				"state_resource_name":  resourceNameFromState,
+				"state_resource_id":    resourceIDFromState,
+				"is_step_reference":    isStepReference,
+				"actual_resource_type": actualResourceType,
+				"actual_resource_name": actualResourceName,
+				"actual_aws_id":        actualAwsResourceID,
 			}).Debug("Checking resource in state")
 
 			// Match by resource type if specified
-			if resourceType != "" && resourceTypeFromState != resourceType {
-				continue
+			effectiveType := resourceTypeFromState
+			effectiveName := resourceNameFromState
+			if isStepReference && actualResourceType != "" {
+				effectiveType = actualResourceType
+				effectiveName = actualResourceName
 			}
 
-			// Match by name or ID - also check if the search name matches the resource ID from state
-			nameMatch := resourceName != "" && (resourceNameFromState == resourceName || strings.Contains(resourceNameFromState, resourceName) || resourceIDFromState == resourceName)
-			idMatch := resourceID != "" && resourceIDFromState == resourceID
+			if resourceType != "" && effectiveType != resourceType {
+				continue
+			} // Enhanced matching logic with support for subnet name-CIDR patterns
+			nameMatch := false
+			idMatch := false
+			awsIdMatch := false
 
-			if nameMatch || idMatch {
+			// Basic name and ID matching - check both original and effective names
+			if resourceName != "" {
+				nameMatch = resourceNameFromState == resourceName ||
+					strings.Contains(resourceNameFromState, resourceName) ||
+					resourceIDFromState == resourceName
+
+				// Also check effective name from step_reference mcp_response
+				if isStepReference && effectiveName != "" {
+					nameMatch = nameMatch ||
+						effectiveName == resourceName ||
+						strings.Contains(effectiveName, resourceName)
+				}
+			}
+			if resourceID != "" {
+				idMatch = resourceIDFromState == resourceID
+				// For step references, also check the actual AWS ID
+				if isStepReference && actualAwsResourceID != "" {
+					idMatch = idMatch || actualAwsResourceID == resourceID
+				}
+			}
+
+			// Special handling for subnet resources with AWS ID cross-referencing
+			if resourceType == "subnet" && resourceID != "" {
+				// Check if the search ID is an AWS subnet ID and we need to find the matching custom-named resource
+				if strings.HasPrefix(resourceID, "subnet-") {
+					// Extract the actual AWS resource ID from properties.mcp_response
+					if properties, ok := resourceMap["properties"].(map[string]interface{}); ok {
+						if mcpResponse, ok := properties["mcp_response"].(map[string]interface{}); ok {
+							if awsSubnetID, ok := mcpResponse["subnetId"].(string); ok && awsSubnetID == resourceID {
+								awsIdMatch = true
+								a.Logger.WithFields(map[string]interface{}{
+									"search_aws_subnet_id": resourceID,
+									"found_aws_subnet_id":  awsSubnetID,
+									"custom_name":          resourceNameFromState,
+								}).Debug("Found subnet by AWS ID cross-reference")
+							} else if resource, ok := mcpResponse["resource"].(map[string]interface{}); ok {
+								if awsSubnetID, ok := resource["id"].(string); ok && awsSubnetID == resourceID {
+									awsIdMatch = true
+									a.Logger.WithFields(map[string]interface{}{
+										"search_aws_subnet_id": resourceID,
+										"found_aws_subnet_id":  awsSubnetID,
+										"custom_name":          resourceNameFromState,
+									}).Debug("Found subnet by AWS ID cross-reference in resource object")
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if nameMatch || idMatch || awsIdMatch {
 				// Extract the actual AWS resource ID from properties.mcp_response
-				actualAwsResourceID := ""
-				if properties, ok := resourceMap["properties"].(map[string]interface{}); ok {
+				finalAwsResourceID := ""
+
+				// For step references, we already extracted the AWS ID above
+				if isStepReference && actualAwsResourceID != "" {
+					finalAwsResourceID = actualAwsResourceID
+				} else if properties, ok := resourceMap["properties"].(map[string]interface{}); ok {
+					// Fallback to the original extraction logic for non-step-reference resources
 					if mcpResponse, ok := properties["mcp_response"].(map[string]interface{}); ok {
 						// Try different possible AWS resource ID fields based on resource type
 						switch resourceType {
 						case "vpc":
 							// For VPC, try vpcId first, then resource.id
 							if vpcID, ok := mcpResponse["vpcId"].(string); ok && vpcID != "" {
-								actualAwsResourceID = vpcID
+								finalAwsResourceID = vpcID
 							} else if resource, ok := mcpResponse["resource"].(map[string]interface{}); ok {
 								if resourceAwsID, ok := resource["id"].(string); ok && resourceAwsID != "" {
-									actualAwsResourceID = resourceAwsID
+									finalAwsResourceID = resourceAwsID
 								}
 							}
 						case "subnet":
 							// For subnet, try subnetId first, then resource.id
 							if subnetID, ok := mcpResponse["subnetId"].(string); ok && subnetID != "" {
-								actualAwsResourceID = subnetID
+								finalAwsResourceID = subnetID
 							} else if resource, ok := mcpResponse["resource"].(map[string]interface{}); ok {
 								if resourceAwsID, ok := resource["id"].(string); ok && resourceAwsID != "" {
-									actualAwsResourceID = resourceAwsID
+									finalAwsResourceID = resourceAwsID
 								}
 							}
 						case "security_group":
 							// For security group, try securityGroupId or groupId, then resource.id
 							if sgID, ok := mcpResponse["securityGroupId"].(string); ok && sgID != "" {
-								actualAwsResourceID = sgID
+								finalAwsResourceID = sgID
 							} else if groupID, ok := mcpResponse["groupId"].(string); ok && groupID != "" {
-								actualAwsResourceID = groupID
+								finalAwsResourceID = groupID
 							} else if resource, ok := mcpResponse["resource"].(map[string]interface{}); ok {
 								if resourceAwsID, ok := resource["id"].(string); ok && resourceAwsID != "" {
-									actualAwsResourceID = resourceAwsID
+									finalAwsResourceID = resourceAwsID
 								}
 							}
 						case "ec2_instance":
 							// For EC2 instance, try instanceId first, then resource.id
 							if instanceID, ok := mcpResponse["instanceId"].(string); ok && instanceID != "" {
-								actualAwsResourceID = instanceID
+								finalAwsResourceID = instanceID
 							} else if resource, ok := mcpResponse["resource"].(map[string]interface{}); ok {
 								if resourceAwsID, ok := resource["id"].(string); ok && resourceAwsID != "" {
-									actualAwsResourceID = resourceAwsID
+									finalAwsResourceID = resourceAwsID
 								}
 							}
 						default:
 							// For unknown types, try common patterns
 							if resource, ok := mcpResponse["resource"].(map[string]interface{}); ok {
 								if resourceAwsID, ok := resource["id"].(string); ok && resourceAwsID != "" {
-									actualAwsResourceID = resourceAwsID
+									finalAwsResourceID = resourceAwsID
 								}
 							}
 							// Try common AWS ID field patterns
 							commonFields := []string{"vpcId", "subnetId", "instanceId", "securityGroupId", "groupId"}
 							for _, field := range commonFields {
 								if awsID, ok := mcpResponse[field].(string); ok && awsID != "" {
-									actualAwsResourceID = awsID
+									finalAwsResourceID = awsID
 									break
 								}
 							}
@@ -676,29 +806,36 @@ func (a *StateAwareAgent) retrieveExistingResourceFromState(planStep *types.Exec
 				}
 
 				// Use the actual AWS resource ID if found, otherwise fall back to step ID
-				finalResourceID := actualAwsResourceID
+				finalResourceID := finalAwsResourceID
 				if finalResourceID == "" {
 					finalResourceID = resourceIDFromState
 					a.Logger.WithFields(map[string]interface{}{
 						"step_id":       resourceIDFromState,
-						"resource_type": resourceTypeFromState,
+						"resource_type": effectiveType,
 						"warning":       "no_aws_id_found",
 					}).Warn("Could not extract AWS resource ID from mcp_response, using step ID as fallback")
 				}
 
+				// Use effective name for step references
+				finalResourceName := resourceNameFromState
+				if isStepReference && effectiveName != "" {
+					finalResourceName = effectiveName
+				}
+
 				a.Logger.WithFields(map[string]interface{}{
 					"found_resource_id":   finalResourceID,
-					"found_resource_name": resourceNameFromState,
-					"found_resource_type": resourceTypeFromState,
+					"found_resource_name": finalResourceName,
+					"found_resource_type": effectiveType,
 					"step_id":             resourceIDFromState,
-					"actual_aws_id":       actualAwsResourceID,
+					"actual_aws_id":       finalAwsResourceID,
+					"is_step_reference":   isStepReference,
 				}).Info("Found matching resource in state file")
 
 				return map[string]interface{}{
 					"value":         finalResourceID,
 					"resource_id":   finalResourceID,
-					"resource_name": resourceNameFromState,
-					"resource_type": resourceTypeFromState,
+					"resource_name": finalResourceName,
+					"resource_type": effectiveType,
 					"source":        "state_file",
 					"step_id":       resourceIDFromState,
 				}, nil

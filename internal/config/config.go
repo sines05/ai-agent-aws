@@ -47,6 +47,7 @@ type AgentConfig struct {
 	Temperature          float64 `mapstructure:"temperature"`
 	DryRun               bool    `mapstructure:"dry_run"`
 	AutoResolveConflicts bool    `mapstructure:"auto_resolve_conflicts"`
+	EnableDebug          bool    `mapstructure:"enable_debug"`
 }
 
 // LoggingConfig contains logging configuration
@@ -138,6 +139,7 @@ func setDefaults() {
 	viper.SetDefault("agent.temperature", 0.3)
 	viper.SetDefault("agent.dry_run", true)
 	viper.SetDefault("agent.auto_resolve_conflicts", false)
+	viper.SetDefault("agent.enable_debug", false)
 
 	// Logging defaults
 	viper.SetDefault("logging.level", "info")
@@ -172,5 +174,5 @@ func (c *Config) GetWebPort() int {
 
 // IsProductionMode returns true if running in production mode
 func (c *Config) IsProductionMode() bool {
-	return c.Logging.Level != "debug" && !c.Agent.DryRun
+	return c.Logging.Level != "debug"
 }

@@ -17,10 +17,11 @@ agent:
   temperature: 0.1
   dry_run: true
   auto_resolve_conflicts: false
+  enable_debug: true
   # Note: Set GEMINI_API_KEY environment variable
 
 logging:
-  level: "debug"
+  level: "info"
   format: "text"
   output: "stdout"
 

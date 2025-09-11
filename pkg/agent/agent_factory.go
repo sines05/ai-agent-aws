@@ -12,6 +12,7 @@ import (
 	"github.com/versus-control/ai-infrastructure-agent/internal/config"
 	"github.com/versus-control/ai-infrastructure-agent/internal/logging"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/agent/resources"
+	"github.com/versus-control/ai-infrastructure-agent/pkg/agent/retrieval"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/aws"
 )
 
@@ -54,6 +55,17 @@ func NewStateAwareAgent(agentConfig *config.AgentConfig, awsClient *aws.Client, 
 		return nil, fmt.Errorf("failed to load field mapping config: %w", err)
 	}
 
+	// Load extraction configuration
+	extractionConfig, err := configLoader.LoadResourceExtraction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load resource extraction config: %w", err)
+	}
+
+	idExtractor, err := resources.NewIDExtractor(extractionConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ID extractor: %w", err)
+	}
+
 	// Load resource pattern configuration
 	resourcePatternConfig, err := configLoader.LoadResourcePatterns()
 	if err != nil {
@@ -72,22 +84,39 @@ func NewStateAwareAgent(agentConfig *config.AgentConfig, awsClient *aws.Client, 
 		return nil, fmt.Errorf("failed to create value type inferrer: %w", err)
 	}
 
+	fieldResolver := resources.NewFieldResolver(fieldMappingConfig)
+
+	// Get global retrieval registry
+	registry := retrieval.GetGlobalRegistry()
+
 	agent := &StateAwareAgent{
-		llm:               llm,
-		config:            agentConfig,
-		awsConfig:         awsConfig,
-		awsClient:         awsClient,
-		Logger:            logger,
-		mcpProcess:        nil, // Will be initialized when needed
-		resourceMappings:  make(map[string]string),
-		mappingsMutex:     sync.RWMutex{},
-		mcpTools:          make(map[string]MCPToolInfo),
-		mcpResources:      make(map[string]MCPResourceInfo),
-		capabilityMutex:   sync.RWMutex{},
-		configLoader:      configLoader,
+		// Common properties
+		llm:       llm,
+		config:    agentConfig,
+		awsConfig: awsConfig,
+		awsClient: awsClient,
+		Logger:    logger,
+
+		// MCP properties
+		mcpProcess:       nil, // Will be initialized when needed
+		resourceMappings: make(map[string]string),
+		mcpTools:         make(map[string]MCPToolInfo),
+		mcpResources:     make(map[string]MCPResourceInfo),
+
+		// Lock properties
+		capabilityMutex: sync.RWMutex{},
+		mappingsMutex:   sync.RWMutex{},
+
+		// Configuration-driven components
 		patternMatcher:    patternMatcher,
 		valueTypeInferrer: valueTypeInferrer,
-		fieldResolver:     resources.NewFieldResolver(fieldMappingConfig),
+		fieldResolver:     fieldResolver,
+
+		// Extractor for resource identification
+		extractionConfig: extractionConfig,
+		idExtractor:      idExtractor,
+
+		registry: registry,
 	}
 
 	return agent, nil
@@ -102,6 +131,9 @@ func (a *StateAwareAgent) Initialize(ctx context.Context) error {
 		a.Logger.WithError(err).Error("LLM connectivity test failed")
 		return fmt.Errorf("LLM connectivity test failed: %w", err)
 	}
+
+	// Initialize retrieval registry and register all retrieval functions
+	a.initializeRetrievalRegistry()
 
 	// Start MCP process and discover capabilities early
 	if err := a.startMCPProcess(); err != nil {

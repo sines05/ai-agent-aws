@@ -12,6 +12,15 @@ import (
 // RetrievalFunction defines the signature for all retrieval functions
 type RetrievalFunction func(context.Context, *types.ExecutionPlanStep) (map[string]interface{}, error)
 
+// RetrievalRegistryInterface defines the interface that both real and mock registries implement
+type RetrievalRegistryInterface interface {
+	RegisterRetrieval(valueType string, fn RetrievalFunction)
+	RegisterPattern(pattern string, fn RetrievalFunction) error
+	Execute(ctx context.Context, valueType string, planStep *types.ExecutionPlanStep) (map[string]interface{}, error)
+	GetRegisteredTypes() []string
+	GetRegisteredPatterns() []string
+}
+
 // RetrievalRegistry manages all retrieval functions and patterns
 type RetrievalRegistry struct {
 	functions map[string]RetrievalFunction

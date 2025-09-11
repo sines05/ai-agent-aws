@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/versus-control/ai-infrastructure-agent/pkg/agent/resources"
-	"github.com/versus-control/ai-infrastructure-agent/pkg/agent/retrieval"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/types"
 )
 
@@ -46,8 +44,6 @@ import (
 
 // ExecuteConfirmedPlanWithDryRun executes a confirmed execution plan with a specific dry run setting
 func (a *StateAwareAgent) ExecuteConfirmedPlanWithDryRun(ctx context.Context, decision *types.AgentDecision, progressChan chan<- *types.ExecutionUpdate, dryRun bool) (*types.PlanExecution, error) {
-	// Initialize registry with agent functions on first call
-	a.initializeRetrievalRegistry()
 
 	a.Logger.WithFields(map[string]interface{}{
 		"decision_id": decision.ID,
@@ -354,6 +350,9 @@ func (a *StateAwareAgent) executeExecutionStep(ctx context.Context, planStep *ty
 		result, err = a.executeCreateAction(planStep, progressChan, execution.ID)
 	case "update":
 		result, err = a.executeUpdateAction(ctx, planStep, progressChan, execution.ID)
+	case "add":
+		// Map "add" actions to "update" - these are updates to existing resources
+		result, err = a.executeUpdateAction(ctx, planStep, progressChan, execution.ID)
 	case "delete":
 		result, err = a.executeDeleteAction(planStep, progressChan, execution.ID)
 	case "validate":
@@ -439,9 +438,8 @@ func (a *StateAwareAgent) executeAPIValueRetrieval(ctx context.Context, planStep
 	var result map[string]interface{}
 	var err error
 
-	// Use the registry system instead of hardcoded switch statement
-	registry := retrieval.GetGlobalRegistry()
-	result, err = registry.Execute(ctx, valueType.(string), planStep)
+	// Use the registry system to retrieve the value
+	result, err = a.registry.Execute(ctx, valueType.(string), planStep)
 
 	if err != nil {
 		a.Logger.WithError(err).WithField("value_type", valueType).Error("API value retrieval failed")
@@ -621,6 +619,9 @@ func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep
 		resourceID = planStep.ResourceID
 	}
 
+	// Update the plan step with the actual resource ID so it gets stored correctly
+	planStep.ResourceID = resourceID
+
 	// Store the mapping of plan step ID to actual resource ID
 	a.storeResourceMapping(planStep.ID, resourceID)
 
@@ -776,7 +777,7 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 		"resource_state_id": resourceState.ID,
 		"resource_type":     resourceState.Type,
 		"dependencies":      resourceState.Dependencies,
-	}).Info("Calling AddResourceToState")
+	}).Info("Calling AddResourceToState for main AWS resource")
 
 	// Add to state manager via MCP server
 	if err := a.AddResourceToState(resourceState); err != nil {
@@ -788,9 +789,20 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 		return fmt.Errorf("failed to add resource %s to state: %w", resourceState.ID, err)
 	}
 
+	a.Logger.WithFields(map[string]interface{}{
+		"step_id":           planStep.ID,
+		"resource_state_id": resourceState.ID,
+		"resource_type":     resourceState.Type,
+	}).Info("Successfully added main AWS resource to state")
+
 	// Also store the resource with the step ID as the key for dependency resolution
 	// This ensures that {{step-create-xxx.resourceId}} references can be resolved
 	if planStep.ID != planStep.ResourceID {
+		a.Logger.WithFields(map[string]interface{}{
+			"step_id":     planStep.ID,
+			"resource_id": planStep.ResourceID,
+			"condition":   "step_id != resource_id",
+		}).Info("Creating step reference entry for dependency resolution")
 		stepResourceState := &types.ResourceState{
 			ID:           planStep.ID, // Use step ID as the key
 			Name:         planStep.Name,
@@ -804,24 +816,34 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 		}
 
 		if err := a.AddResourceToState(stepResourceState); err != nil {
-			a.Logger.WithError(err).WithFields(map[string]interface{}{
-				"step_id":          planStep.ID,
-				"step_resource_id": stepResourceState.ID,
-			}).Warn("Failed to add step-based resource to state - dependency resolution may be affected")
+			if a.config.EnableDebug {
+				a.Logger.WithError(err).WithFields(map[string]interface{}{
+					"step_id":          planStep.ID,
+					"step_resource_id": stepResourceState.ID,
+				}).Warn("Failed to add step-based resource to state - dependency resolution may be affected")
+			}
 			// Don't fail the whole operation for this, just log the warning
 		} else {
 			a.Logger.WithFields(map[string]interface{}{
 				"step_id":          planStep.ID,
 				"step_resource_id": stepResourceState.ID,
-			}).Info("Successfully added step-based resource reference to state for dependency resolution")
+				"type":             "step_reference",
+			}).Info("Successfully added step reference to state for dependency resolution")
 		}
+	} else {
+		a.Logger.WithFields(map[string]interface{}{
+			"step_id":     planStep.ID,
+			"resource_id": planStep.ResourceID,
+			"reason":      "step_id equals resource_id",
+		}).Info("Skipping step reference creation - not needed for dependency resolution")
 	}
 
 	a.Logger.WithFields(map[string]interface{}{
-		"step_id":           planStep.ID,
-		"resource_state_id": resourceState.ID,
-		"resource_type":     resourceState.Type,
-	}).Info("Successfully added resource to state")
+		"step_id":                planStep.ID,
+		"main_resource_id":       resourceState.ID,
+		"main_resource_type":     resourceState.Type,
+		"step_reference_created": planStep.ID != planStep.ResourceID,
+	}).Info("Successfully completed state update from MCP result")
 
 	return nil
 }
@@ -1036,6 +1058,7 @@ func (a *StateAwareAgent) getAvailableToolsContext() string {
 	context.WriteString("- \"select_subnets_for_alb\": Select subnets for ALB creation\n")
 	context.WriteString("  * scheme: internet-facing, internal (default: internet-facing)\n")
 	context.WriteString("  * vpc_id: specific VPC ID (optional, uses default VPC if not specified)\n")
+	context.WriteString("  ⚠️  IMPORTANT: Always use this for ALB subnet selection, never use 'default_subnet'!\n")
 	context.WriteString("- \"vpc_id\": Get existing VPC ID from state file\n")
 	context.WriteString("  * resource_name: name of VPC to find (e.g., \"production-vpc\")\n")
 	context.WriteString("  * resource_id: specific VPC ID to find (optional)\n")
@@ -1196,7 +1219,42 @@ func (a *StateAwareAgent) getAvailableToolsContext() string {
 	context.WriteString("4. Retrieve AMI\n")
 	context.WriteString("5. Create instance with custom subnet\n\n")
 
-	context.WriteString("Pattern 4 - Multi-OS Deployment:\n")
+	context.WriteString("Pattern 5 - Application Load Balancer Setup:\n")
+	context.WriteString("1. Select appropriate subnets for ALB → step-alb-subnets\n")
+	context.WriteString("2. Get security group ID → step-alb-sg\n")
+	context.WriteString("3. Create ALB using selected subnets and security group\n")
+	context.WriteString("Example:\n")
+	context.WriteString("{\n")
+	context.WriteString("  \"id\": \"step-alb-subnets\",\n")
+	context.WriteString("  \"name\": \"Select Subnets for ALB\",\n")
+	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
+	context.WriteString("  \"parameters\": {\n")
+	context.WriteString("    \"value_type\": \"select_subnets_for_alb\",\n")
+	context.WriteString("    \"min_azs\": 2\n")
+	context.WriteString("  }\n")
+	context.WriteString("},\n")
+	context.WriteString("{\n")
+	context.WriteString("  \"id\": \"step-alb-sg\",\n")
+	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
+	context.WriteString("  \"parameters\": {\n")
+	context.WriteString("    \"value_type\": \"security_group_id\",\n")
+	context.WriteString("    \"resource_name\": \"alb-security-group\"\n")
+	context.WriteString("  }\n")
+	context.WriteString("},\n")
+	context.WriteString("{\n")
+	context.WriteString("  \"id\": \"step-create-alb\",\n")
+	context.WriteString("  \"name\": \"Create Application Load Balancer\",\n")
+	context.WriteString("  \"action\": \"create\",\n")
+	context.WriteString("  \"mcpTool\": \"create-alb\",\n")
+	context.WriteString("  \"toolParameters\": {\n")
+	context.WriteString("    \"name\": \"my-application-load-balancer\",\n")
+	context.WriteString("    \"subnets\": \"{{step-alb-subnets.resourceId}}\",\n")
+	context.WriteString("    \"securityGroups\": [\"{{step-alb-sg.resourceId}}\"]\n")
+	context.WriteString("  },\n")
+	context.WriteString("  \"dependsOn\": [\"step-alb-subnets\", \"step-alb-sg\"]\n")
+	context.WriteString("}\n\n")
+
+	context.WriteString("Pattern 6 - Multi-OS Deployment:\n")
 	context.WriteString("1. Get Linux AMI → step-linux-ami (os_type: ubuntu)\n")
 	context.WriteString("2. Get Windows AMI → step-windows-ami (os_type: windows)\n")
 	context.WriteString("3. Create Linux instances → {{step-linux-ami.resourceId}}\n")
@@ -1249,84 +1307,49 @@ func (a *StateAwareAgent) extractResourceIDFromResponse(result map[string]interf
 	}).Debug("Extracting resource ID from MCP response")
 
 	// Try configuration-driven extraction first
-	idExtractor, err := a.initializeResourceExtractor()
-	if err == nil {
-		// Use pattern matcher to identify resource type from tool name
-		patternConfig, err := a.configLoader.LoadResourcePatterns()
-		if err == nil {
-			patternMatcher, err := resources.NewPatternMatcher(patternConfig)
-			if err == nil {
-				resourceType := patternMatcher.IdentifyResourceTypeFromToolName(toolName)
-				if resourceType != "" && resourceType != "unknown" {
-					extractedID, err := idExtractor.ExtractResourceID(toolName, resourceType, nil, result)
-					if err == nil && extractedID != "" {
-						a.Logger.WithFields(map[string]interface{}{
-							"tool_name":     toolName,
-							"resource_type": resourceType,
-							"resource_id":   extractedID,
-							"source":        "configuration_driven",
-						}).Info("Successfully extracted resource ID using configuration-driven approach")
-						return extractedID, nil
-					}
-				}
+	resourceType := a.patternMatcher.IdentifyResourceTypeFromToolName(toolName)
+	if resourceType != "" && resourceType != "unknown" {
+		extractedID, err := a.idExtractor.ExtractResourceID(toolName, resourceType, nil, result)
+		if err == nil && extractedID != "" {
+			if a.config.EnableDebug {
+				a.Logger.WithFields(map[string]interface{}{
+					"tool_name":     toolName,
+					"resource_type": resourceType,
+					"resource_id":   extractedID,
+					"source":        "configuration_driven",
+				}).Info("Successfully extracted resource ID using configuration-driven approach")
 			}
+			return extractedID, nil
 		}
 	}
 
 	// Fallback to legacy extraction logic if configuration-driven approach fails
 	a.Logger.WithField("tool_name", toolName).Debug("Using fallback extraction logic")
 
-	// Try to extract resource ID from the response using common field names
-	if resourceID, exists := result["resource_id"]; exists {
-		if resourceIDStr, ok := resourceID.(string); ok {
-			a.Logger.WithFields(map[string]interface{}{
-				"tool_name":   toolName,
-				"resource_id": resourceIDStr,
-				"source":      "resource_id_field",
-			}).Info("Successfully extracted resource ID from resource_id field")
-			return resourceIDStr, nil
-		}
-	}
-
-	// Get common fields from configuration instead of hardcoded list
-	commonFields, err := a.getCommonFallbackFields()
-	if err != nil {
-		a.Logger.WithError(err).Warn("Failed to load common fallback fields, using default fallback")
-		// Use minimal fallback if config loading fails
-		commonFields = []string{"resourceId", "id", "instanceId"}
-	}
-
-	for _, field := range commonFields {
+	for _, field := range a.extractionConfig.CommonFallbackFields {
 		if value, exists := result[field]; exists {
 			if valueStr, ok := value.(string); ok {
-				a.Logger.WithFields(map[string]interface{}{
-					"tool_name":   toolName,
-					"resource_id": valueStr,
-					"source":      field + "_field",
-				}).Info("Successfully extracted resource ID from common field")
+				if a.config.EnableDebug {
+					a.Logger.WithFields(map[string]interface{}{
+						"tool_name":   toolName,
+						"resource_id": valueStr,
+						"source":      field + "_field",
+					}).Info("Successfully extracted resource ID from common field")
+				}
 				return valueStr, nil
 			}
 		}
 	}
 
-	a.Logger.WithFields(map[string]interface{}{
-		"tool_name": toolName,
-		"response":  result,
-	}).Warn("Could not extract resource ID from MCP response, generating fallback ID")
-
-	// Generate a fallback ID
-	fallbackID := fmt.Sprintf("generated-%s-%d", toolName, time.Now().Unix())
-
-	a.Logger.WithFields(map[string]interface{}{
-		"tool_name":   toolName,
-		"fallback_id": fallbackID,
-	}).Warn("Using generated fallback resource ID")
-
-	return fallbackID, nil
+	return "", fmt.Errorf("could not extract resource ID from MCP response for tool %s", toolName)
 }
 
 // waitForResourceReady waits for AWS resources to be in a ready state before continuing
 func (a *StateAwareAgent) waitForResourceReady(toolName, resourceID string) error {
+	if a.testMode {
+		return nil
+	}
+
 	// Determine if this resource type needs waiting
 	needsWaiting := false
 	maxWaitTime := 5 * time.Minute
@@ -1500,126 +1523,94 @@ func (a *StateAwareAgent) storeResourceMapping(stepID, resourceID string) {
 	}).Debug("Stored resource mapping")
 }
 
+// StoreResourceMapping is a public wrapper for storeResourceMapping for external use
+func (a *StateAwareAgent) StoreResourceMapping(stepID, resourceID string) {
+	a.storeResourceMapping(stepID, resourceID)
+}
+
 // initializeRetrievalRegistry registers all existing retrieval functions with the registry
 func (a *StateAwareAgent) initializeRetrievalRegistry() {
-	// Register all existing retrieval functions with the global registry
-	registry := retrieval.GetGlobalRegistry()
-
 	// Direct registrations for exact matches
-	registry.RegisterRetrieval("latest_ami", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("latest_ami", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveLatestAMI(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("default_vpc", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("default_vpc", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveDefaultVPC(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("existing_vpc", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("existing_vpc", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveExistingVPC(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("default_subnet", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("default_subnet", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveDefaultSubnet(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("subnets_in_vpc", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("subnets_in_vpc", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveSubnetsInVPC(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("available_azs", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("available_azs", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveAvailabilityZones(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("select_subnets_for_alb", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("select_subnets_for_alb", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveSelectSubnetsForALB(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("load_balancer_arn", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("load_balancer_arn", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveLoadBalancerArn(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("target_group_arn", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("target_group_arn", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveTargetGroupArn(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("launch_template_id", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("launch_template_id", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveLaunchTemplateId(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("security_group_id_ref", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("security_group_id_ref", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveSecurityGroupId(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("db_subnet_group_name", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("db_subnet_group_name", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveDBSubnetGroupName(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("auto_scaling_group_arn", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("auto_scaling_group_arn", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveAutoScalingGroupArn(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("auto_scaling_group_name", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("auto_scaling_group_name", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveAutoScalingGroupName(ctx, planStep)
 	})
 
-	registry.RegisterRetrieval("rds_endpoint", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("rds_endpoint", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveRDSEndpoint(ctx, planStep)
 	})
 
 	// State-based retrievals
-	registry.RegisterRetrieval("vpc_id", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("vpc_id", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveExistingResourceFromState(planStep, "vpc")
 	})
 
-	registry.RegisterRetrieval("subnet_id", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("subnet_id", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveExistingResourceFromState(planStep, "subnet")
 	})
 
-	registry.RegisterRetrieval("security_group_id", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("security_group_id", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveExistingResourceFromState(planStep, "security_group")
 	})
 
-	registry.RegisterRetrieval("instance_id", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("instance_id", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveExistingResourceFromState(planStep, "ec2_instance")
 	})
 
-	registry.RegisterRetrieval("existing_resource", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
+	a.registry.RegisterRetrieval("existing_resource", func(ctx context.Context, planStep *types.ExecutionPlanStep) (map[string]interface{}, error) {
 		return a.retrieveExistingResourceFromState(planStep, "")
 	})
 
 	a.Logger.Info("Initialized retrieval registry with all agent functions")
-}
-
-// initializeResourceExtractor initializes the configuration-driven resource extractor
-func (a *StateAwareAgent) initializeResourceExtractor() (*resources.IDExtractor, error) {
-	// Load extraction configuration
-	extractionConfig, err := a.configLoader.LoadResourceExtraction()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load resource extraction config: %w", err)
-	}
-
-	// Create ID extractor
-	idExtractor, err := resources.NewIDExtractor(extractionConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ID extractor: %w", err)
-	}
-
-	return idExtractor, nil
-}
-
-// getCommonFallbackFields retrieves the common fallback field names from configuration
-func (a *StateAwareAgent) getCommonFallbackFields() ([]string, error) {
-	// Load extraction configuration
-	extractionConfig, err := a.configLoader.LoadResourceExtraction()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load resource extraction config: %w", err)
-	}
-
-	// Return the common fallback fields
-	if len(extractionConfig.CommonFallbackFields) == 0 {
-		// Provide default fallback if no config found
-		return []string{"resourceId", "id", "instanceId"}, nil
-	}
-
-	return extractionConfig.CommonFallbackFields, nil
 }
