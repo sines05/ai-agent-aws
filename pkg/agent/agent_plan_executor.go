@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -350,9 +351,6 @@ func (a *StateAwareAgent) executeExecutionStep(ctx context.Context, planStep *ty
 		result, err = a.executeCreateAction(planStep, progressChan, execution.ID)
 	case "update":
 		result, err = a.executeUpdateAction(ctx, planStep, progressChan, execution.ID)
-	case "add":
-		// Map "add" actions to "update" - these are updates to existing resources
-		result, err = a.executeUpdateAction(ctx, planStep, progressChan, execution.ID)
 	case "delete":
 		result, err = a.executeDeleteAction(planStep, progressChan, execution.ID)
 	case "validate":
@@ -446,41 +444,8 @@ func (a *StateAwareAgent) executeAPIValueRetrieval(ctx context.Context, planStep
 		return nil, fmt.Errorf("failed to retrieve %s: %w", valueType, err)
 	}
 
-	// Store the retrieved value in resource mappings for use in subsequent steps
-	if resourceValue, exists := result["value"]; exists {
-		if resourceValueStr, ok := resourceValue.(string); ok {
-			a.storeResourceMapping(planStep.ID, resourceValueStr)
-		}
-	}
-
-	// For availability zones, also store indexed values for array access
-	if valueType == "available_azs" {
-		if allZones, exists := result["all_zones"]; exists {
-			if zoneList, ok := allZones.([]string); ok {
-				for i, zone := range zoneList {
-					a.storeResourceMapping(fmt.Sprintf("%s.%d", planStep.ID, i), zone)
-				}
-				a.Logger.WithFields(map[string]interface{}{
-					"step_id":    planStep.ID,
-					"zone_count": len(zoneList),
-					"first_zone": zoneList[0],
-				}).Debug("Stored indexed availability zone mappings")
-			}
-		}
-	}
-
-	// For subnet retrieval, also store the VPC ID for security group creation
-	if valueType == "default_subnet" {
-		if vpcID, exists := result["vpc_id"]; exists {
-			if vpcIDStr, ok := vpcID.(string); ok {
-				a.storeResourceMapping(planStep.ID+".vpcId", vpcIDStr)
-				a.Logger.WithFields(map[string]interface{}{
-					"step_id": planStep.ID,
-					"vpc_id":  vpcIDStr,
-				}).Debug("Stored VPC ID mapping for subnet step")
-			}
-		}
-	}
+	// Extract and store resource values for dependency reference resolution
+	a.extractAndStoreResourceMapping(planStep.ID, valueType.(string), result)
 
 	a.Logger.WithFields(map[string]interface{}{
 		"step_id":    planStep.ID,
@@ -1248,8 +1213,8 @@ func (a *StateAwareAgent) getAvailableToolsContext() string {
 	context.WriteString("  \"mcpTool\": \"create-alb\",\n")
 	context.WriteString("  \"toolParameters\": {\n")
 	context.WriteString("    \"name\": \"my-application-load-balancer\",\n")
-	context.WriteString("    \"subnets\": \"{{step-alb-subnets.resourceId}}\",\n")
-	context.WriteString("    \"securityGroups\": [\"{{step-alb-sg.resourceId}}\"]\n")
+	context.WriteString("    \"subnetIds\": \"{{step-alb-subnets.resourceId}}\",\n")
+	context.WriteString("    \"securityGroupIds\": [\"{{step-alb-sg.resourceId}}\"]\n")
 	context.WriteString("  },\n")
 	context.WriteString("  \"dependsOn\": [\"step-alb-subnets\", \"step-alb-sg\"]\n")
 	context.WriteString("}\n\n")
@@ -1526,6 +1491,101 @@ func (a *StateAwareAgent) storeResourceMapping(stepID, resourceID string) {
 // StoreResourceMapping is a public wrapper for storeResourceMapping for external use
 func (a *StateAwareAgent) StoreResourceMapping(stepID, resourceID string) {
 	a.storeResourceMapping(stepID, resourceID)
+}
+
+// extractAndStoreResourceMapping extracts resource values from API retrieval results
+// and stores them in resource mappings for dependency reference resolution.
+// This function handles both single values and arrays, following the established
+// patterns for value extraction and storage in the agent architecture.
+// It also handles special cases for specific value types like availability zones and subnets.
+func (a *StateAwareAgent) extractAndStoreResourceMapping(stepID string, valueType string, result map[string]interface{}) {
+	// Extract and store the primary resource value from the "value" field
+	if resourceValue, exists := result["value"]; exists {
+		switch v := resourceValue.(type) {
+		case string:
+			// Handle single string values - direct storage
+			a.storeResourceMapping(stepID, v)
+
+		case []string:
+			// Handle arrays of strings (like subnet IDs for ALB)
+			if len(v) > 0 {
+				a.storeStringArrayValue(stepID, v)
+			}
+
+		case []interface{}:
+			// Handle []interface{} arrays (common in JSON parsing)
+			stringSlice := a.convertInterfaceArrayToStringSlice(v)
+			if len(stringSlice) > 0 {
+				a.storeStringArrayValue(stepID, stringSlice)
+			}
+		}
+	}
+
+	// Handle special cases for specific value types
+
+	// For availability zones, also store indexed values for array access
+	if valueType == "available_azs" {
+		if allZones, exists := result["all_zones"]; exists {
+			if zoneList, ok := allZones.([]string); ok {
+				for i, zone := range zoneList {
+					a.storeResourceMapping(fmt.Sprintf("%s.%d", stepID, i), zone)
+				}
+				a.Logger.WithFields(map[string]interface{}{
+					"step_id":    stepID,
+					"zone_count": len(zoneList),
+					"first_zone": zoneList[0],
+				}).Debug("Stored indexed availability zone mappings")
+			}
+		}
+	}
+
+	// For subnet retrieval, also store the VPC ID for security group creation
+	if valueType == "default_subnet" {
+		if vpcID, exists := result["vpc_id"]; exists {
+			if vpcIDStr, ok := vpcID.(string); ok {
+				a.storeResourceMapping(stepID+".vpcId", vpcIDStr)
+				a.Logger.WithFields(map[string]interface{}{
+					"step_id": stepID,
+					"vpc_id":  vpcIDStr,
+				}).Debug("Stored VPC ID mapping for subnet step")
+			}
+		}
+	}
+}
+
+// storeStringArrayValue stores array values using the established pattern:
+// - Individual items for indexed access (step-id.0, step-id.1, etc.)
+// - Entire array as JSON for complex references
+func (a *StateAwareAgent) storeStringArrayValue(stepID string, stringSlice []string) {
+	// Store individual items for indexed access
+	for i, item := range stringSlice {
+		a.storeResourceMapping(fmt.Sprintf("%s.%d", stepID, i), item)
+	}
+
+	// Store the entire array as JSON string for the main reference
+	if jsonBytes, err := json.Marshal(stringSlice); err == nil {
+		a.storeResourceMapping(stepID, string(jsonBytes))
+		a.Logger.WithFields(map[string]interface{}{
+			"step_id":          stepID,
+			"array_length":     len(stringSlice),
+			"stored_as_json":   string(jsonBytes),
+			"individual_items": stringSlice,
+		}).Debug("Stored array value in resource mappings")
+	} else {
+		a.Logger.WithError(err).WithField("step_id", stepID).Warn("Failed to marshal array to JSON for storage")
+	}
+}
+
+// convertInterfaceArrayToStringSlice converts []interface{} to []string
+// following the established pattern in the codebase for type conversion
+func (a *StateAwareAgent) convertInterfaceArrayToStringSlice(interfaceSlice []interface{}) []string {
+	stringSlice := make([]string, len(interfaceSlice))
+	for i, item := range interfaceSlice {
+		if itemStr, ok := item.(string); ok {
+			stringSlice[i] = itemStr
+		}
+	}
+	return stringSlice
 }
 
 // initializeRetrievalRegistry registers all existing retrieval functions with the registry

@@ -451,6 +451,22 @@ value_type_inference:
     required_terms: ["security", "group"]
     optional_terms: ["port", "traffic", "configure", "allow"]
 
+  select_subnets_for_alb:
+    description_patterns:
+      - "select.*subnets.*for.*alb"
+      - "select.*subnets.*load.*balancer"
+      - "alb.*subnets"
+      - "subnets.*for.*alb"
+      - "choose.*subnets.*alb"
+      - "availability.*zones.*for.*alb"
+    name_patterns:
+      - "select.*subnets.*alb"
+      - "subnets.*for.*alb"
+      - "alb.*subnets"
+      - "select.*subnets.*load.*balancer"
+    required_terms: ["subnets", "alb"]
+    optional_terms: ["select", "for", "load", "balancer", "availability", "zones"]
+
   alb_arn:
     description_patterns:
       - "application.*load.*balancer"

@@ -136,6 +136,13 @@ func comprehensiveEC2Prompt() string {
 	return prompt
 }
 
+// Comprehensive VPC with EC2 Infrastructure
+func comprehensiveVPCwithEC2Prompt() string {
+	prompt := `Create a production VPC with a CIDR block of 10.0.0.0/16 across two availability zones. Set up public subnets (10.0.1.0/24 and 10.0.2.0/24) for internet-facing load balancers. Create private subnets for application servers (10.0.11.0/24 and 10.0.12.0/24): Configure Internet Gateway and NAT Gateway for proper routing. Create an EC2 for hosting an Apache Server with a dedicated security group that allows inbound HTTP (port 80) and SSH (port 22) traffic in public subnets.`
+
+	return prompt
+}
+
 // Comprehensive Three-Tier Infrastructure
 func comprehensiveThreeLayerPrompt() string {
 	prompt := `I need to deploy a complete production-ready three-tier web application infrastructure on AWS with the following requirements:
@@ -197,6 +204,9 @@ func TestComprehensiveExecutionPipeline(t *testing.T) {
 	})
 	t.Run("RealAIWithComprehensiveVPCPrompt", func(t *testing.T) {
 		testRealAIWithComprehensiveVPCPrompt(t)
+	})
+	t.Run("RealAIWithComprehensiveVPCwithEC2Prompt", func(t *testing.T) {
+		testRealAIWithComprehensiveVPCwithEC2Prompt(t)
 	})
 	t.Run("RealAIWithComprehensiveThreeLayerPrompt", func(t *testing.T) {
 		testRealAIWithComprehensiveThreeLayerPrompt(t)
@@ -345,6 +355,280 @@ func testRealAIWithComprehensiveVPCPrompt(t *testing.T) {
 	t.Logf("🎉 All tests completed successfully! AI + Mock infrastructure integration validated.")
 }
 
+func testRealAIWithComprehensiveVPCwithEC2Prompt(t *testing.T) {
+	// Comprehensive VPC infrastructure prompt
+	comprehensivePrompt := comprehensiveVPCwithEC2Prompt()
+
+	// Setup test configuration
+	cfg, err := setupRealConfiguration()
+	if err != nil {
+		t.Fatalf("Failed to setup real configuration: %v", err)
+	}
+
+	// Setup real LLM client
+	llmClient, err := setupRealLLMClient(cfg)
+	if err != nil {
+		t.Fatalf("Failed to setup real LLM client: %v", err)
+	}
+
+	// Setup test agent with real AI and comprehensive mock infrastructure
+	agent, mockSuite, err := setupAgentWithRealAI(cfg, llmClient)
+	if err != nil {
+		t.Fatalf("Failed to setup test agent: %v", err)
+	}
+	// defer mockSuite.Reset()
+
+	// Create decision context using mock state manager
+	emptyState := &types.InfrastructureState{
+		Resources: make(map[string]*types.ResourceState),
+	}
+
+	decisionContext := &DecisionContext{
+		Request:             comprehensivePrompt,
+		CurrentState:        emptyState,
+		DiscoveredState:     []*types.ResourceState{},
+		Conflicts:           []*types.ConflictResolution{},
+		DeploymentOrder:     []string{},
+		ResourceCorrelation: make(map[string]*ResourceMatch),
+	}
+
+	t.Logf("🚀 Starting comprehensive execution pipeline test with real AI integration and mock infrastructure...")
+
+	// Step 1: Test AI Decision Making
+	t.Logf("📡 Step 1: Making real AI API call to process comprehensive infrastructure request...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+	defer cancel()
+
+	decisionID := "test-comprehensive-decision"
+	decision, err := agent.generateDecisionWithPlan(ctx, decisionID, comprehensivePrompt, decisionContext)
+	if err != nil {
+		t.Fatalf("❌ Real AI API call failed: %v", err)
+	}
+
+	t.Logf("✅ Step 1 Complete: AI generated decision with %d execution steps", len(decision.ExecutionPlan))
+
+	// Step 2: Validate AI-Generated Plan Structure
+	t.Logf("🔍 Step 2: Validating AI-generated execution plan structure...")
+	validateExecutionPlanStructure(t, decision)
+	t.Logf("✅ Step 2 Complete: Execution plan structure is valid")
+
+	// Step 3: Enhanced Pre-Execution Validation
+	t.Logf("🔬 Step 3: Enhanced pre-execution validation...")
+	testEnhancedPreExecutionValidation(t, agent, mockSuite, decision)
+	t.Logf("✅ Step 3 Complete: Pre-execution validation passed")
+
+	// Step 4: Execute Full Flow with Mock Infrastructure
+	t.Logf("⚙️ Step 4: Executing full infrastructure plan using mock functions...")
+	testExecuteFullPlanWithMocks(t, agent, mockSuite, decision)
+	t.Logf("✅ Step 4 Complete: Full plan execution completed successfully")
+
+	// Step 5: Enhanced Post-Execution Validation
+	t.Logf("🔍 Step 5: Enhanced post-execution validation...")
+	testEnhancedPostExecutionValidation(t, agent, mockSuite, decision)
+	t.Logf("✅ Step 5 Complete: Post-execution validation passed")
+
+	// Step 6: Error Scenario Testing
+	t.Logf("🚨 Step 6: Testing error scenarios...")
+	testErrorScenarios(t, agent, mockSuite, decision)
+	t.Logf("✅ Step 6 Complete: Error scenarios tested")
+
+	// Step 7: Infrastructure Reality Checks
+	t.Logf("🏗️ Step 7: Running infrastructure reality checks...")
+	testInfrastructureRealityCheck(t, agent, mockSuite, decision)
+	t.Logf("✅ Step 7 Complete: Infrastructure reality checks passed")
+
+	// Step 8: Web UI Flow Simulation
+	t.Logf("🌐 Step 8: Simulating Web UI flow...")
+	testWebUIFlowSimulation(t, agent, mockSuite, decision)
+	t.Logf("✅ Step 8 Complete: Web UI flow simulation passed")
+
+	// Step 9: Validate Mock Integration
+	t.Logf("🔬 Step 9: Validating mock infrastructure integration...")
+	testValidateMockIntegration(t, mockSuite, decision)
+	t.Logf("✅ Step 9 Complete: Mock integration validated")
+
+	t.Logf("🎉 All tests completed successfully! Enhanced AI + Mock infrastructure integration validated.")
+}
+
+// testInfrastructureRealityCheck performs reality checks that simulate issues seen in actual AWS deployments
+func testInfrastructureRealityCheck(t *testing.T, agent *StateAwareAgent, mockSuite *mocks.MockTestSuite, decision *types.AgentDecision) {
+	t.Logf("🏗️ Running infrastructure reality checks...")
+
+	// Reality Check 1: VPC CIDR Block Validation
+	t.Logf("🔍 Reality Check 1: VPC CIDR validation...")
+	for _, step := range decision.ExecutionPlan {
+		if step.Action == "create" && strings.Contains(strings.ToLower(step.Name), "vpc") {
+			if cidr, exists := step.Parameters["cidrBlock"]; exists {
+				if cidrStr, ok := cidr.(string); ok {
+					if !isValidCIDR(cidrStr) {
+						t.Errorf("❌ Invalid CIDR block in step %s: %s", step.ID, cidrStr)
+					}
+				}
+			}
+		}
+	}
+
+	// Reality Check 2: Subnet CIDR Overlap Detection
+	t.Logf("🔍 Reality Check 2: Subnet CIDR overlap detection...")
+	subnetCIDRs := make(map[string]string)
+	for _, step := range decision.ExecutionPlan {
+		if step.Action == "create" && strings.Contains(strings.ToLower(step.Name), "subnet") {
+			if cidr, exists := step.Parameters["cidrBlock"]; exists {
+				if cidrStr, ok := cidr.(string); ok {
+					if existingStep, exists := subnetCIDRs[cidrStr]; exists {
+						t.Errorf("❌ CIDR overlap detected: Step %s and %s both use %s", step.ID, existingStep, cidrStr)
+					}
+					subnetCIDRs[cidrStr] = step.ID
+				}
+			}
+		}
+	}
+
+	// Reality Check 3: Availability Zone Distribution
+	t.Logf("🔍 Reality Check 3: Availability zone distribution...")
+	azUsage := make(map[string]int)
+	for _, step := range decision.ExecutionPlan {
+		if step.Action == "create" && strings.Contains(strings.ToLower(step.Name), "subnet") {
+			if az, exists := step.Parameters["availabilityZone"]; exists {
+				if azStr, ok := az.(string); ok {
+					azUsage[azStr]++
+				}
+			}
+		}
+	}
+	if len(azUsage) < 2 {
+		t.Logf("⚠️ Warning: Infrastructure should use multiple AZs for high availability")
+	}
+
+	// Reality Check 4: Security Group Rule Validation
+	t.Logf("🔍 Reality Check 4: Security group rule validation...")
+	for _, step := range decision.ExecutionPlan {
+		if step.Action == "create" && strings.Contains(strings.ToLower(step.Name), "security") {
+			if cidrIp, exists := step.Parameters["cidrIp"]; exists {
+				if cidrIp == "0.0.0.0/0" {
+					t.Logf("⚠️ Security Warning: Step %s allows access from anywhere (0.0.0.0/0)", step.ID)
+				}
+			}
+		}
+	}
+
+	// Reality Check 5: Resource Naming Consistency
+	t.Logf("🔍 Reality Check 5: Resource naming consistency...")
+	namePatterns := make(map[string]int)
+	for _, step := range decision.ExecutionPlan {
+		if tags, exists := step.Parameters["tags"]; exists {
+			if tagMap, ok := tags.(map[string]interface{}); ok {
+				if name, exists := tagMap["Name"]; exists {
+					if nameStr, ok := name.(string); ok {
+						// Extract naming pattern
+						parts := strings.Split(nameStr, "-")
+						if len(parts) > 1 {
+							pattern := parts[0] // e.g., "production" from "production-vpc"
+							namePatterns[pattern]++
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if len(namePatterns) > 1 {
+		t.Logf("⚠️ Warning: Multiple naming patterns detected: %v", namePatterns)
+	}
+
+	t.Logf("✅ Infrastructure reality checks completed")
+}
+
+// isValidCIDR performs basic CIDR validation
+func isValidCIDR(cidr string) bool {
+	// Basic validation - in real implementation would use net.ParseCIDR
+	if !strings.Contains(cidr, "/") {
+		return false
+	}
+	parts := strings.Split(cidr, "/")
+	if len(parts) != 2 {
+		return false
+	}
+
+	// Check for common valid patterns
+	validPatterns := []string{
+		"10.", "172.", "192.168.", "0.0.0.0"} // Private IP ranges + default route
+
+	for _, pattern := range validPatterns {
+		if strings.HasPrefix(parts[0], pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// testWebUIFlowSimulation simulates the exact flow that would happen in the web UI
+func testWebUIFlowSimulation(t *testing.T, agent *StateAwareAgent, mockSuite *mocks.MockTestSuite, decision *types.AgentDecision) {
+	t.Logf("🌐 Running Web UI flow simulation...")
+
+	// Simulate Web UI Step 1: Process Request (already done in main test)
+	t.Logf("✅ Step 1: Process Request - Already completed")
+
+	// Simulate Web UI Step 2: Plan Validation (user reviews plan)
+	t.Logf("🔍 Step 2: Simulating plan review and validation...")
+
+	// Check if plan has reasonable number of steps (not too many, not too few)
+	if len(decision.ExecutionPlan) < 5 {
+		t.Logf("⚠️ Warning: Plan has very few steps (%d) - might be incomplete", len(decision.ExecutionPlan))
+	}
+	if len(decision.ExecutionPlan) > 50 {
+		t.Logf("⚠️ Warning: Plan has many steps (%d) - might be overly complex", len(decision.ExecutionPlan))
+	}
+
+	// Simulate Web UI Step 3: Execution with progress updates
+	t.Logf("⚙️ Step 3: Simulating execution with WebSocket progress updates...")
+
+	// Create a channel to simulate WebSocket updates
+	progressChan := make(chan *types.ExecutionUpdate, 100)
+	defer close(progressChan)
+
+	// Start a goroutine to consume progress updates (like WebSocket would)
+	go func() {
+		updateCount := 0
+		for update := range progressChan {
+			updateCount++
+			if updateCount <= 5 { // Log first few updates to avoid spam
+				t.Logf("📡 Progress Update %d: %s - %s", updateCount, update.Type, update.Message)
+			}
+		}
+		t.Logf("📡 Total progress updates received: %d", updateCount)
+	}()
+
+	// Simulate execution with progress reporting
+	ctx := context.Background()
+	execution, err := agent.ExecuteConfirmedPlanWithDryRun(ctx, decision, progressChan, true) // dry run
+	if err != nil {
+		t.Errorf("❌ Simulated execution failed: %v", err)
+		return
+	}
+
+	if execution.Status != "completed" {
+		t.Errorf("❌ Execution did not complete successfully: %s", execution.Status)
+	}
+
+	// Simulate Web UI Step 4: Post-execution state verification
+	t.Logf("🔍 Step 4: Simulating post-execution state verification...")
+
+	// This would be called by the web UI to refresh the dashboard
+	ctx2 := context.Background()
+	_, err = mockSuite.MCPServer.CallTool(ctx2, "analyze-infrastructure-state", map[string]interface{}{
+		"include_drift_detection": true,
+		"detailed_analysis":       true,
+	})
+	if err != nil {
+		t.Errorf("❌ Post-execution state analysis failed: %v", err)
+	}
+
+	t.Logf("✅ Web UI flow simulation completed successfully")
+}
+
 func testRealAIWithComprehensiveThreeLayerPrompt(t *testing.T) {
 	// Comprehensive Three-Tier infrastructure prompt
 	comprehensivePrompt := comprehensiveThreeLayerPrompt()
@@ -424,7 +708,6 @@ func validateExecutionPlanStructure(t *testing.T, decision *types.AgentDecision)
 	planValidActions := map[string]bool{
 		"create":              true,
 		"update":              true,
-		"add":                 true,
 		"delete":              true,
 		"validate":            true,
 		"api_value_retrieval": true,
@@ -519,9 +802,6 @@ func testExecuteFullPlanWithMocks(t *testing.T, agent *StateAwareAgent, mockSuit
 		case "create":
 			result, err = agent.executeCreateAction(planStep, nil, execution.ID)
 		case "update":
-			result, err = testExecuteUpdateActionWithMocks(t, mockSuite, planStep)
-		case "add":
-			// Map "add" actions to "update" - these are updates to existing resources
 			result, err = testExecuteUpdateActionWithMocks(t, mockSuite, planStep)
 		case "delete":
 			result, err = testExecuteDeleteActionWithMocks(t, mockSuite, planStep)
@@ -676,4 +956,278 @@ func testValidateMockIntegration(t *testing.T, mockSuite *mocks.MockTestSuite, d
 	}
 
 	t.Logf("✅ All mock integration tests passed!")
+}
+
+// testEnhancedPreExecutionValidation performs comprehensive validation before execution
+func testEnhancedPreExecutionValidation(t *testing.T, agent *StateAwareAgent, mockSuite *mocks.MockTestSuite, decision *types.AgentDecision) {
+	t.Logf("🔍 Running enhanced pre-execution validation...")
+
+	// Test 1: Validate Resource ID Uniqueness in Plan
+	t.Logf("🔍 Test 1: Validating resource ID uniqueness...")
+	resourceIDs := make(map[string]bool)
+	for _, step := range decision.ExecutionPlan {
+		if step.ResourceID == "" {
+			t.Errorf("❌ Step %s has empty ResourceID", step.ID)
+			continue
+		}
+		if resourceIDs[step.ResourceID] {
+			t.Logf("⚠️ Warning: Duplicate ResourceID '%s' found in plan - this could cause state conflicts", step.ResourceID)
+		}
+		resourceIDs[step.ResourceID] = true
+	}
+	t.Logf("✅ Resource ID uniqueness check completed")
+
+	// Test 2: Validate Dependency Resolution Logic
+	t.Logf("🔍 Test 2: Validating dependency resolution...")
+	for _, step := range decision.ExecutionPlan {
+		// Check if step has dependency references
+		if step.Parameters != nil {
+			validateDependencyReferences(t, step, decision.ExecutionPlan)
+		}
+	}
+	t.Logf("✅ Dependency resolution validation completed")
+
+	// Test 3: Validate Parameter Completeness
+	t.Logf("🔍 Test 3: Validating parameter completeness...")
+	for _, step := range decision.ExecutionPlan {
+		validateParameterCompleteness(t, step)
+	}
+	t.Logf("✅ Parameter completeness validation completed")
+
+	// Test 4: Validate Tool Availability
+	t.Logf("🔍 Test 4: Validating tool availability...")
+	for _, step := range decision.ExecutionPlan {
+		if step.Action == "create" && step.MCPTool != "" {
+			// Simulate checking if tool exists in mock MCP server
+			ctx := context.Background()
+			_, err := mockSuite.MCPServer.CallTool(ctx, step.MCPTool, map[string]interface{}{})
+			if err != nil && !strings.Contains(err.Error(), "validation") {
+				t.Errorf("❌ Tool '%s' not available in MCP server: %v", step.MCPTool, err)
+			}
+		}
+	}
+	t.Logf("✅ Tool availability validation completed")
+}
+
+// testEnhancedPostExecutionValidation performs comprehensive validation after execution
+func testEnhancedPostExecutionValidation(t *testing.T, agent *StateAwareAgent, mockSuite *mocks.MockTestSuite, decision *types.AgentDecision) {
+	t.Logf("🔍 Running enhanced post-execution validation...")
+
+	// Test 1: Validate State Consistency
+	t.Logf("🔍 Test 1: Validating state consistency...")
+	resources := mockSuite.StateManager.GetResources()
+
+	// Create a map for quick lookup
+	resourceMap := make(map[string]*types.ResourceState)
+	for _, resource := range resources {
+		resourceMap[resource.ID] = resource
+	}
+
+	// Check if all created resources are in state
+	expectedResources := 0
+	for _, step := range decision.ExecutionPlan {
+		if step.Action == "create" {
+			expectedResources++
+		}
+	}
+
+	if len(resources) == 0 {
+		t.Errorf("❌ No resources found in state after execution")
+	}
+	t.Logf("✅ Found %d resources in state (expected approximately %d)", len(resources), expectedResources)
+
+	// Test 2: Validate Resource Dependencies in State
+	t.Logf("🔍 Test 2: Validating resource dependencies in state...")
+	for _, step := range decision.ExecutionPlan {
+		if len(step.DependsOn) > 0 {
+			// Verify dependencies exist in state
+			for _, depID := range step.DependsOn {
+				found := false
+				for _, resource := range resources {
+					if resource.ID == depID || strings.Contains(resource.ID, depID) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Logf("⚠️ Warning: Dependency '%s' for step '%s' not found in final state", depID, step.ID)
+				}
+			}
+		}
+	}
+	t.Logf("✅ Resource dependency validation completed")
+
+	// Test 3: Validate Resource Properties
+	t.Logf("🔍 Test 3: Validating resource properties...")
+	for _, resource := range resources {
+		if resource.Type == "" {
+			t.Errorf("❌ Resource %s has empty type", resource.ID)
+		}
+		if resource.Status == "" {
+			t.Errorf("❌ Resource %s has empty status", resource.ID)
+		}
+		if resource.Properties == nil {
+			t.Logf("⚠️ Warning: Resource %s has nil properties", resource.ID)
+		}
+	}
+	t.Logf("✅ Resource properties validation completed")
+
+	// Test 4: Simulate Web UI State Retrieval
+	t.Logf("🔍 Test 4: Simulating web UI state retrieval...")
+	ctx := context.Background()
+	_, err := mockSuite.MCPServer.CallTool(ctx, "analyze-infrastructure-state", map[string]interface{}{
+		"include_drift_detection": true,
+		"detailed_analysis":       true,
+	})
+	if err != nil {
+		t.Errorf("❌ Failed to analyze infrastructure state: %v", err)
+	} else {
+		t.Logf("✅ Infrastructure state analysis successful")
+	}
+}
+
+// testErrorScenarios tests various error scenarios that could occur in actual execution
+func testErrorScenarios(t *testing.T, agent *StateAwareAgent, mockSuite *mocks.MockTestSuite, decision *types.AgentDecision) {
+	t.Logf("🚨 Running error scenario testing...")
+
+	// Test 1: Simulate AWS API Errors
+	t.Logf("🚨 Test 1: Simulating AWS API errors...")
+
+	// Enable error simulation on mock client
+	mockSuite.AWSClient.EnableErrorSimulation(0.3) // 30% error rate
+	defer mockSuite.AWSClient.DisableErrorSimulation()
+
+	// Try executing a simple step with error simulation
+	if len(decision.ExecutionPlan) > 0 {
+		firstStep := decision.ExecutionPlan[0]
+		t.Logf("🚨 Testing error resilience with step: %s", firstStep.Name)
+
+		// Create a mock execution context
+		execution := &types.PlanExecution{
+			ID:     "error-test-execution",
+			Status: "running",
+			Steps:  []*types.ExecutionStep{},
+		}
+
+		// Execute step with error simulation
+		var result map[string]interface{}
+		var err error
+
+		if firstStep.Action == "create" {
+			result, err = agent.executeCreateAction(firstStep, nil, execution.ID)
+		}
+
+		if err != nil {
+			t.Logf("✅ Error simulation working: got expected error: %v", err)
+		} else {
+			t.Logf("✅ Step completed despite error simulation: %v", result != nil)
+		}
+	}
+
+	// Test 2: Simulate Dependency Resolution Failures
+	t.Logf("🚨 Test 2: Simulating dependency resolution failures...")
+
+	// Create a step with invalid dependency reference
+	invalidStep := &types.ExecutionPlanStep{
+		ID:         "test-invalid-dependency",
+		Name:       "Test Invalid Dependency",
+		Action:     "create",
+		ResourceID: "test-resource",
+		Parameters: map[string]interface{}{
+			"vpcId": "{{non-existent-step.resourceId}}",
+		},
+		DependsOn: []string{"non-existent-step"},
+	}
+
+	// Try to resolve dependencies - should fail gracefully
+	t.Logf("🚨 Testing invalid dependency: %s", invalidStep.Parameters["vpcId"])
+
+	// Test 3: Simulate State Corruption
+	t.Logf("🚨 Test 3: Simulating state corruption scenarios...")
+
+	// Add a resource with invalid data to state
+	corruptedResource := &types.ResourceState{
+		ID:     "corrupted-resource",
+		Type:   "", // Empty type should cause issues
+		Status: "unknown",
+		Properties: map[string]interface{}{
+			"invalid": make(chan int), // Non-serializable data
+		},
+	}
+
+	// Try adding corrupted resource (should handle gracefully)
+	mockSuite.StateManager.AddResource(corruptedResource)
+
+	// Test 4: Simulate Network/Timeout Scenarios
+	t.Logf("🚨 Test 4: Simulating timeout scenarios...")
+
+	// Create a context with very short timeout
+	shortCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond*1)
+	defer cancel()
+
+	// Try to make an API call with short timeout
+	_, err := mockSuite.MCPServer.CallTool(shortCtx, "list-vpcs", map[string]interface{}{})
+	if err != nil {
+		t.Logf("✅ Timeout handling working: %v", err)
+	}
+
+	t.Logf("✅ Error scenario testing completed")
+}
+
+// validateDependencyReferences validates dependency references in step parameters
+func validateDependencyReferences(t *testing.T, step *types.ExecutionPlanStep, allSteps []*types.ExecutionPlanStep) {
+	// Create a map of all step IDs for validation
+	stepMap := make(map[string]*types.ExecutionPlanStep)
+	for _, s := range allSteps {
+		stepMap[s.ID] = s
+	}
+
+	// Check parameters for dependency references
+	for key, value := range step.Parameters {
+		if strVal, ok := value.(string); ok {
+			// Look for dependency references like {{step-id.resourceId}}
+			if strings.HasPrefix(strVal, "{{") && strings.HasSuffix(strVal, "}}") {
+				ref := strings.TrimPrefix(strings.TrimSuffix(strVal, "}}"), "{{")
+				parts := strings.Split(ref, ".")
+				if len(parts) > 0 {
+					refStepID := parts[0]
+					if _, exists := stepMap[refStepID]; !exists {
+						t.Errorf("❌ Step %s parameter %s references non-existent step: %s", step.ID, key, refStepID)
+					}
+				}
+			}
+		}
+	}
+}
+
+// validateParameterCompleteness validates that steps have required parameters
+func validateParameterCompleteness(t *testing.T, step *types.ExecutionPlanStep) {
+	// Define required parameters for common actions
+	requiredParams := map[string][]string{
+		"create-vpc":            {"cidrBlock"},
+		"create-subnet":         {"vpcId", "cidrBlock"},
+		"create-security-group": {"vpcId", "groupName"},
+		"create-ec2-instance":   {"imageId", "instanceType"},
+	}
+
+	if step.MCPTool != "" {
+		if required, exists := requiredParams[step.MCPTool]; exists {
+			for _, param := range required {
+				// Check both Parameters and ToolParameters
+				hasParam := false
+				if _, exists := step.Parameters[param]; exists {
+					hasParam = true
+				}
+				if step.ToolParameters != nil {
+					if _, exists := step.ToolParameters[param]; exists {
+						hasParam = true
+					}
+				}
+
+				if !hasParam {
+					t.Errorf("❌ Step %s missing required parameter: %s", step.ID, param)
+				}
+			}
+		}
+	}
 }

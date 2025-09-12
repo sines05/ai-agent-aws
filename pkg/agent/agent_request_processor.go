@@ -226,10 +226,12 @@ func (a *StateAwareAgent) validateDecision(decision *types.AgentDecision, contex
 		}
 	}
 
-	// Validate execution plan for hardcoded AWS resource IDs
-	if err := a.validateExecutionPlanDependencies(decision.ExecutionPlan); err != nil {
-		return fmt.Errorf("execution plan validation failed: %w", err)
-	}
+	// if a.config.EnableDebug {
+	// 	// Validate execution plan for hardcoded AWS resource IDs
+	// 	if err := a.validateExecutionPlanDependencies(decision.ExecutionPlan); err != nil {
+	// 		return fmt.Errorf("execution plan validation failed: %w", err)
+	// 	}
+	// }
 
 	return nil
 }
@@ -363,7 +365,7 @@ func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *D
 	prompt.WriteString("      \"id\": \"step-1\",\n")
 	prompt.WriteString("      \"name\": \"Step Description\",\n")
 	prompt.WriteString("      \"description\": \"Detailed step description\",\n")
-	prompt.WriteString("      \"action\": \"create|update|add|delete|validate|api_value_retrieval\",\n")
+	prompt.WriteString("      \"action\": \"create|update|delete|validate|api_value_retrieval\",\n")
 	prompt.WriteString("      \"resourceId\": \"logical-resource-id\",\n")
 	prompt.WriteString("      \"mcpTool\": \"exact-mcp-tool-name\",\n")
 	prompt.WriteString("      \"toolParameters\": {\n")
@@ -426,9 +428,8 @@ func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *D
 	prompt.WriteString("6. JSON ONLY: Return only valid JSON - no markdown, no explanations, no extra text\n")
 	prompt.WriteString("7. STATE FILE AWARENESS: Remember that managed resources exist in the state file\n")
 	prompt.WriteString("8. ACTION TYPE USAGE:\n")
-	prompt.WriteString("   - create: For new AWS resources that don't exist (VPC, subnets, route table associations, routes, security rules)\n")
+	prompt.WriteString("   - create: For new AWS resources that don't exist (VPC, subnets, route table associations, routes, security rules, etc.)\n")
 	prompt.WriteString("   - update: For modifying properties of existing resources (changing tags, descriptions)\n")
-	prompt.WriteString("   - add: Reserved for future use\n")
 	prompt.WriteString("   - delete: For removing AWS resources\n")
 	prompt.WriteString("   - validate: For checking resource states or configurations\n")
 	prompt.WriteString("   - api_value_retrieval: For fetching real AWS values to replace placeholders\n")

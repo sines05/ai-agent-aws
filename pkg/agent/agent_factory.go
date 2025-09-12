@@ -85,6 +85,7 @@ func NewStateAwareAgent(agentConfig *config.AgentConfig, awsClient *aws.Client, 
 	}
 
 	fieldResolver := resources.NewFieldResolver(fieldMappingConfig)
+	fieldResolver.SetPatternMatcher(patternMatcher)
 
 	// Get global retrieval registry
 	registry := retrieval.GetGlobalRegistry()

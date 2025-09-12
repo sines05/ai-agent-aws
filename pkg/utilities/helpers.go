@@ -1,5 +1,7 @@
 package utilities
 
+import "encoding/json"
+
 // ========== Helper Functions ==========
 
 // Helper function to safely extract string from map
@@ -26,6 +28,14 @@ func GetStringSlice(params map[string]interface{}, key string) []string {
 	// Try []string directly
 	if val, ok := params[key].([]string); ok {
 		return val
+	}
+
+	// Try JSON string (from dependency resolution of arrays)
+	if val, ok := params[key].(string); ok && val != "" {
+		var jsonArray []string
+		if err := json.Unmarshal([]byte(val), &jsonArray); err == nil {
+			return jsonArray
+		}
 	}
 
 	return []string{}
