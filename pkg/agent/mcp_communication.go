@@ -101,10 +101,15 @@ func (a *StateAwareAgent) startMCPProcess() error {
 		}
 	}()
 
+	// Create scanner with increased buffer size for large responses
+	scanner := bufio.NewScanner(stdout)
+	// Set max buffer size to 1MB to handle large infrastructure state responses
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
 	a.mcpProcess = &MCPProcess{
 		cmd:    cmd,
 		stdin:  bufio.NewWriter(stdin),
-		stdout: bufio.NewScanner(stdout),
+		stdout: scanner,
 		mutex:  sync.Mutex{},
 		reqID:  0,
 	}

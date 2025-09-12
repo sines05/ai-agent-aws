@@ -11,22 +11,24 @@ import (
 
 // PatternMatcher handles resource type identification using patterns
 type PatternMatcher struct {
-	idPatterns    map[string][]*regexp.Regexp
-	namePatterns  map[string][]*regexp.Regexp
-	descPatterns  map[string][]*regexp.Regexp
-	toolPatterns  map[string][]*regexp.Regexp
-	relationships *config.ResourceRelationships
-	mu            sync.RWMutex
+	idPatterns             map[string][]*regexp.Regexp
+	namePatterns           map[string][]*regexp.Regexp
+	descPatterns           map[string][]*regexp.Regexp
+	toolPatterns           map[string][]*regexp.Regexp
+	relationships          *config.ResourceRelationships
+	resourceIdentification *config.ResourceIdentification
+	mu                     sync.RWMutex
 }
 
 // NewPatternMatcher creates a new pattern matcher from configuration
 func NewPatternMatcher(cfg *config.ResourcePatternConfig) (*PatternMatcher, error) {
 	pm := &PatternMatcher{
-		idPatterns:    make(map[string][]*regexp.Regexp),
-		namePatterns:  make(map[string][]*regexp.Regexp),
-		descPatterns:  make(map[string][]*regexp.Regexp),
-		toolPatterns:  make(map[string][]*regexp.Regexp),
-		relationships: &cfg.ResourceRelationships,
+		idPatterns:             make(map[string][]*regexp.Regexp),
+		namePatterns:           make(map[string][]*regexp.Regexp),
+		descPatterns:           make(map[string][]*regexp.Regexp),
+		toolPatterns:           make(map[string][]*regexp.Regexp),
+		relationships:          &cfg.ResourceRelationships,
+		resourceIdentification: &cfg.ResourceIdentification,
 	}
 
 	// Compile ID patterns

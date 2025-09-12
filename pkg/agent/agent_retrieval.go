@@ -340,7 +340,17 @@ func (a *StateAwareAgent) retrieveSelectSubnetsForALB(ctx context.Context, planS
 
 	// Get VPC ID from parameters if provided
 	var vpcID string
-	if vpcIDParam, exists := planStep.Parameters["vpc_id"]; exists {
+	var vpcIDParam interface{}
+	var exists bool
+
+	// Try snake_case first (from AI plans)
+	if vpcIDParam, exists = planStep.Parameters["vpc_id"]; exists {
+		a.Logger.WithField("vpc_id_param_type", "snake_case").Debug("Found vpc_id parameter")
+	} else if vpcIDParam, exists = planStep.Parameters["vpcId"]; exists {
+		a.Logger.WithField("vpc_id_param_type", "camelCase").Debug("Found vpcId parameter")
+	}
+
+	if exists {
 		if vpcIDStr, ok := vpcIDParam.(string); ok {
 			// Check if it's a step reference that needs resolution
 			if strings.Contains(vpcIDStr, "{{") && strings.Contains(vpcIDStr, "}}") {
@@ -697,6 +707,16 @@ func (a *StateAwareAgent) retrieveExistingResourceFromState(planStep *types.Exec
 					nameMatch = nameMatch ||
 						effectiveName == resourceName ||
 						strings.Contains(effectiveName, resourceName)
+				}
+
+				// Enhanced matching for ALB security groups
+				if resourceType == "security_group" && resourceName == "alb-security-group" {
+					// Check if this is the ALB security group by various patterns
+					nameMatch = nameMatch ||
+						strings.Contains(strings.ToLower(resourceNameFromState), "alb") ||
+						strings.Contains(strings.ToLower(resourceNameFromState), "load balancer") ||
+						strings.Contains(strings.ToLower(resourceIDFromState), "alb-security") ||
+						resourceIDFromState == "step-create-alb-security-group"
 				}
 			}
 			if resourceID != "" {

@@ -136,132 +136,8 @@ func (a *StateAwareAgent) resolveDependencyReference(reference string) (string, 
 		}
 
 		// Fallback: try to get state via MCP and extract the resource ID
-		stateJSON, err := a.ExportInfrastructureState(context.Background(), false) // Only managed state
-		if err == nil {
-			// Parse the state and look for the step ID
-			var stateData map[string]interface{}
-			if json.Unmarshal([]byte(stateJSON), &stateData) == nil {
-				if managedState, ok := stateData["managed_state"].(map[string]interface{}); ok {
-					if resources, ok := managedState["resources"].(map[string]interface{}); ok {
-						if resource, ok := resources[stepID].(map[string]interface{}); ok {
-							// Extract AWS resource ID from the resource properties
-							if properties, ok := resource["properties"].(map[string]interface{}); ok {
-								if mcpResponse, ok := properties["mcp_response"].(map[string]interface{}); ok {
-									// First, try to find the specifically requested field
-									if requestedField != "resourceId" {
-										// Check for array indexing
-										if arrayIndex >= 0 {
-											if arrayField, ok := mcpResponse[requestedField].([]interface{}); ok {
-												if arrayIndex < len(arrayField) {
-													if id, ok := arrayField[arrayIndex].(string); ok && id != "" {
-														// Cache it for future use
-														a.mappingsMutex.Lock()
-														a.resourceMappings[stepID] = id
-														a.mappingsMutex.Unlock()
-
-														a.Logger.WithFields(map[string]interface{}{
-															"reference":       reference,
-															"step_id":         stepID,
-															"resource_id":     id,
-															"source":          "state_fallback",
-															"requested_field": requestedField,
-															"array_index":     arrayIndex,
-														}).Info("Resolved array field dependency from state")
-
-														return id, nil
-													}
-												} else {
-													return "", fmt.Errorf("array index %d out of bounds for field %s (length: %d)", arrayIndex, requestedField, len(arrayField))
-												}
-											}
-											// If it's not an array but we have an index, check if the field maps to all_zones
-											if requestedField == "resourceId" && arrayIndex >= 0 {
-												if allZones, ok := mcpResponse["all_zones"].([]interface{}); ok && arrayIndex < len(allZones) {
-													if id, ok := allZones[arrayIndex].(string); ok && id != "" {
-														// Cache it for future use
-														a.mappingsMutex.Lock()
-														a.resourceMappings[stepID] = id
-														a.mappingsMutex.Unlock()
-
-														a.Logger.WithFields(map[string]interface{}{
-															"reference":   reference,
-															"step_id":     stepID,
-															"resource_id": id,
-															"source":      "state_fallback_all_zones",
-															"array_index": arrayIndex,
-														}).Info("Resolved availability zone from all_zones array")
-
-														return id, nil
-													}
-												}
-											}
-										} else {
-											if id, ok := mcpResponse[requestedField].(string); ok && id != "" {
-												// Cache it for future use
-												a.mappingsMutex.Lock()
-												a.resourceMappings[stepID] = id
-												a.mappingsMutex.Unlock()
-
-												a.Logger.WithFields(map[string]interface{}{
-													"reference":       reference,
-													"step_id":         stepID,
-													"resource_id":     id,
-													"source":          "state_fallback",
-													"requested_field": requestedField,
-												}).Info("Resolved specific field dependency from state")
-
-												return id, nil
-											}
-										}
-									}
-
-									// Use configuration-driven field resolver instead of hardcoded switch statement
-									fieldsToTry := a.fieldResolver.GetFieldsForRequest(requestedField)
-
-									for _, field := range fieldsToTry {
-										if id, ok := mcpResponse[field].(string); ok && id != "" {
-											// Cache it for future use
-											a.mappingsMutex.Lock()
-											a.resourceMappings[stepID] = id
-											a.mappingsMutex.Unlock()
-
-											a.Logger.WithFields(map[string]interface{}{
-												"reference":   reference,
-												"step_id":     stepID,
-												"resource_id": id,
-												"source":      "state_fallback",
-												"field":       field,
-											}).Debug("Resolved dependency reference from state")
-
-											return id, nil
-										}
-									}
-
-									// Final fallback: try to extract from nested resource.id field
-									if resource, ok := mcpResponse["resource"].(map[string]interface{}); ok {
-										if resourceID, ok := resource["id"].(string); ok && resourceID != "" {
-											// Cache it for future use
-											a.mappingsMutex.Lock()
-											a.resourceMappings[stepID] = resourceID
-											a.mappingsMutex.Unlock()
-
-											a.Logger.WithFields(map[string]interface{}{
-												"reference":   reference,
-												"step_id":     stepID,
-												"resource_id": resourceID,
-												"source":      "state_fallback_nested",
-												"field":       "resource.id",
-											}).Debug("Resolved dependency reference from nested resource.id in state")
-
-											return resourceID, nil
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
+		if resolvedID, err := a.resolveFromInfrastructureState(stepID, requestedField, reference, arrayIndex); err == nil {
+			return resolvedID, nil
 		}
 
 		return "", fmt.Errorf("resource ID not found for step: %s", stepID)
@@ -274,6 +150,158 @@ func (a *StateAwareAgent) resolveDependencyReference(reference string) (string, 
 	}).Debug("Resolved dependency reference")
 
 	return resourceID, nil
+}
+
+// resolveFromInfrastructureState attempts to resolve a dependency reference by parsing the infrastructure state
+func (a *StateAwareAgent) resolveFromInfrastructureState(stepID, requestedField, reference string, arrayIndex int) (string, error) {
+	// Parse the state and look for the step ID
+	stateJSON, err := a.ExportInfrastructureState(context.Background(), false) // Only managed state
+	if err != nil {
+		return "", fmt.Errorf("failed to export infrastructure state: %w", err)
+	}
+
+	var stateData map[string]interface{}
+	if err := json.Unmarshal([]byte(stateJSON), &stateData); err != nil {
+		return "", fmt.Errorf("failed to parse state JSON: %w", err)
+	}
+
+	managedState, ok := stateData["managed_state"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("managed_state not found in state data")
+	}
+
+	resources, ok := managedState["resources"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("resources not found in managed_state")
+	}
+
+	resource, ok := resources[stepID].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("resource not found for step ID: %s", stepID)
+	}
+
+	// Extract AWS resource ID from the resource properties
+	properties, ok := resource["properties"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("properties not found in resource")
+	}
+
+	mcpResponse, ok := properties["mcp_response"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("mcp_response not found in properties")
+	}
+
+	// First, try to find the specifically requested field
+	if requestedField != "resourceId" {
+		// Check for array indexing
+		if arrayIndex >= 0 {
+			if arrayField, ok := mcpResponse[requestedField].([]interface{}); ok {
+				if arrayIndex < len(arrayField) {
+					if id, ok := arrayField[arrayIndex].(string); ok && id != "" {
+						// Cache it for future use
+						a.mappingsMutex.Lock()
+						a.resourceMappings[stepID] = id
+						a.mappingsMutex.Unlock()
+
+						a.Logger.WithFields(map[string]interface{}{
+							"reference":       reference,
+							"step_id":         stepID,
+							"resource_id":     id,
+							"source":          "state_fallback",
+							"requested_field": requestedField,
+							"array_index":     arrayIndex,
+						}).Info("Resolved array field dependency from state")
+
+						return id, nil
+					}
+				} else {
+					return "", fmt.Errorf("array index %d out of bounds for field %s (length: %d)", arrayIndex, requestedField, len(arrayField))
+				}
+			}
+			// If it's not an array but we have an index, check if the field maps to all_zones
+			if requestedField == "resourceId" && arrayIndex >= 0 {
+				if allZones, ok := mcpResponse["all_zones"].([]interface{}); ok && arrayIndex < len(allZones) {
+					if id, ok := allZones[arrayIndex].(string); ok && id != "" {
+						// Cache it for future use
+						a.mappingsMutex.Lock()
+						a.resourceMappings[stepID] = id
+						a.mappingsMutex.Unlock()
+
+						a.Logger.WithFields(map[string]interface{}{
+							"reference":   reference,
+							"step_id":     stepID,
+							"resource_id": id,
+							"source":      "state_fallback_all_zones",
+							"array_index": arrayIndex,
+						}).Info("Resolved availability zone from all_zones array")
+
+						return id, nil
+					}
+				}
+			}
+		} else {
+			if id, ok := mcpResponse[requestedField].(string); ok && id != "" {
+				// Cache it for future use
+				a.mappingsMutex.Lock()
+				a.resourceMappings[stepID] = id
+				a.mappingsMutex.Unlock()
+
+				a.Logger.WithFields(map[string]interface{}{
+					"reference":       reference,
+					"step_id":         stepID,
+					"resource_id":     id,
+					"source":          "state_fallback",
+					"requested_field": requestedField,
+				}).Info("Resolved specific field dependency from state")
+
+				return id, nil
+			}
+		}
+	}
+
+	// Use configuration-driven field resolver with resource type detection
+	fieldsToTry := a.fieldResolver.GetFieldsForRequestWithContext(requestedField, mcpResponse)
+
+	for _, field := range fieldsToTry {
+		if id, ok := mcpResponse[field].(string); ok && id != "" {
+			// Cache it for future use
+			a.mappingsMutex.Lock()
+			a.resourceMappings[stepID] = id
+			a.mappingsMutex.Unlock()
+
+			a.Logger.WithFields(map[string]interface{}{
+				"reference":   reference,
+				"step_id":     stepID,
+				"resource_id": id,
+				"source":      "state_fallback",
+				"field":       field,
+			}).Debug("Resolved dependency reference from state")
+
+			return id, nil
+		}
+	}
+
+	// Final fallback: try to extract from nested resource.id field
+	if resource, ok := mcpResponse["resource"].(map[string]interface{}); ok {
+		if resourceID, ok := resource["id"].(string); ok && resourceID != "" {
+			// Cache it for future use
+			a.mappingsMutex.Lock()
+			a.resourceMappings[stepID] = resourceID
+			a.mappingsMutex.Unlock()
+
+			a.Logger.WithFields(map[string]interface{}{
+				"reference":   reference,
+				"step_id":     stepID,
+				"resource_id": resourceID,
+				"source":      "state_fallback_nested",
+				"field":       "resource.id",
+			}).Debug("Resolved dependency reference from nested resource.id in state")
+
+			return resourceID, nil
+		}
+	}
+
+	return "", fmt.Errorf("resource ID not found in mcp_response for step: %s", stepID)
 }
 
 // LEGACY FUNCTIONS - Using native MCP integration approach

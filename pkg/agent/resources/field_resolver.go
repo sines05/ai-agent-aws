@@ -15,6 +15,7 @@ type FieldResolver struct {
 	mappings        map[string]map[string][]string
 	defaults        map[string][]string
 	transformations *config.FieldTransformations
+	patternMatcher  *PatternMatcher // Add reference to pattern matcher
 	mu              sync.RWMutex
 }
 
@@ -24,7 +25,15 @@ func NewFieldResolver(cfg *config.FieldMappingConfig) *FieldResolver {
 		mappings:        cfg.ResourceFields,
 		defaults:        cfg.DefaultFieldPriorities,
 		transformations: &cfg.FieldTransformations,
+		patternMatcher:  nil, // Will be set via SetPatternMatcher
 	}
+}
+
+// SetPatternMatcher sets the pattern matcher for resource type detection
+func (f *FieldResolver) SetPatternMatcher(pm *PatternMatcher) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.patternMatcher = pm
 }
 
 // ResolveField attempts to resolve a field value from the provided data
@@ -280,6 +289,57 @@ func (f *FieldResolver) GetResourceTypes() []string {
 	}
 
 	return types
+}
+
+// DetectResourceType attempts to detect the resource type from MCP response data
+func (f *FieldResolver) DetectResourceType(data map[string]interface{}) string {
+	if f.patternMatcher == nil {
+		return ""
+	}
+
+	// Check if there's a nested resource object with type information
+	if resource, ok := data["resource"].(map[string]interface{}); ok {
+		// Try to detect from resource.id
+		if resourceID, ok := resource["id"].(string); ok {
+			return f.patternMatcher.IdentifyResourceTypeFromID(resourceID)
+		}
+	}
+
+	// Check if there's a nested result object with type information
+	if resource, ok := data["result"].(map[string]interface{}); ok {
+		// Try to detect from resource.id
+		if resourceID, ok := resource["id"].(string); ok {
+			return f.patternMatcher.IdentifyResourceTypeFromID(resourceID)
+		}
+	}
+
+	return ""
+}
+
+// GetFieldsForRequestWithContext returns prioritized fields based on detected resource type
+func (f *FieldResolver) GetFieldsForRequestWithContext(requestedField string, data map[string]interface{}) []string {
+	// Try to detect the resource type from the data
+	if detectedType := f.DetectResourceType(data); detectedType != "" {
+		// Use the specific resource type's field mapping
+		if resourceFields := f.GetResourceFieldMapping(detectedType, requestedField); len(resourceFields) > 0 {
+			return resourceFields
+		}
+	}
+
+	return f.GetFieldsForRequest(requestedField)
+}
+
+// GetResourceFieldMapping returns the field mapping for a specific resource type and field
+func (f *FieldResolver) GetResourceFieldMapping(resourceType, fieldName string) []string {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	if resourceMappings, exists := f.mappings[resourceType]; exists {
+		if fields, exists := resourceMappings[fieldName]; exists {
+			return fields
+		}
+	}
+	return nil
 }
 
 // GetFieldsForRequest returns the prioritized field list for a specific field request

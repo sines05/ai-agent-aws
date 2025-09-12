@@ -810,9 +810,10 @@ func (t *SelectSubnetsForALBTool) Execute(ctx context.Context, arguments map[str
 		scheme = "internet-facing"
 	}
 
-	// Get VPC ID
-	vpcID, _ := arguments["vpcId"].(string)
-	if vpcID == "" {
+	// Get VPC ID with logging
+	vpcID, exists := arguments["vpcId"].(string)
+	if !exists || vpcID == "" {
+		t.logger.WithField("arguments", arguments).Warn("No VPC ID provided, falling back to default VPC")
 		// Get default VPC
 		defaultVPC, err := t.awsClient.GetDefaultVPC(ctx)
 		if err != nil {

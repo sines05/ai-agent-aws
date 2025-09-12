@@ -88,6 +88,30 @@ func (t *CreateLoadBalancerTool) Execute(ctx context.Context, arguments map[stri
 
 	// Check subnet requirements and auto-select if needed
 	subnetIds, _ := arguments["subnetIds"].([]interface{})
+
+	// Handle case where subnetIds might be passed as a JSON string (from dependency resolution)
+	if len(subnetIds) == 0 {
+		if subnetIdsStr, ok := arguments["subnetIds"].(string); ok && subnetIdsStr != "" {
+			t.logger.WithField("subnetIds_string", subnetIdsStr).Debug("Received subnetIds as string, attempting to parse as JSON")
+
+			// Try to parse as JSON array
+			var parsedSubnetIds []string
+			if err := json.Unmarshal([]byte(subnetIdsStr), &parsedSubnetIds); err == nil {
+				// Convert to []interface{}
+				subnetIds = make([]interface{}, len(parsedSubnetIds))
+				for i, subnetId := range parsedSubnetIds {
+					subnetIds[i] = subnetId
+				}
+				t.logger.WithFields(map[string]interface{}{
+					"parsed_subnet_count": len(subnetIds),
+					"parsed_subnets":      parsedSubnetIds,
+				}).Info("Successfully parsed subnetIds from JSON string")
+			} else {
+				t.logger.WithError(err).WithField("subnetIds_string", subnetIdsStr).Warn("Failed to parse subnetIds JSON string")
+			}
+		}
+	}
+
 	if len(subnetIds) < 2 {
 		t.logger.Info("Insufficient subnets provided, auto-selecting subnets for ALB creation")
 
