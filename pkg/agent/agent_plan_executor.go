@@ -460,11 +460,13 @@ func (a *StateAwareAgent) executeAPIValueRetrieval(ctx context.Context, planStep
 func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep, _ chan<- *types.ExecutionUpdate, _ string) (map[string]interface{}, error) {
 	toolName := planStep.MCPTool
 
-	a.Logger.WithFields(map[string]interface{}{
-		"tool_name":       toolName,
-		"step_id":         planStep.ID,
-		"tool_parameters": planStep.ToolParameters,
-	}).Info("Executing native MCP tool call")
+	if a.config.EnableDebug {
+		a.Logger.WithFields(map[string]interface{}{
+			"tool_name":       toolName,
+			"step_id":         planStep.ID,
+			"tool_parameters": planStep.ToolParameters,
+		}).Info("Executing native MCP tool call")
+	}
 
 	// Ensure MCP capabilities are discovered
 	if err := a.ensureMCPCapabilities(); err != nil {
@@ -506,17 +508,21 @@ func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep
 
 				resolvedValue, err := a.resolveDependencyReference(strValue)
 				if err != nil {
-					a.Logger.WithError(err).WithFields(map[string]interface{}{
-						"reference": strValue,
-						"key":       key,
-					}).Error("Failed to resolve dependency reference")
+					if a.config.EnableDebug {
+						a.Logger.WithError(err).WithFields(map[string]interface{}{
+							"reference": strValue,
+							"key":       key,
+						}).Error("Failed to resolve dependency reference")
+					}
 					arguments[key] = value // Use original value if resolution fails
 				} else {
-					a.Logger.WithFields(map[string]interface{}{
-						"key":            key,
-						"original_value": strValue,
-						"resolved_value": resolvedValue,
-					}).Info("Successfully resolved dependency reference")
+					if a.config.EnableDebug {
+						a.Logger.WithFields(map[string]interface{}{
+							"key":            key,
+							"original_value": strValue,
+							"resolved_value": resolvedValue,
+						}).Info("Successfully resolved dependency reference")
+					}
 					arguments[key] = resolvedValue
 				}
 			} else {

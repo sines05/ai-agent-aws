@@ -564,8 +564,20 @@ func (r *MockRetrievalRegistry) mockRetrieveRDSEndpoint(ctx context.Context, pla
 
 // mockRetrieveExistingResourceFromState retrieves existing resources from the managed state
 func (r *MockRetrievalRegistry) mockRetrieveExistingResourceFromState(planStep *types.ExecutionPlanStep, resourceType string) (map[string]interface{}, error) {
-	// Mock state-based resource retrieval
-	resourceID := fmt.Sprintf("mock-%s-%s", resourceType, planStep.ResourceID)
+	// Generate proper AWS resource ID format instead of generic mock ID
+	var resourceID string
+	switch resourceType {
+	case "vpc":
+		resourceID = fmt.Sprintf("vpc-%08x", len(planStep.ResourceID)*12345) // vpc-xxxxxxxx
+	case "subnet":
+		resourceID = fmt.Sprintf("subnet-%08x", len(planStep.ResourceID)*23456) // subnet-xxxxxxxx
+	case "security_group":
+		resourceID = fmt.Sprintf("sg-%08x", len(planStep.ResourceID)*34567) // sg-xxxxxxxx
+	case "ec2_instance":
+		resourceID = fmt.Sprintf("i-%08x", len(planStep.ResourceID)*45678) // i-xxxxxxxx
+	default:
+		resourceID = fmt.Sprintf("mock-%s-%s", resourceType, planStep.ResourceID)
+	}
 
 	baseResource := map[string]interface{}{
 		"value":         resourceID,
@@ -584,18 +596,18 @@ func (r *MockRetrievalRegistry) mockRetrieveExistingResourceFromState(planStep *
 		baseResource["is_default"] = false
 	case "subnet":
 		baseResource["subnet_id"] = resourceID
-		baseResource["vpc_id"] = "vpc-mock123456"
+		baseResource["vpc_id"] = "vpc-mock1234"
 		baseResource["availability_zone"] = "us-west-2a"
 		baseResource["cidr_block"] = "10.0.1.0/24"
 	case "security_group":
 		baseResource["group_id"] = resourceID
 		baseResource["group_name"] = fmt.Sprintf("mock-sg-%s", planStep.ResourceID)
-		baseResource["vpc_id"] = "vpc-mock123456"
+		baseResource["vpc_id"] = "vpc-mock1234"
 	case "ec2_instance":
 		baseResource["instance_id"] = resourceID
 		baseResource["instance_type"] = "t3.micro"
-		baseResource["subnet_id"] = "subnet-mock123456"
-		baseResource["vpc_id"] = "vpc-mock123456"
+		baseResource["subnet_id"] = "subnet-mock123"
+		baseResource["vpc_id"] = "vpc-mock1234"
 	}
 
 	return baseResource, nil
