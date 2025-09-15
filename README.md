@@ -228,19 +228,11 @@ http://localhost:8080
 
 ## Architecture
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Web Interface │    │   MCP Server    │    │   AWS Services  │
-│                 │    │                 │    │                 │
-│  ┌─────────────┐│    │ ┌─────────────┐ │    │ ┌─────────────┐ │
-│  │ Dashboard   ││◄──►│ │ Agent Core  │ │◄──►│ │ EC2         │ │
-│  │ Forms       ││    │ │ AI Provider │ │    │ │ RDS         │ │
-│  │ Monitoring  ││    │ │ AWS Client  │ │    │ │ VPC         │ │
-│  └─────────────┘│    │ │ State Mgmt  │ │    │ │ ALB         │ │
-└─────────────────┘    │ └─────────────┘ │    │ │ Auto Scaling│ │
-                       └─────────────────┘    │ └─────────────┘ │
-                                              └─────────────────┘
-```
+<h1 align="center" style="border-bottom: none">
+  <img alt="Web Dashboard" src="docs/images/core-components.svg">
+</h1>
+
+Read detail: [Technical Architecture Overview](docs/architecture-overview.md)
 
 ### Components
 
@@ -274,7 +266,8 @@ All operations can be run in "dry-run" mode first:
 
 ## Documentation
 
-### Command Reference
+### Technical Documentation
+- [Technical Architecture Overview](docs/architecture-overview.md) - Comprehensive system architecture and implementation details
 - [MCP Server Commands](docs/mcp-commands.md) *(coming soon)*
 - [Web API Reference](docs/api-reference.md) *(coming soon)*
 - [Configuration Guide](docs/configuration.md) *(coming soon)*
