@@ -137,24 +137,27 @@
                     <img src="images/ai-infrastructure-agent.svg" alt="AI Infrastructure Agent" class="nav-logo">
                 </div>
                 
-                <!-- Desktop Menu -->
-                <div class="hidden md:flex nav-menu space-x-6">
-                    <a href="#home">Home</a>
-                    <a href="#document">Docs</a>
-                    <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/resources/ai-infrastructure-agent-for-aws.md" target="_blank">Quick Example</a>
-                    <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/04-ai-agent-for-aws/00-toc.md" target="_blank">Tutorial</a>
-                    <a href="#pricing">Pricing</a>
-                </div>
-                
-                <!-- Right Side: Mobile Menu Button + GitHub Link -->
-                <div class="flex items-center space-x-2">
+                <!-- Center: Desktop Menu OR Mobile Menu Button -->
+                <div class="flex items-center">
+                    <!-- Desktop Menu -->
+                    <div class="hidden md:flex nav-menu space-x-6">
+                        <a href="#home">Home</a>
+                        <a href="#document">Docs</a>
+                        <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/resources/ai-infrastructure-agent-for-aws.md" target="_blank">Quick Example</a>
+                        <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/04-ai-agent-for-aws/00-toc.md" target="_blank">Tutorial</a>
+                        <a href="#pricing">Pricing</a>
+                    </div>
+                    
                     <!-- Mobile Menu Button -->
                     <button class="mobile-menu-btn md:hidden" onclick="toggleMobileMenu()" style="background-color: rgba(55, 65, 81, 0.8); padding: 12px; border: 1px solid #6B7280;">
                         <span style="background-color: #FFFFFF; width: 24px; height: 3px; margin: 3px 0; display: block; border-radius: 2px;"></span>
                         <span style="background-color: #FFFFFF; width: 24px; height: 3px; margin: 3px 0; display: block; border-radius: 2px;"></span>
                         <span style="background-color: #FFFFFF; width: 24px; height: 3px; margin: 3px 0; display: block; border-radius: 2px;"></span>
                     </button>
-                    
+                </div>
+                
+                <!-- Right Side: GitHub Link Only -->
+                <div class="flex items-center">
                     <!-- GitHub Link -->
                     <a href="https://github.com/VersusControl/ai-infrastructure-agent" target="_blank" class="p-2 hover:bg-gray-700 rounded-lg transition-colors">
                         <svg class="github-icon" viewBox="0 0 24 24">
