@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Infrastructure Agent - Intelligent AWS Management</title>
+    <meta name="description" content="AI Infrastructure Agent is an intelligent system that allows you to manage AWS infrastructure using natural language commands.">
+    <meta name="keywords" content="AI, AWS, Infrastructure as Code, DevOps, Cloud Management, OpenAI, Gemini, Anthropic">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://rsms.me/inter/inter.css');
+        .gradient-text {
+            background: -webkit-linear-gradient(45deg, #4F46E5, #EC4899);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .code-block {
+            background-color: #1F2937;
+            color: #D1D5DB;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-family: 'Fira Code', monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200">
+
+    <div class="container mx-auto px-4 py-8">
+
+        <!-- Header -->
+        <header class="text-center mb-16">
+            <h1 class="text-5xl md:text-7xl font-bold mb-4 gradient-text">AI Infrastructure Agent</h1>
+            <p class="text-xl md:text-2xl text-gray-400">Intelligent AWS infrastructure management through natural language.</p>
+        </header>
+
+        <div class="grid md:grid-cols-2 gap-8 mb-12 items-center">
+            <!-- Installation Guide -->
+            <div>
+                <h2 class="text-3xl font-bold mb-4 text-white">Get Started in Seconds</h2>
+                <p class="text-gray-400 mb-4">Clone the repository and run the installation script to get started.</p>
+                <div class="code-block text-sm">
+                    <pre><code>
+                        # Clone the repository
+                        git clone https://github.com/VersusControl/ai-infrastructure-agent.git
+                        cd ai-infrastructure-agent
+                        
+                        # Run the installation script
+                        ./scripts/install.sh
+
+                        # Start the Web UI
+                        ./scripts/run-web-ui.sh
+                    </code></pre>
+                </div>
+            </div>
+            <!-- Project UI Image -->
+            <div class="flex justify-center">
+                <!-- Placeholder for Web UI Image. Replace docs/images/web-dashboard.svg with the actual path if different. -->
+                <img src="images/web-dashboard.svg" alt="Project Web UI" class="rounded-lg shadow-2xl w-full max-w-md">
+            </div>
+        </div>
+
+        <!-- GitHub Badges -->
+        <div class="flex justify-center space-x-4 mb-16">
+            <a href="https://github.com/VersusControl/ai-infrastructure-agent/stargazers"><img src="https://img.shields.io/github/stars/VersusControl/ai-infrastructure-agent?style=for-the-badge&logo=github&color=blue" alt="GitHub Stars"></a>
+            <a href="https://github.com/VersusControl/ai-infrastructure-agent/blob/main/LICENSE"><img src="https://img.shields.io/github/license/VersusControl/ai-infrastructure-agent?style=for-the-badge&color=brightgreen" alt="License"></a>
+            <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.24.2+-00ADD8?style=for-the-badge&logo=go" alt="Go Version"></a>
+            <a href="https://aws.amazon.com/"><img src="https://img.shields.io/badge/AWS-Cloud-FF9900?style=for-the-badge&logo=amazon-aws" alt="AWS"></a>
+        </div>
+
+        <!-- Main Features Section -->
+        <section class="mb-16">
+            <h2 class="text-4xl font-bold text-center mb-8 text-white">Main Features</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-xl font-bold mb-2 text-indigo-400">Natural Language Interface</h3>
+                    <p class="text-gray-400">Describe your desired infrastructure in plain English, and let the AI handle the rest.</p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-xl font-bold mb-2 text-indigo-400">Multi-AI Provider Support</h3>
+                    <p class="text-gray-400">Flexibly switch between OpenAI, Google Gemini, and Anthropic models.</p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-xl font-bold mb-2 text-indigo-400">Visual Web Dashboard</h3>
+                    <p class="text-gray-400">Manage and monitor your infrastructure through an intuitive web interface.</p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-xl font-bold mb-2 text-indigo-400">Terraform-like State</h3>
+                    <p class="text-gray-400">Maintains an accurate state of your infrastructure to prevent drift.</p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-xl font-bold mb-2 text-indigo-400">Conflict Detection</h3>
+                    <p class="text-gray-400">Safely execute plans with built-in conflict detection and dry-run mode.</p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-xl font-bold mb-2 text-indigo-400">Broad AWS Resource Support</h3>
+                    <p class="text-gray-400">Support for VPC, EC2, Security Groups, Auto Scaling Groups, and ALBs.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Simple Demo Section -->
+        <section class="mb-16">
+            <h2 class="text-4xl font-bold text-center mb-8 text-white">Simple Demo</h2>
+            <div class="bg-gray-800 p-8 rounded-lg shadow-lg">
+                <p class="text-lg text-gray-400 mb-4">Prompt:</p>
+                <div class="code-block mb-6">
+                    <p>"Create an EC2 for hosting an Apache Server with a dedicated security group that allows inbound HTTP (port 80) and SSH (port 22) traffic."</p>
+                </div>
+                <p class="text-lg text-gray-400 mb-4">Result:</p>
+                <p class="text-gray-400 mb-6">The agent creates a detailed execution plan to provision an EC2 instance and a corresponding security group with the specified rules, then awaits your approval before applying the changes.</p>
+                <!-- Placeholder for screenshot or video. Replace with actual content. -->
+                <div class="bg-gray-700 h-64 rounded-lg flex items-center justify-center">
+                    <p class="text-gray-500">Screenshot or Video of the result here</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Advanced Demo Section -->
+        <section class="mb-16">
+            <h2 class="text-4xl font-bold text-center mb-8 text-white">Advanced Demo</h2>
+            <div class="bg-gray-800 p-8 rounded-lg shadow-lg">
+                <p class="text-lg text-gray-400 mb-4">Prompt:</p>
+                <div class="code-block mb-6">
+                    <p>"Create a production VPC with a CIDR block of 10.0.0.0/16 across two availability zones. Set up public subnets (10.0.1.0/24 and 10.0.2.0/24) for internet-facing load balancers. Create private subnets for application servers (10.0.11.0/24 and 10.0.12.0/24). Set up dedicated database subnets (10.0.21.0/24 and 10.0.22.0/24). Configure Internet Gateway and NAT Gateway for proper routing."</p>
+                </div>
+                <p class="text-lg text-gray-400 mb-4">Result:</p>
+                <p class="text-gray-400 mb-6">The agent generates a comprehensive plan to build a multi-AZ, multi-tier VPC network architecture, including all necessary subnets, gateways, and routing configurations, ready for a production workload.</p>
+                <!-- Placeholder for screenshot or video. Replace with actual content. -->
+                <div class="bg-gray-700 h-64 rounded-lg flex items-center justify-center">
+                    <p class="text-gray-500">Screenshot or Video of the result here</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Additional Information Section -->
+        <footer class="text-center text-gray-500">
+            <p class="mb-4">We welcome contributions! Please read our <a href="https://github.com/VersusControl/ai-infrastructure-agent/blob/main/README.md#contributing" class="text-indigo-400 hover:underline">contribution guidelines</a> to get started.</p>
+            <div class="space-x-4 mb-4">
+                <a href="architecture-overview.md" class="hover:underline">Docs</a>
+                <span>&bull;</span>
+                <a href="https://github.com/VersusControl/ai-infrastructure-agent/issues" class="hover:underline">Issues</a>
+                <span>&bull;</span>
+                <a href="https://github.com/VersusControl/ai-infrastructure-agent/discussions" class="hover:underline">Discussions</a>
+            </div>
+            <p>Licensed under the <a href="LICENSE" class="text-indigo-400 hover:underline">MIT License</a>.</p>
+        </footer>
+
+    </div>
+
+</body>
+</html>
