@@ -28,10 +28,9 @@ AI Infrastructure Agent is an intelligent system that allows you to manage AWS i
 
 - **Natural Language Interface** - Describe what you want, not how to build it
 - **Multi-AI Provider Support** - Choose between OpenAI, Google Gemini, or Anthropic
-- **Safety First** - Built-in conflict detection and dry-run mode
-- **Web Dashboard** - Visual interface for infrastructure management
-- **Smart Planning** - AI generates and explains execution plans before acting
+- **Web Dashboard** - Visual interface for infrastructure management, built-in conflict detection and dry-run mode
 - **Terraform-like state** - Maintains accurate infrastructure state
+- **Current Resource Support** - VPC, EC2, SG, Autoscaling Group, ALB. Check the roadmap here: [Core Platform Development](https://github.com/orgs/VersusControl/projects/19)
 
 ## Example Usage
 
@@ -46,16 +45,24 @@ Here's what happens:
 The AI agent analyzes your request and creates a detailed execution plan:
 
 ```mermaid
----
-title: AI Infrastructure Agent - Execution Plan
----
-flowchart LR
-    C[Plan Created] --> D[Get Default VPC]
-    D --> E[Create Security Group<br/>for Apache Server]
-    E --> F[Add HTTP & SSH<br/>Ingress Rule]
-    F --> H[Get Latest<br/>Amazon Linux 2 AMI]
-    H --> I[Get Default Subnet]
-    I --> J[Create EC2 Instance<br/>for Apache Server]
+sequenceDiagram
+    participant U as User
+    participant A as AI Agent
+    participant S as State Manager
+    participant M as MCP Server
+    participant AWS as AWS APIs
+    
+    U->>A: "Create EC2 instance for Apache Server..."
+    A->>S: Get current infrastructure state
+    S->>A: Return current state
+    A->>M: Query available tools & capabilities
+    M->>A: Return tool capabilities
+    A->>A: Generate execution plan with LLM
+    A->>AWS: Validate plan (dry-run checks)
+    AWS->>A: Validation results
+    A->>U: Present execution plan for approval
+    
+    Note over A,U: Plan includes:<br/>• Get Default VPC<br/>• Create Security Group<br/>• Add HTTP & SSH rules<br/>• Get Latest AMI<br/>• Create EC2 Instance
 ```
 
 The agent presents the plan for your review:
@@ -70,13 +77,17 @@ Once approved, the agent:
 - Handles dependencies automatically
 - Reports completion status
 
-## Prerequisites
+### 3. More Examples
 
-- **Go 1.24.2+** - Programming language runtime
-- **AWS Account** - With appropriate IAM permissions
-- **AI Provider API Key** - Choose from: OpenAI API Key, Google Gemini API Key, Anthropic API Key
+- Quick Tutorial: **[AI Infrastructure Agent for AWS](https://github.com/VersusControl/devops-ai-guidelines/blob/main/resources/ai-infrastructure-agent-for-aws.md)**
+- Series Tutorial: **[Building Your Business on AWS with AI Agent](https://github.com/VersusControl/devops-ai-guidelines/blob/main/04-ai-agent-for-aws/00-toc.md)**
 
 ## Quick Installation
+
+### Prerequisites
+
+- **AWS Account** - With appropriate IAM permissions
+- **AI Provider API Key** - Choose from: OpenAI API Key, Google Gemini API Key, Anthropic API Key
 
 ### Automated Installation (Recommended)
 
@@ -194,8 +205,6 @@ http://localhost:8080
 
 ## Usage Examples
 
-### Basic Infrastructure Requests
-
 ```bash
 # Simple EC2 instance
 "Create a t3.micro EC2 instance with Ubuntu 22.04"
@@ -208,22 +217,6 @@ http://localhost:8080
 
 # Complete environment
 "Set up a development environment with VPC, subnets, EC2, and RDS"
-```
-
-### Advanced Scenarios
-
-```bash
-# Multi-tier architecture
-"Create a 3-tier web application with web servers, app servers, and database"
-
-# Auto-scaling setup
-"Deploy an auto-scaling group that scales based on CPU utilization"
-
-# Secure environment
-"Create a secure environment with private subnets and NAT gateway"
-
-# Disaster recovery
-"Set up a disaster recovery environment in a different region"
 ```
 
 ## Architecture
@@ -266,14 +259,10 @@ All operations can be run in "dry-run" mode first:
 
 ## Documentation
 
-### Technical Documentation
 - [Technical Architecture Overview](docs/architecture-overview.md) - Comprehensive system architecture and implementation details
-- [MCP Server Commands](docs/mcp-commands.md) *(coming soon)*
+- [MCP Server](docs/mcp-server.md) *(coming soon)*
 - [Web API Reference](docs/api-reference.md) *(coming soon)*
 - [Configuration Guide](docs/configuration.md) *(coming soon)*
-
-### Tutorials
-- [Getting Started Tutorial](https://medium.com/@hmquan08011996/ai-infrastructure-agent-for-cloud-7580bbd73cca)
 
 ## Troubleshooting
 
@@ -373,6 +362,7 @@ agent:
 - ✅ MCP protocol support
 
 ### Upcoming Features (v0.2.0)
+- 🔄 Better UX/UI
 - 🔄 Enhanced conflict resolution
 - 🔄 Cost optimization recommendations
 - 🔄 Infrastructure templates
