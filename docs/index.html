@@ -118,7 +118,10 @@
         }
         @media (max-width: 768px) {
             .mobile-menu-btn {
-                display: flex;
+                display: flex !important;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
             }
         }
     </style>
@@ -137,7 +140,7 @@
                 <!-- Desktop Menu -->
                 <div class="hidden md:flex nav-menu space-x-6">
                     <a href="#home">Home</a>
-                    <a href="#document">Document</a>
+                    <a href="#document">Docs</a>
                     <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/resources/ai-infrastructure-agent-for-aws.md" target="_blank">Quick Example</a>
                     <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/04-ai-agent-for-aws/00-toc.md" target="_blank">Tutorial</a>
                     <a href="#pricing">Pricing</a>
@@ -146,10 +149,10 @@
                 <!-- Right Side: Mobile Menu Button + GitHub Link -->
                 <div class="flex items-center space-x-2">
                     <!-- Mobile Menu Button -->
-                    <button class="mobile-menu-btn md:hidden" onclick="toggleMobileMenu()">
-                        <span></span>
-                        <span></span>
-                        <span></span>
+                    <button class="mobile-menu-btn md:hidden" onclick="toggleMobileMenu()" style="background-color: rgba(55, 65, 81, 0.8); padding: 12px; border: 1px solid #6B7280;">
+                        <span style="background-color: #FFFFFF; width: 24px; height: 3px; margin: 3px 0; display: block; border-radius: 2px;"></span>
+                        <span style="background-color: #FFFFFF; width: 24px; height: 3px; margin: 3px 0; display: block; border-radius: 2px;"></span>
+                        <span style="background-color: #FFFFFF; width: 24px; height: 3px; margin: 3px 0; display: block; border-radius: 2px;"></span>
                     </button>
                     
                     <!-- GitHub Link -->
@@ -164,7 +167,7 @@
             <!-- Mobile Menu -->
             <div id="mobileMenu" class="mobile-menu">
                 <a href="#home">Home</a>
-                <a href="#document">Document</a>
+                <a href="#document">Docs</a>
                 <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/resources/ai-infrastructure-agent-for-aws.md" target="_blank">Quick Example</a>
                 <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/04-ai-agent-for-aws/00-toc.md" target="_blank">Tutorial</a>
                 <a href="#pricing">Pricing</a>
