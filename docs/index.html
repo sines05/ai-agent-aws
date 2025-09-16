@@ -19,13 +19,31 @@
             -webkit-text-fill-color: transparent;
         }
         .code-block {
-            background-color: #1F2937;
-            color: #D1D5DB;
+            background-color: #0D1117;
+            color: #E6EDF3;
             padding: 1rem;
             border-radius: 0.5rem;
+            border: 1px solid #30363D;
             font-family: 'Fira Code', monospace;
-            white-space: pre-wrap;
+            /* white-space: pre-wrap; */
             word-break: break-word;
+            position: relative;
+            max-width: 900px;
+            width: fit-content;
+            margin: 0 auto;
+        }
+        .code-block::before {
+            color: #7C3AED;
+            font-weight: bold;
+        }
+        .code-block .comment {
+            color: #8B949E;
+        }
+        .code-block .command {
+            color: #79C0FF;
+        }
+        .code-block .path {
+            color: #A5A5A5;
         }
     </style>
 </head>
@@ -39,31 +57,37 @@
             <p class="text-xl md:text-2xl text-gray-400">Intelligent AWS infrastructure management through natural language.</p>
         </header>
 
-        <div class="grid md:grid-cols-2 gap-8 mb-12 items-center">
-            <!-- Installation Guide -->
-            <div>
+        <!-- Get Started Section -->
+        <section class="mb-12">
+            <!-- Section Title -->
+            <div class="text-center mb-8">
                 <h2 class="text-3xl font-bold mb-4 text-white">Get Started in Seconds</h2>
-                <p class="text-gray-400 mb-4">Clone the repository and run the installation script to get started.</p>
-                <div class="code-block text-sm">
-                    <pre><code>
-                        # Clone the repository
-                        git clone https://github.com/VersusControl/ai-infrastructure-agent.git
-                        cd ai-infrastructure-agent
-                        
-                        # Run the installation script
-                        ./scripts/install.sh
-
-                        # Start the Web UI
-                        ./scripts/run-web-ui.sh
-                    </code></pre>
+                <p class="text-gray-400">Clone the repository and run the installation script to get started.</p>
+            </div>
+            
+            <!-- Code Block and UI Image in Two Rows -->
+            <div class="mx-auto">
+                <!-- Installation Guide Row -->
+                <div class="mb-8">
+                    <div class="code-block text-sm">
+                        <span class="comment"># Clone the repository</span></br>
+                        <span class="command">git clone</span> https://github.com/VersusControl/ai-infrastructure-agent.git</br>
+                        <span class="command">cd</span> <span class="path">ai-infrastructure-agent</span></br>
+                        </br>
+                        <span class="comment"># Run the installation script</span></br>
+                        <span class="command">./scripts/install.sh</span></br>
+                        </br>
+                        <span class="comment"># Start the Web UI</span></br>
+                        <span class="command">./scripts/run-web-ui.sh</span></br>
+                    </div>
+                </div>
+                <!-- Project UI Image Row -->
+                <div class="flex justify-center">
+                    <!-- Placeholder for Web UI Image. Replace docs/images/web-dashboard.svg with the actual path if different. -->
+                    <img src="images/web-dashboard.svg" alt="Project Web UI" class="rounded-lg shadow-2xl w-full max-w-2xl">
                 </div>
             </div>
-            <!-- Project UI Image -->
-            <div class="flex justify-center">
-                <!-- Placeholder for Web UI Image. Replace docs/images/web-dashboard.svg with the actual path if different. -->
-                <img src="images/web-dashboard.svg" alt="Project Web UI" class="rounded-lg shadow-2xl w-full max-w-md">
-            </div>
-        </div>
+        </section>
 
         <!-- GitHub Badges -->
         <div class="flex justify-center space-x-4 mb-16">
