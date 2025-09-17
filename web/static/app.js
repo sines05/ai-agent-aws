@@ -811,15 +811,12 @@ let executionStartTime = null;
 let executionTimer = null;
 
 function displayExecutionPlan(executionPlan, decision) {
-    console.log('displayExecutionPlan called with:', { executionPlan, decision }); // Debug log
     currentPlan = executionPlan;
     currentDecision = decision;
     
     const planDiv = document.getElementById('executionPlan');
     const stepsDiv = document.getElementById('planSteps');
     const confirmBtn = document.getElementById('confirmPlanBtn');
-    
-    console.log('Plan display elements:', { planDiv, stepsDiv, confirmBtn }); // Debug log
     
     let html = '';
     executionPlan.forEach((step, index) => {
@@ -829,13 +826,6 @@ function displayExecutionPlan(executionPlan, decision) {
                 <div class="step-content">
                     <div class="step-name">${step.name}</div>
                     <div class="step-description">${step.description}</div>
-                    <div class="step-meta">
-                        <span class="step-duration">⏱️ ${step.estimatedDuration}</span>
-                        <span class="step-action">🔧 ${step.action}</span>
-                        <span class="step-resource">📦 ${step.resourceId}</span>
-                        ${step.dependsOn && step.dependsOn.length > 0 ? 
-                            `<span class="step-dependencies">🔗 Depends on: ${step.dependsOn.join(', ')}</span>` : ''}
-                    </div>
                 </div>
                 <div class="step-status pending">Pending</div>
             </div>
@@ -845,8 +835,6 @@ function displayExecutionPlan(executionPlan, decision) {
     stepsDiv.innerHTML = html;
     confirmBtn.style.display = 'inline-block';
     planDiv.style.display = 'block';
-    
-    console.log('Execution plan displayed successfully'); // Debug log
 }
 
 async function confirmAndExecutePlan() {
