@@ -77,6 +77,10 @@ Once approved, the agent:
 - Handles dependencies automatically
 - Reports completion status
 
+<h1 align="center" style="border-bottom: none">
+  <img alt="Execution & Monitoring" src="docs/images/simple-demo.svg">
+</h1>
+
 ### 3. More Examples
 
 - Quick Tutorial: **[AI Infrastructure Agent for AWS](https://github.com/VersusControl/devops-ai-guidelines/blob/main/resources/ai-infrastructure-agent-for-aws.md)**
