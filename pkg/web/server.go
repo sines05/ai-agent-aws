@@ -86,6 +86,9 @@ func (ws *WebServer) initializeAIAgent(cfg *config.Config, awsClient *aws.Client
 		hasAPIKey = cfg.Agent.GeminiAPIKey != ""
 	case "anthropic":
 		hasAPIKey = cfg.Agent.AnthropicAPIKey != ""
+	case "bedrock", "nova":
+		// For Bedrock, AWS credentials are handled by default credential chain
+		hasAPIKey = true
 	default:
 		logger.WithField("provider", provider).Warn("Unknown AI provider - AI agent will run in demo mode")
 		return

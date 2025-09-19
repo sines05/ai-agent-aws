@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/bedrock"
 	"github.com/tmc/langchaingo/llms/googleai"
 	"github.com/tmc/langchaingo/llms/openai"
 	"github.com/versus-control/ai-infrastructure-agent/internal/config"
@@ -205,6 +206,23 @@ func initializeLLM(agentConfig *config.AgentConfig, logger *logging.Logger) (llm
 		logger.Info("Gemini client initialized successfully")
 		return llm, nil
 
+	case "bedrock", "nova":
+		logger.WithFields(map[string]interface{}{
+			"model": agentConfig.Model,
+		}).Debug("Bedrock Nova configuration")
+
+		// Use AWS default credential chain with custom client
+		llm, err := bedrock.New(
+			bedrock.WithModel(agentConfig.Model),
+		)
+		if err != nil {
+			logger.WithError(err).Error("Failed to initialize Bedrock Nova client")
+			return nil, fmt.Errorf("failed to initialize Bedrock Nova client: %w", err)
+		}
+
+		logger.Info("Bedrock Nova client initialized successfully")
+		return llm, nil
+
 	case "anthropic":
 		return nil, fmt.Errorf("AnthropicAI provider not yet implemented")
 
@@ -219,12 +237,52 @@ func (a *StateAwareAgent) testLLMConnectivity(ctx context.Context) error {
 
 	testPrompt := "Respond with exactly this JSON: {\"status\": \"ok\", \"message\": \"connectivity test successful\"}"
 
-	response, err := llms.GenerateFromSinglePrompt(ctx, a.llm, testPrompt,
-		llms.WithTemperature(0.1),
-		llms.WithMaxTokens(100))
+	var response string
+	var err error
 
-	if err != nil {
-		return fmt.Errorf("LLM test call failed: %w", err)
+	// Check if using Amazon Nova model
+	if strings.Contains(a.config.Model, "amazon.nova") {
+		// For Nova models, use GenerateContent with structured messages
+		messages := []llms.MessageContent{
+			{
+				Role: llms.ChatMessageTypeSystem,
+				Parts: []llms.ContentPart{
+					llms.TextContent{Text: "You are a helpful assistant. Respond only with the requested JSON format."},
+				},
+			},
+			{
+				Role: llms.ChatMessageTypeHuman,
+				Parts: []llms.ContentPart{
+					llms.TextContent{Text: testPrompt},
+				},
+			},
+		}
+
+		// Generate response using GenerateContent for Nova
+		resp, err := a.llm.GenerateContent(ctx, messages,
+			llms.WithTemperature(0.1),
+			llms.WithMaxTokens(100))
+
+		if err != nil {
+			return fmt.Errorf("LLM test call failed: %w", err)
+		}
+
+		// Validate and extract response from Nova
+		if len(resp.Choices) < 1 {
+			return fmt.Errorf("nova returned empty response during connectivity test")
+		}
+
+		response = resp.Choices[0].Content
+
+	} else {
+		// For non-Nova models, use the original GenerateFromSinglePrompt
+		response, err = llms.GenerateFromSinglePrompt(ctx, a.llm, testPrompt,
+			llms.WithTemperature(0.1),
+			llms.WithMaxTokens(100))
+
+		if err != nil {
+			return fmt.Errorf("LLM test call failed: %w", err)
+		}
 	}
 
 	if len(response) == 0 {
@@ -234,6 +292,7 @@ func (a *StateAwareAgent) testLLMConnectivity(ctx context.Context) error {
 	a.Logger.WithFields(map[string]interface{}{
 		"test_response_length": len(response),
 		"test_response":        response,
+		"model":                a.config.Model,
 	}).Info("LLM connectivity test successful")
 
 	return nil
