@@ -113,27 +113,58 @@ func (a *StateAwareAgent) generateDecisionWithPlan(ctx context.Context, decision
 
 	// Log prompt details for debugging
 	a.Logger.WithFields(map[string]interface{}{
-		"prompt_length":  len(prompt),
-		"max_tokens":     a.config.MaxTokens,
-		"temperature":    a.config.Temperature,
-		"provider":       a.config.Provider,
-		"model":          a.config.Model,
-		"prompt_preview": prompt[:min(500, len(prompt))],
+		"prompt_length": len(prompt),
+		"max_tokens":    a.config.MaxTokens,
+		"temperature":   a.config.Temperature,
+		"provider":      a.config.Provider,
+		"model":         a.config.Model,
 	}).Info("Calling LLM with prompt")
 
-	// Call the LLM using the new recommended method
-	response, err := llms.GenerateFromSinglePrompt(ctx, a.llm, prompt,
-		llms.WithTemperature(a.config.Temperature),
-		llms.WithMaxTokens(a.config.MaxTokens))
+	var response string
+	var err error
 
-	// Enhanced error handling
-	if err != nil {
-		a.Logger.WithError(err).WithFields(map[string]interface{}{
-			"provider":      a.config.Provider,
-			"model":         a.config.Model,
-			"prompt_length": len(prompt),
-		}).Error("LLM call failed")
-		return nil, fmt.Errorf("failed to generate AI response: %w", err)
+	// Check if using Amazon Nova model
+	if strings.Contains(a.config.Model, "amazon.nova") {
+		messages := []llms.MessageContent{
+			{
+				Role: llms.ChatMessageTypeSystem,
+				Parts: []llms.ContentPart{
+					llms.TextContent{Text: "You are an expert AWS infrastructure automation agent with comprehensive state management capabilities. You must respond with valid JSON only."},
+				},
+			},
+			{
+				Role: llms.ChatMessageTypeHuman,
+				Parts: []llms.ContentPart{
+					llms.TextContent{Text: prompt},
+				},
+			},
+		}
+
+		// Generate response using GenerateContent for Nova
+		resp, err := a.llm.GenerateContent(ctx, messages,
+			llms.WithTemperature(a.config.Temperature),
+			llms.WithMaxTokens(a.config.MaxTokens))
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate AI response with Nova: %w", err)
+		}
+
+		// Validate and extract response from Nova
+		if len(resp.Choices) < 1 {
+			return nil, fmt.Errorf("nova returned empty response - no choices available")
+		}
+
+		response = resp.Choices[0].Content
+
+	} else {
+		// For non-Nova models, use the original GenerateFromSinglePrompt
+		response, err = llms.GenerateFromSinglePrompt(ctx, a.llm, prompt,
+			llms.WithTemperature(a.config.Temperature),
+			llms.WithMaxTokens(a.config.MaxTokens))
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate AI response: %w", err)
+		}
 	}
 
 	if a.config.EnableDebug {
@@ -456,14 +487,6 @@ func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *D
 // parseAIResponseWithPlan parses the AI response into an AgentDecision with execution plan
 func (a *StateAwareAgent) parseAIResponseWithPlan(decisionID, request, response string) (*types.AgentDecision, error) {
 	a.Logger.Debug("Parsing AI response for execution plan")
-
-	// Log the raw response for debugging - ALWAYS log this for troubleshooting
-	if a.config.EnableDebug {
-		a.Logger.WithFields(map[string]interface{}{
-			"raw_response_length": len(response),
-			"raw_response":        response,
-		}).Info("AI Response received")
-	}
 
 	// Check if response appears to be truncated JSON
 	if strings.HasPrefix(response, "{") && !strings.HasSuffix(response, "}") {
