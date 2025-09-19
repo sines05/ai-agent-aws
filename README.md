@@ -27,7 +27,7 @@ AI Infrastructure Agent is an intelligent system that allows you to manage AWS i
 ### Key Features
 
 - **Natural Language Interface** - Describe what you want, not how to build it
-- **Multi-AI Provider Support** - Choose between OpenAI, Google Gemini, or Anthropic
+- **Multi-AI Provider Support** - Choose between OpenAI, Google Gemini, Anthropic, or AWS Bedrock Nova
 - **Web Dashboard** - Visual interface for infrastructure management, built-in conflict detection and dry-run mode
 - **Terraform-like state** - Maintains accurate infrastructure state
 - **Current Resource Support** - VPC, EC2, SG, Autoscaling Group, ALB. Check the roadmap here: [Core Platform Development](https://github.com/orgs/VersusControl/projects/19)
@@ -37,6 +37,8 @@ AI Infrastructure Agent is an intelligent system that allows you to manage AWS i
 Imagine you want to create AWS infrastructure with a simple request:
 
 > **"Create an EC2 instance for hosting an Apache Server with a dedicated security group that allows inbound HTTP (port 80) and SSH (port 22) traffic."**
+
+> 💡 **Amazon Nova Users**: When using AWS Bedrock Nova models, you may want to specify the region in your request for better context, e.g., *"Create an EC2 instance in us-east-1 for hosting an Apache Server..."*
 
 Here's what happens:
 
@@ -77,6 +79,10 @@ Once approved, the agent:
 - Handles dependencies automatically
 - Reports completion status
 
+<h1 align="center" style="border-bottom: none">
+  <img alt="Execution & Monitoring" src="docs/images/simple-demo.svg">
+</h1>
+
 ### 3. More Examples
 
 - Quick Tutorial: **[AI Infrastructure Agent for AWS](https://github.com/VersusControl/devops-ai-guidelines/blob/main/resources/ai-infrastructure-agent-for-aws.md)**
@@ -87,7 +93,7 @@ Once approved, the agent:
 ### Prerequisites
 
 - **AWS Account** - With appropriate IAM permissions
-- **AI Provider API Key** - Choose from: OpenAI API Key, Google Gemini API Key, Anthropic API Key
+- **AI Provider API Key** - Choose from: OpenAI API Key, Google Gemini API Key, Anthropic API Key, or use AWS Bedrock Nova (with AWS credentials)
 
 ### Automated Installation (Recommended)
 
@@ -155,7 +161,7 @@ Choose your preferred AI provider in `config.yaml`:
 
 ```yaml
 agent:
-  provider: "openai"          # Options: openai, gemini, anthropic
+  provider: "openai"          # Options: openai, gemini, anthropic, bedrock
   model: "gpt-4"             # Model to use
   max_tokens: 4000
   temperature: 0.1
@@ -165,6 +171,11 @@ agent:
 
 ### 3. Set Environment Variables
 
+**Detailed Setup Guides:**
+- **OpenAI**: [OpenAI API Key Setup Guide](docs/openai-api-setup.md)
+- **Google Gemini**: [Gemini API Key Setup Guide](docs/gemini-api-setup.md)
+- **AWS Bedrock Nova**: [AWS Bedrock Nova Configuration Guide](docs/aws-bedrock-nova-setup.md)
+
 ```bash
 # For OpenAI
 export OPENAI_API_KEY="your-openai-api-key"
@@ -172,8 +183,8 @@ export OPENAI_API_KEY="your-openai-api-key"
 # For Google Gemini
 export GEMINI_API_KEY="your-gemini-api-key"
 
-# For Anthropic
-export ANTHROPIC_API_KEY="your-anthropic-api-key"
+# For AWS Bedrock Nova - use AWS credentials (no API key needed)
+# Configure AWS credentials using: aws configure, environment variables, or IAM roles
 ```
 
 ### 4. Configure AWS Credentials
