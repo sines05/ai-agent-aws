@@ -38,6 +38,8 @@ Imagine you want to create AWS infrastructure with a simple request:
 
 > **"Create an EC2 instance for hosting an Apache Server with a dedicated security group that allows inbound HTTP (port 80) and SSH (port 22) traffic."**
 
+> 💡 **Amazon Nova Users**: When using AWS Bedrock Nova models, you may want to specify the region in your request for better context, e.g., *"Create an EC2 instance in us-east-1 for hosting an Apache Server..."*
+
 Here's what happens:
 
 ### 1. AI Analysis & Planning
@@ -169,15 +171,17 @@ agent:
 
 ### 3. Set Environment Variables
 
+**Detailed Setup Guides:**
+- **OpenAI**: [OpenAI API Key Setup Guide](docs/openai-api-setup.md)
+- **Google Gemini**: [Gemini API Key Setup Guide](docs/gemini-api-setup.md)
+- **AWS Bedrock Nova**: [AWS Bedrock Nova Configuration Guide](docs/aws-bedrock-nova-setup.md)
+
 ```bash
 # For OpenAI
 export OPENAI_API_KEY="your-openai-api-key"
 
 # For Google Gemini
 export GEMINI_API_KEY="your-gemini-api-key"
-
-# For Anthropic
-export ANTHROPIC_API_KEY="your-anthropic-api-key"
 
 # For AWS Bedrock Nova - use AWS credentials (no API key needed)
 # Configure AWS credentials using: aws configure, environment variables, or IAM roles
