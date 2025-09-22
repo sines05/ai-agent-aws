@@ -1,5 +1,13 @@
 # AI Infrastructure Agent Documentation
 
+<h1 align="center" style="border-bottom: none">
+    <img alt="AI Infrastructure Agent" src="images/ai-infrastructure-agent.svg" width="150" height="150" />
+
+[![Go Version](https://img.shields.io/badge/Go-1.24.2+-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
+[![AWS](https://img.shields.io/badge/AWS-Cloud-FF9900?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com/)
+[![MCP](https://img.shields.io/badge/Protocol-MCP-purple?style=for-the-badge)](https://modelcontextprotocol.io/)
+</h1>
+
 Welcome to the AI Infrastructure Agent documentation! This is an intelligent system that allows you to manage AWS infrastructure using natural language commands.
 
 ## Quick Links
