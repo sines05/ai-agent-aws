@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Infrastructure Agent - Documentation</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="AI Infrastructure Agent Documentation - Intelligent AWS infrastructure management through natural language">
+  <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  <style>
+    :root {
+      --docsifyLocaltabsTabColor: #42b883;
+      --docsifyLocaltabsTabBackgroundColor: #f8f8f8;
+    }
+    
+    /* Custom theme adjustments to match your landing page */
+    .sidebar {
+      background-color: #1f2937 !important;
+      border-right: 1px solid #374151;
+    }
+    
+    .sidebar ul li a {
+      color: #e5e7eb !important;
+      border-bottom: none !important;
+    }
+    
+    .sidebar ul li a:hover {
+      color: #ffffff !important;
+      text-decoration: none !important;
+    }
+    
+    .sidebar ul li.active > a {
+      color: #6366f1 !important;
+      font-weight: 600 !important;
+    }
+    
+    .app-name-link {
+      color: #ffffff !important;
+      font-weight: bold !important;
+    }
+    
+    .content {
+      left: 300px;
+    }
+    
+    /* Header navigation bar */
+    .nav-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: rgba(17, 24, 39, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid #374151;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+    
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    
+    .nav-logo {
+      height: 40px;
+      width: auto;
+    }
+    
+    .nav-back-link {
+      color: #e5e7eb;
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      background-color: #374151;
+    }
+    
+    .nav-back-link:hover {
+      background-color: #4b5563;
+      color: #ffffff;
+    }
+    
+    .nav-right a {
+      color: #e5e7eb;
+      padding: 8px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+    
+    .nav-right a:hover {
+      background-color: #374151;
+    }
+    
+    .github-icon {
+      width: 24px;
+      height: 24px;
+      fill: currentColor;
+    }
+    
+    /* Adjust main content to account for header */
+    .sidebar, .content {
+      top: 60px !important;
+      height: calc(100vh - 60px) !important;
+    }
+    
+    /* Code blocks styling */
+    .content pre {
+      background-color: #0d1117 !important;
+      color: #e6edf3 !important;
+      border: 1px solid #30363d !important;
+    }
+    
+    .content code {
+      background-color: #0d1117 !important;
+      color: #e6edf3 !important;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation Header -->
+  <div class="nav-header">
+    <div class="nav-left">
+      <img src="images/ai-infrastructure-agent.svg" alt="AI Infrastructure Agent" class="nav-logo">
+      <a href="../index.html" class="nav-back-link">← Back to Home</a>
+    </div>
+    <div class="nav-right">
+      <a href="https://github.com/VersusControl/ai-infrastructure-agent" target="_blank">
+        <svg class="github-icon" viewBox="0 0 24 24">
+          <path d="M12 0C5.374 0 0 5.373 0 12 0 17.302 3.438 21.8 8.207 23.387c.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+
+  <div id="app"></div>
+  <script>
+    window.$docsify = {
+      name: 'AI Infrastructure Agent',
+      repo: 'https://github.com/VersusControl/ai-infrastructure-agent',
+      homepage: 'README.md',
+      loadSidebar: true,
+      loadNavbar: false,
+      subMaxLevel: 3,
+      auto2top: true,
+      search: 'auto',
+      copyCode: {
+        buttonText: 'Copy to clipboard',
+        errorText: 'Error',
+        successText: 'Copied'
+      },
+      pagination: {
+        previousText: '← Previous',
+        nextText: 'Next →',
+        crossChapter: true,
+        crossChapterText: true,
+      },
+      plugins: [
+        function(hook, vm) {
+          hook.beforeEach(function (html) {
+            var url = 'https://github.com/VersusControl/ai-infrastructure-agent/blob/main/docs/' + vm.route.file
+            var editHtml = '[:memo: Edit Document](' + url + ')\n'
+            return editHtml + html
+          })
+        }
+      ]
+    }
+  </script>
+  <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/zoom-image.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-pagination@2/dist/docsify-pagination.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-yaml.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-go.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+</body>
+</html>
