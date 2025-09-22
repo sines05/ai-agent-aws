@@ -172,9 +172,9 @@ agent:
 ### 3. Set Environment Variables
 
 **Detailed Setup Guides:**
-- **OpenAI**: [OpenAI API Key Setup Guide](docs/openai-api-setup.md)
-- **Google Gemini**: [Gemini API Key Setup Guide](docs/gemini-api-setup.md)
-- **AWS Bedrock Nova**: [AWS Bedrock Nova Configuration Guide](docs/aws-bedrock-nova-setup.md)
+- **OpenAI**: [OpenAI API Key Setup Guide](docs/api-key-setup/openai-api-setup.md)
+- **Google Gemini**: [Gemini API Key Setup Guide](docs/api-key-setup/gemini-api-setup.md)
+- **AWS Bedrock Nova**: [AWS Bedrock Nova Configuration Guide](docs/api-key-setup/aws-bedrock-nova-setup.md)
 
 ```bash
 # For OpenAI
@@ -236,7 +236,7 @@ http://localhost:8080
   <img alt="Web Dashboard" src="docs/images/core-components.svg">
 </h1>
 
-Read detail: [Technical Architecture Overview](docs/architecture-overview.md)
+Read detail: [Technical Architecture Overview](docs/architecture/architecture-overview.md)
 
 ### Components
 
@@ -270,7 +270,7 @@ All operations can be run in "dry-run" mode first:
 
 ## Documentation
 
-- [Technical Architecture Overview](docs/architecture-overview.md) - Comprehensive system architecture and implementation details
+- [Technical Architecture Overview](docs/architecture/architecture-overview.md) - Comprehensive system architecture and implementation details
 - [MCP Server](docs/mcp-server.md) *(coming soon)*
 - [Web API Reference](docs/api-reference.md) *(coming soon)*
 - [Configuration Guide](docs/configuration.md) *(coming soon)*

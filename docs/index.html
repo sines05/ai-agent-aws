@@ -6,6 +6,7 @@
     <title>AI Infrastructure Agent - Intelligent AWS Management</title>
     <meta name="description" content="AI Infrastructure Agent is an intelligent system that allows you to manage AWS infrastructure using natural language commands.">
     <meta name="keywords" content="AI, AWS, Infrastructure as Code, DevOps, Cloud Management, OpenAI, Gemini, Anthropic">
+    <link rel="icon" type="image/svg+xml" href="images/ai-infrastructure-agent.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -149,7 +150,7 @@
                     <!-- Desktop Menu -->
                     <div class="hidden md:flex nav-menu space-x-6">
                         <a href="#home">Home</a>
-                        <a href="#document">Docs</a>
+                        <a href="docs.html">Docs</a>
                         <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/resources/ai-infrastructure-agent-for-aws.md" target="_blank">Quick Example</a>
                         <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/04-ai-agent-for-aws/00-toc.md" target="_blank">Tutorial</a>
                         <a href="#pricing">Pricing</a>
@@ -177,7 +178,7 @@
             <!-- Mobile Menu -->
             <div id="mobileMenu" class="mobile-menu">
                 <a href="#home">Home</a>
-                <a href="#document">Docs</a>
+                <a href="docs.html">Docs</a>
                 <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/resources/ai-infrastructure-agent-for-aws.md" target="_blank">Quick Example</a>
                 <a href="https://github.com/VersusControl/devops-ai-guidelines/blob/main/04-ai-agent-for-aws/00-toc.md" target="_blank">Tutorial</a>
                 <a href="#pricing">Pricing</a>
@@ -291,9 +292,75 @@
                 </div>
                 <p class="text-lg text-gray-400 mb-4">Result:</p>
                 <p class="text-gray-400 mb-6">The agent generates a comprehensive plan to build a multi-AZ, multi-tier VPC network architecture, including all necessary subnets, gateways, and routing configurations, ready for a production workload.</p>
-                <!-- Placeholder for screenshot or video. Replace with actual content. -->
-                <div class="bg-gray-700 h-64 rounded-lg flex items-center justify-center">
-                    <p class="text-gray-500">Screenshot or Video of the result here</p>
+                <!-- Demo Image -->
+                <div class="flex justify-center">
+                    <img src="images/advanced-demo.svg" alt="Advanced Demo Result" class="rounded-lg shadow-2xl w-full" style="max-width: 1150px;">
+                </div>
+            </div>
+        </section>
+
+        <!-- Model Support Section -->
+        <section class="mb-16">
+            <h2 class="text-4xl font-bold text-center mb-8 text-white">Supported AI Models</h2>
+            <div class="bg-gray-800 p-8 rounded-lg shadow-lg">
+                <p class="text-lg text-gray-400 mb-8 text-center">Choose the AI provider that best fits your needs and infrastructure requirements.</p>
+                
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <!-- OpenAI -->
+                    <div class="bg-gray-700 p-6 rounded-lg border border-gray-600 text-center">
+                        <div class="mb-4">
+                            <svg class="w-12 h-12 mx-auto text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3 text-blue-400">OpenAI</h3>
+                    </div>
+                    
+                    <!-- Google Gemini -->
+                    <div class="bg-gray-700 p-6 rounded-lg border border-gray-600 text-center">
+                        <div class="mb-4">
+                            <svg class="w-12 h-12 mx-auto text-green-400" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 2.4c5.302 0 9.6 4.298 9.6 9.6s-4.298 9.6-9.6 9.6S2.4 17.302 2.4 12 6.698 2.4 12 2.4zm-1.2 4.8v9.6h2.4V7.2h-2.4zm-3.6 2.4v7.2h2.4V9.6H7.2zm7.2 0v7.2h2.4V9.6h-2.4z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3 text-green-400">Google Gemini</h3>
+                    </div>
+                    
+                    <!-- Anthropic -->
+                    <div class="bg-gray-700 p-6 rounded-lg border border-gray-600 text-center">
+                        <div class="mb-4">
+                            <svg class="w-12 h-12 mx-auto text-purple-400" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3 text-purple-400">Anthropic Claude</h3>
+                    </div>
+                    
+                    <!-- AWS Bedrock Nova -->
+                    <div class="bg-gray-700 p-6 rounded-lg border border-gray-600 text-center">
+                        <div class="mb-4">
+                            <svg class="w-12 h-12 mx-auto text-orange-400" viewBox="0 0 24 24" fill="none">
+                                <!-- AWS Nova-style diamond/star pattern -->
+                                <path d="M12 2L15 9L22 12L15 15L12 22L9 15L2 12L9 9L12 2Z" fill="currentColor" opacity="0.8"/>
+                                <!-- Inner diamond -->
+                                <path d="M12 6L14 10L18 12L14 14L12 18L10 14L6 12L10 10L12 6Z" fill="currentColor" opacity="0.6"/>
+                                <!-- Central core -->
+                                <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
+                                <!-- Subtle outer glow -->
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="0.5" fill="none" opacity="0.3"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3 text-orange-400">AWS Bedrock Nova</h3>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-900 p-6 rounded-lg border border-gray-600 text-center">
+                    <h4 class="text-lg font-bold mb-4 text-white">Configuration Example</h4>
+                    <div class="mt-4 flex flex-wrap gap-2 justify-center">
+                        <a href="docs.html#/api-key-setup/openai-api-setup" class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors">OpenAI Setup Guide</a>
+                        <a href="docs.html#/api-key-setup/gemini-api-setup" class="inline-block bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm transition-colors">Gemini Setup Guide</a>
+                        <a href="docs.html#/api-key-setup/aws-bedrock-nova-setup" class="inline-block bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded text-sm transition-colors">Bedrock Setup Guide</a>
+                    </div>
                 </div>
             </div>
         </section>
@@ -302,13 +369,13 @@
         <footer class="text-center text-gray-500">
             <p class="mb-4">We welcome contributions! Please read our <a href="https://github.com/VersusControl/ai-infrastructure-agent/blob/main/README.md#contributing" class="text-indigo-400 hover:underline">contribution guidelines</a> to get started.</p>
             <div class="space-x-4 mb-4">
-                <a href="architecture-overview.md" class="hover:underline">Docs</a>
+                <a href="docs.html" class="hover:underline">Docs</a>
                 <span>&bull;</span>
                 <a href="https://github.com/VersusControl/ai-infrastructure-agent/issues" class="hover:underline">Issues</a>
                 <span>&bull;</span>
                 <a href="https://github.com/VersusControl/ai-infrastructure-agent/discussions" class="hover:underline">Discussions</a>
             </div>
-            <p>Licensed under the <a href="LICENSE" class="text-indigo-400 hover:underline">MIT License</a>.</p>
+            <p>Licensed under the <a href="https://github.com/VersusControl/ai-infrastructure-agent/blob/main/LICENSE" class="text-indigo-400 hover:underline">MIT License</a>.</p>
         </footer>
 
     </div>

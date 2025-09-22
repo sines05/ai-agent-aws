@@ -9,7 +9,7 @@ The system is architected as a multi-layered application written in Go, supporti
 ### Core Components
 
 <h1 align="center" style="border-bottom: none">
-  <img alt="Web Dashboard" src="./images/core-components.svg">
+  <img alt="Web Dashboard" src="../images/core-components.svg">
 </h1>
 
 ### System Flow Architecture
