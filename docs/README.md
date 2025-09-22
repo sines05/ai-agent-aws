@@ -4,15 +4,15 @@ Welcome to the AI Infrastructure Agent documentation! This is an intelligent sys
 
 ## Quick Links
 
-- [Getting Started](README.md)
-- [Architecture Overview](architecture/architecture-overview.md)
+- [Getting Started](/getting-started.md)
+- [Architecture Overview](/architecture/architecture-overview.md)
 - [API Setup Guides](#api-setup-guides)
 
 ## API Setup Guides
 
-- [OpenAI API Setup](api-key-setup/openai-api-setup.md)
-- [Google Gemini API Setup](api-key-setup/gemini-api-setup.md) 
-- [AWS Bedrock Nova Setup](api-key-setup/aws-bedrock-nova-setup.md)
+- [OpenAI API Setup](/api-key-setup/openai-api-setup.md)
+- [Google Gemini API Setup](/api-key-setup/gemini-api-setup.md) 
+- [AWS Bedrock Nova Setup](/api-key-setup/aws-bedrock-nova-setup.md)
 
 ## Features
 
@@ -25,7 +25,7 @@ Welcome to the AI Infrastructure Agent documentation! This is an intelligent sys
 
 ## Architecture
 
-The AI Infrastructure Agent follows a modular architecture designed for scalability and maintainability. Check out our [Architecture Overview](architecture/architecture-overview.md) for detailed information.
+The AI Infrastructure Agent follows a modular architecture designed for scalability and maintainability. Check out our [Architecture Overview](/architecture/architecture-overview.md) for detailed information.
 
 ## Contributing
 
