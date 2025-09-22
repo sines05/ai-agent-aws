@@ -506,6 +506,7 @@
   <div id="app"></div>
   <script>
     window.$docsify = {
+      basePath: './',
       repo: 'https://github.com/VersusControl/ai-infrastructure-agent',
       homepage: 'README.md',
       loadSidebar: true,
@@ -516,9 +517,9 @@
       auto2top: true,
       coverpage: false,
       executeScript: true,
-      relativePath: true,
+      relativePath: false,
       alias: {
-        '/.*/_sidebar.md': '/_sidebar.md'
+        '/_sidebar.md': '_sidebar.md'
       },
       search: {
         maxAge: 86400000,
