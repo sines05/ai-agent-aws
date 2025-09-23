@@ -58,8 +58,15 @@ func (a *StateAwareAgent) startMCPProcess() error {
 	a.Logger.Info("Starting MCP server process for tool execution")
 
 	// Start the MCP server as a subprocess
-	cmd := exec.Command("go", "run", "cmd/server/main.go")
-	cmd.Dir = "." // Current directory should be the project root
+	var cmd *exec.Cmd
+	if _, err := os.Stat("/app/server"); err == nil {
+		// Use binary in Docker container path
+		cmd = exec.Command("/app/server")
+	} else {
+		// Development fallback - use go run
+		cmd = exec.Command("go", "run", "cmd/server/main.go")
+		cmd.Dir = "." // Current directory should be the project root
+	}
 
 	// Set environment variables from config
 	envVars := append(os.Environ(),

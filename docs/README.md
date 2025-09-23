@@ -13,6 +13,7 @@ Welcome to the AI Infrastructure Agent documentation! This is an intelligent sys
 ## Quick Links
 
 - [Getting Started](/getting-started.md)
+- [Installation Guide](/installation.md)
 - [Architecture Overview](/architecture/architecture-overview.md)
 - [API Setup Guides](#api-setup-guides)
 
