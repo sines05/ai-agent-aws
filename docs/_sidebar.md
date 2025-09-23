@@ -1,5 +1,6 @@
 - [Home](/)
 - [Getting Started](/getting-started.md)
+- [Installation Guide](/installation.md)
 
 - **Setup Guides**
   - [OpenAI API Setup](/api-key-setup/openai-api-setup.md)

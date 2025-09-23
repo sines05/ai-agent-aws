@@ -96,7 +96,7 @@ The dashboard provides:
 
 ---
 
-## Step 3: Your First Infrastructure Request
+## Step 2: Your First Infrastructure Request
 
 Let's create a simple web server infrastructure with a practical example. In the web dashboard, enter this natural language request:
 
