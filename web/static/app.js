@@ -92,28 +92,73 @@ function handleWebSocketMessage(data) {
         }
         hideLoader();
     } else if (data.type === 'execution_started') {
-        addExecutionLog('info', `Execution started for decision: ${data.decisionId}`);
+        addGlobalExecutionLog('info', `Execution started for decision: ${data.decisionId}`);
         updateExecutionStatus('Initializing execution...');
     } else if (data.type === 'step_started') {
-        addExecutionLog('info', data.message);
+        addStepLog(data.stepId, 'info', data.message);
+        addGlobalExecutionLog('info', data.message);
         updateStepStatus(data.stepId, 'running');
     } else if (data.type === 'step_progress') {
-        addExecutionLog('info', data.message);
+        addStepLog(data.stepId, 'info', data.message);
     } else if (data.type === 'step_completed') {
-        addExecutionLog('success', data.message);
+        addStepLog(data.stepId, 'success', data.message);
+        addGlobalExecutionLog('success', data.message);
         updateStepStatus(data.stepId, 'completed');
     } else if (data.type === 'step_failed') {
-        addExecutionLog('error', data.message);
+        addStepLog(data.stepId, 'error', data.message);
+        addGlobalExecutionLog('error', data.message);
         updateStepStatus(data.stepId, 'failed');
+    } else if (data.type === 'step_recovery_needed') {
+        // New: Handle recovery requests
+        console.log('Recovery needed:', data);
+        addStepLog(data.stepId, 'recovery', `Step failed - recovery options available`);
+        addGlobalExecutionLog('recovery', `Step ${data.stepId} failed - recovery options available`);
+        updateStepStatus(data.stepId, 'recovery-pending');
+        
+        console.log('Calling showRecoveryDialog with:', {
+            failureContext: data.failureContext,
+            recoveryOptions: data.recoveryOptions,
+            stepId: data.stepId
+        });
+        
+        try {
+            showRecoveryDialog(data.failureContext, data.recoveryOptions, data.stepId);
+        } catch (error) {
+            console.error('Error showing recovery dialog:', error);
+            addStepLog(data.stepId, 'error', `Failed to show recovery dialog: ${error.message}`);
+        }
+    } else if (data.type === 'step_recovery_started') {
+        // New: Handle recovery start
+        addStepLog(data.stepId, 'recovery', data.message || 'Recovery started');
+        addGlobalExecutionLog('recovery', data.message || `Recovery started for step ${data.stepId}`);
+        updateStepStatus(data.stepId, 'recovery-in-progress');
+        // Remove any recovery progress indicators
+        const progressElements = document.querySelectorAll('.recovery-progress');
+        progressElements.forEach(el => el.remove());
+    } else if (data.type === 'step_recovery_completed') {
+        // New: Handle recovery completion
+        addStepLog(data.stepId, 'recovery-success', data.message || 'Recovery completed');
+        addGlobalExecutionLog('recovery-success', data.message || `Recovery completed for step ${data.stepId}`);
+        updateStepStatus(data.stepId, 'recovery-success');
+    } else if (data.type === 'step_recovery_failed') {
+        // New: Handle recovery failure
+        addStepLog(data.stepId, 'recovery-failed', data.message || 'Recovery failed');
+        addGlobalExecutionLog('recovery-failed', data.message || `Recovery failed for step ${data.stepId}`);
+        updateStepStatus(data.stepId, 'recovery-failed');
     } else if (data.type === 'execution_completed') {
-        addExecutionLog('success', data.message);
-        updateExecutionStatus('Execution completed');
+        addGlobalExecutionLog('success', data.message);
+        updateExecutionStatus('Execution completed successfully');
         updateExecutionProgress(100);
         stopExecutionTimer();
         // Auto-refresh state after execution to show new infrastructure
         if (currentTab === 'state-tab') {
             setTimeout(() => loadState(true), 1000); // Small delay to allow AWS to propagate changes, force fresh discovery
         }
+    } else if (data.type === 'execution_aborted') {
+        // New: Handle execution abort
+        addGlobalExecutionLog('error', data.message || 'Execution was aborted');
+        updateExecutionStatus('Execution aborted');
+        stopExecutionTimer();
     }
 }
 
@@ -818,16 +863,41 @@ function displayExecutionPlan(executionPlan, decision) {
     const stepsDiv = document.getElementById('planSteps');
     const confirmBtn = document.getElementById('confirmPlanBtn');
     
-    let html = '';
+    // Create integrated execution plan with progress tracking
+    let html = `
+        <div class="execution-header">
+            <div class="execution-status-bar">
+                <div class="execution-info">
+                    <span id="executionStatus">Ready to execute</span>
+                    <span id="executionTimer">00:00</span>
+                </div>
+                <div class="execution-progress-bar">
+                    <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add each step with integrated logs and status
     executionPlan.forEach((step, index) => {
         html += `
-            <div class="plan-step" data-step-id="${step.id}">
-                <div class="step-number">${index + 1}</div>
-                <div class="step-content">
-                    <div class="step-name">${step.name}</div>
-                    <div class="step-description">${step.description}</div>
+            <div class="integrated-step" data-step-id="${step.id}" data-step-index="${index}">
+                <div class="step-header">
+                    <div class="step-number">${index + 1}</div>
+                    <div class="step-info">
+                        <div class="step-name">${step.name}</div>
+                        <div class="step-description">${step.description}</div>
+                    </div>
+                    <div class="step-controls">
+                        <div class="step-status pending">Pending</div>
+                        <button class="expand-logs" onclick="toggleStepLogs('${step.id}')" style="display: none;">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="step-status pending">Pending</div>
+                <div class="step-logs" id="logs-${step.id}" style="display: none;">
+                    <div class="logs-content"></div>
+                </div>
             </div>
         `;
     });
@@ -844,10 +914,12 @@ async function confirmAndExecutePlan() {
     }
     
     try {
-        // Hide plan, show progress
-        document.getElementById('executionPlan').style.display = 'none';
-        const progressDiv = document.getElementById('executionProgress');
-        progressDiv.style.display = 'block';
+        // Don't hide the plan - keep it visible for integrated progress tracking
+        // Hide only the confirm button and show execution status
+        document.getElementById('confirmPlanBtn').style.display = 'none';
+        
+        // Update execution status
+        updateExecutionStatus('Execution starting...');
         
         // Initialize execution tracking
         executionStartTime = Date.now();
@@ -860,16 +932,16 @@ async function confirmAndExecutePlan() {
         });
         
         if (response.success) {
-            addExecutionLog('info', `Plan execution started: ${response.executionId}`);
-            updateExecutionStatus('Execution started...');
+            addGlobalExecutionLog('info', `Plan execution started: ${response.executionId}`);
+            updateExecutionStatus('Execution in progress...');
         } else {
-            addExecutionLog('error', 'Failed to start execution');
+            addGlobalExecutionLog('error', 'Failed to start execution');
             updateExecutionStatus('Execution failed to start');
         }
         
     } catch (error) {
         console.error('Failed to execute plan:', error);
-        addExecutionLog('error', `Execution failed: ${error.message}`);
+        addGlobalExecutionLog('error', `Execution failed: ${error.message}`);
         updateExecutionStatus('Execution error');
     }
 }
@@ -884,25 +956,11 @@ function updateExecutionStatus(status) {
     document.getElementById('executionStatus').textContent = status;
 }
 
-function addExecutionLog(level, message) {
-    const logsDiv = document.getElementById('executionLogs');
-    const timestamp = new Date().toLocaleTimeString();
-    
-    const logEntry = document.createElement('div');
-    logEntry.className = 'log-entry';
-    logEntry.innerHTML = `
-        <span class="timestamp">${timestamp}</span>
-        <span class="level-${level}">[${level.toUpperCase()}]</span>
-        <span class="message">${message}</span>
-    `;
-    
-    logsDiv.appendChild(logEntry);
-    logsDiv.scrollTop = logsDiv.scrollHeight;
-}
-
 function updateExecutionProgress(percentage) {
     const progressFill = document.getElementById('progressFill');
-    progressFill.style.width = `${percentage}%`;
+    if (progressFill) {
+        progressFill.style.width = `${percentage}%`;
+    }
 }
 
 function startExecutionTimer() {
@@ -929,9 +987,377 @@ function updateStepStatus(stepId, status) {
     const stepElement = document.querySelector(`[data-step-id="${stepId}"]`);
     if (stepElement) {
         const statusElement = stepElement.querySelector('.step-status');
+        const expandButton = stepElement.querySelector('.expand-logs');
+        
         if (statusElement) {
             statusElement.className = `step-status ${status}`;
-            statusElement.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            statusElement.textContent = status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ');
         }
+        
+        // Show expand button when step is running or has logs
+        if (expandButton && (status === 'running' || status === 'completed' || status === 'failed' || status.includes('recovery'))) {
+            expandButton.style.display = 'block';
+        }
+        
+        // Auto-expand on failure or recovery
+        if (status === 'failed' || status.includes('recovery')) {
+            toggleStepLogs(stepId, true);
+        }
+    }
+}
+
+// Function to toggle step logs visibility
+function toggleStepLogs(stepId, forceOpen = false) {
+    const logsDiv = document.getElementById(`logs-${stepId}`);
+    const expandButton = document.querySelector(`[data-step-id="${stepId}"] .expand-logs i`);
+    
+    if (logsDiv) {
+        const isHidden = logsDiv.style.display === 'none' || logsDiv.style.display === '';
+        
+        if (forceOpen || isHidden) {
+            logsDiv.style.display = 'block';
+            if (expandButton) expandButton.className = 'fas fa-chevron-up';
+        } else {
+            logsDiv.style.display = 'none';
+            if (expandButton) expandButton.className = 'fas fa-chevron-down';
+        }
+    }
+}
+
+// Add log to specific step
+function addStepLog(stepId, level, message) {
+    const stepLogsDiv = document.querySelector(`#logs-${stepId} .logs-content`);
+    if (stepLogsDiv) {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = document.createElement('div');
+        logEntry.className = `step-log-entry level-${level}`;
+        logEntry.innerHTML = `
+            <span class="timestamp">${timestamp}</span>
+            <span class="level">[${level.toUpperCase()}]</span>
+            <span class="message">${message}</span>
+        `;
+        stepLogsDiv.appendChild(logEntry);
+        
+        // Auto-scroll to bottom
+        stepLogsDiv.scrollTop = stepLogsDiv.scrollHeight;
+        
+        // Show expand button if not visible
+        const stepElement = document.querySelector(`[data-step-id="${stepId}"]`);
+        const expandButton = stepElement?.querySelector('.expand-logs');
+        if (expandButton) {
+            expandButton.style.display = 'block';
+        }
+    }
+}
+
+// Add global execution log (for general execution events)
+function addGlobalExecutionLog(level, message) {
+    console.log(`[${level.toUpperCase()}] ${message}`);
+}
+
+// Recovery Functions - Inline UX
+let currentRecoveryContext = null;
+
+function showRecoveryDialog(failureContext, recoveryOptions, stepId) {
+    console.log('showRecoveryDialog called with:', {
+        failureContext,
+        recoveryOptions, 
+        stepId
+    });
+    
+    try {
+        // Store recovery context
+        currentRecoveryContext = {
+            failureContext,
+            recoveryOptions,
+            stepId
+        };
+        
+        // Find the failed step element in the integrated plan
+        const stepElement = document.querySelector(`[data-step-id="${stepId}"]`);
+        if (!stepElement) {
+            console.error('Could not find step element for stepId:', stepId);
+            // Fallback: add recovery info to step logs
+            addStepLog(stepId, 'recovery', 'Recovery options available - please refresh page');
+            return;
+        }
+        
+        // Ensure the step logs are visible
+        toggleStepLogs(stepId, true);
+        
+        // Create inline recovery options HTML
+        const recoveryHTML = createInlineRecoveryHTML(failureContext, recoveryOptions, stepId);
+        
+        // Insert recovery options after the step
+        const recoveryContainer = document.createElement('div');
+        recoveryContainer.className = 'inline-recovery-container';
+        
+        // Safely set innerHTML with error handling
+        try {
+            recoveryContainer.innerHTML = recoveryHTML;
+        } catch (htmlError) {
+            console.error('Failed to set recovery HTML:', htmlError);
+            recoveryContainer.innerHTML = '<div class="recovery-error">Failed to display recovery options. Please refresh the page.</div>';
+        }
+        
+        // Insert after the step element (integrated step design)
+        try {
+            stepElement.parentNode.insertBefore(recoveryContainer, stepElement.nextSibling);
+        } catch (insertError) {
+            console.error('Failed to insert recovery container:', insertError);
+            // Fallback: add to step logs
+            addStepLog(stepId, 'recovery', 'Recovery needed - please refresh page to see options');
+            return;
+        }
+        
+        // Set up event handlers for the recovery options
+        try {
+            setupInlineRecoveryHandlers(recoveryContainer);
+        } catch (handlerError) {
+            console.error('Failed to setup recovery handlers:', handlerError);
+        }
+        
+        console.log('Inline recovery options displayed for step:', stepId);
+        
+    } catch (error) {
+        console.error('Error in showRecoveryDialog:', error);
+        // Ultimate fallback: add to step logs and show alert
+        addStepLog(stepId, 'error', `Recovery error: ${error.message}`);
+        alert(`Step ${stepId} failed. Please refresh the page and try again. Error: ${failureContext?.errorMessage || 'Unknown error'}`);
+    }
+}
+
+function createInlineRecoveryHTML(failureContext, recoveryOptions, stepId) {
+    const aiAnalysisSection = failureContext.aiAnalysis ? `
+        <div class="recovery-analysis">
+            <div class="analysis-item">
+                <strong>Root Cause:</strong> ${escapeHtml(failureContext.aiAnalysis.rootCause || 'Not available')}
+            </div>
+            <div class="analysis-item">
+                <strong>Recommendation:</strong> ${escapeHtml(failureContext.aiAnalysis.recommendation || 'Not available')}
+            </div>
+        </div>
+    ` : '';
+    
+    const optionsHTML = recoveryOptions && recoveryOptions.length > 0 ? 
+        recoveryOptions.map((option, index) => {
+            const successProb = Math.round((option.successProbability || 0) * 100);
+            const riskLevel = (option.riskLevel || 'medium').toLowerCase();
+            
+            return `
+                <div class="inline-recovery-option" data-option-index="${index}">
+                    <div class="option-header">
+                        <div class="option-action">${escapeHtml(option.action || 'Unknown action')}</div>
+                        <div class="option-metrics">
+                            <span class="success-prob">${successProb}% Success</span>
+                            <span class="risk-level ${riskLevel}">${escapeHtml(option.riskLevel || 'Medium')} Risk</span>
+                        </div>
+                    </div>
+                    <div class="option-reasoning">${escapeHtml(option.reasoning || 'No reasoning provided')}</div>
+                    ${option.newTool || option.modifiedParameters ? `
+                        <div class="option-details">
+                            ${option.newTool ? `New Tool: ${escapeHtml(option.newTool)}` : ''}
+                            ${option.modifiedParameters ? ` | Parameters: ${escapeHtml(JSON.stringify(option.modifiedParameters))}` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('') : '<div class="no-options">No recovery options available</div>';
+    
+    return `
+        <div class="recovery-step">
+            <div class="recovery-header">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span class="recovery-title">Step Failed - Recovery Options Available</span>
+            </div>
+            
+            <div class="failure-details">
+                <div class="failure-info">
+                    <strong>Error:</strong> ${escapeHtml(failureContext.errorMessage || 'Unknown error')}
+                </div>
+                <div class="step-info">
+                    <strong>Step:</strong> ${escapeHtml(failureContext.stepName || 'Unknown')} | 
+                    <strong>Tool:</strong> ${escapeHtml(failureContext.toolName || 'Unknown')}
+                </div>
+            </div>
+            
+            ${aiAnalysisSection}
+            
+            <div class="recovery-options-section">
+                <div class="options-header">Choose Recovery Action:</div>
+                <div class="recovery-options-list">
+                    ${optionsHTML}
+                    
+                    <div class="inline-recovery-option" data-option-index="skip">
+                        <div class="option-header">
+                            <div class="option-action">Skip This Step</div>
+                            <div class="option-metrics">
+                                <span class="risk-level medium">Medium Risk</span>
+                            </div>
+                        </div>
+                        <div class="option-reasoning">Skip this step and continue with the next step in the plan.</div>
+                        <div class="option-details">Note: May affect steps that depend on this step's output.</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="recovery-actions">
+                <button type="button" class="btn-recovery btn-abort" onclick="abortExecution()">
+                    <i class="fas fa-times"></i> Abort Execution
+                </button>
+                <button type="button" class="btn-recovery btn-proceed" disabled data-step-id="${stepId}">
+                    <i class="fas fa-play"></i> Proceed with Selected Option
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function setupInlineRecoveryHandlers(container) {
+    const options = container.querySelectorAll('.inline-recovery-option');
+    const proceedButton = container.querySelector('.btn-proceed');
+    
+    console.log('Setting up inline recovery handlers:', {
+        optionsFound: options.length,
+        proceedButtonFound: !!proceedButton
+    });
+    
+    options.forEach(option => {
+        option.addEventListener('click', function() {
+            // Remove selected class from all options in this container
+            options.forEach(opt => opt.classList.remove('selected'));
+            
+            // Add selected class to clicked option
+            this.classList.add('selected');
+            
+            // Enable proceed button
+            if (proceedButton) {
+                proceedButton.disabled = false;
+            }
+            
+            console.log('Recovery option selected:', this.getAttribute('data-option-index'));
+        });
+    });
+    
+    // Set up proceed button handler
+    if (proceedButton) {
+        proceedButton.addEventListener('click', function() {
+            const selectedOption = container.querySelector('.inline-recovery-option.selected');
+            if (!selectedOption) {
+                alert('Please select a recovery option');
+                return;
+            }
+            
+            const optionIndex = selectedOption.getAttribute('data-option-index');
+            const stepId = this.getAttribute('data-step-id');
+            
+            proceedWithRecovery(optionIndex, stepId, container);
+        });
+    }
+}
+
+function proceedWithRecovery(optionIndex, stepId, container) {
+    console.log('Proceeding with recovery:', { optionIndex, stepId });
+    
+    // Show recovery progress inline
+    container.innerHTML = `
+        <div class="recovery-step recovery-in-progress">
+            <div class="recovery-header">
+                <i class="fas fa-sync-alt fa-spin"></i>
+                <span class="recovery-title">Applying Recovery Strategy...</span>
+            </div>
+            <div class="recovery-progress-info">
+                Selected: ${optionIndex === 'skip' ? 'Skip Step' : `Option ${parseInt(optionIndex) + 1}`}
+            </div>
+        </div>
+    `;
+    
+    // Send recovery decision to server via WebSocket
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        const message = {
+            type: 'recovery_decision',
+            stepId: stepId,
+            selectedOptionIndex: optionIndex,
+            timestamp: new Date().toISOString()
+        };
+        
+        websocket.send(JSON.stringify(message));
+        addGlobalExecutionLog('info', `Recovery option selected: ${optionIndex === 'skip' ? 'Skip Step' : 'Option ' + (parseInt(optionIndex) + 1)}`);
+    } else {
+        // Fallback to HTTP API if WebSocket is not available
+        sendRecoveryDecisionHTTP(stepId, optionIndex);
+    }
+    
+    // Reset recovery context
+    currentRecoveryContext = null;
+}
+
+// Helper function to escape HTML to prevent XSS
+function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') return String(unsafe || '');
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function abortExecution() {
+    const stepId = currentRecoveryContext ? currentRecoveryContext.stepId : null;
+    
+    // Remove any inline recovery containers
+    const recoveryContainers = document.querySelectorAll('.inline-recovery-container');
+    recoveryContainers.forEach(container => container.remove());
+    
+    // Send abort decision to server via WebSocket
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        const message = {
+            type: 'recovery_abort',
+            stepId: stepId,
+            timestamp: new Date().toISOString()
+        };
+        
+        websocket.send(JSON.stringify(message));
+        addGlobalExecutionLog('error', 'Execution aborted by user during recovery');
+    } else {
+        // Fallback to HTTP API if WebSocket is not available
+        sendRecoveryAbortHTTP(stepId);
+    }
+    
+    // Reset recovery context
+    currentRecoveryContext = null;
+    
+    // Update execution status
+    updateExecutionStatus('Execution aborted');
+    stopExecutionTimer();
+}
+
+async function sendRecoveryDecisionHTTP(stepId, optionIndex) {
+    try {
+        await apiCall('/agent/recovery-decision', {
+            method: 'POST',
+            body: JSON.stringify({
+                stepId: stepId,
+                selectedOptionIndex: optionIndex
+            })
+        });
+    } catch (error) {
+        console.error('Failed to send recovery decision:', error);
+        addGlobalExecutionLog('error', 'Failed to communicate recovery decision to server');
+    }
+}
+
+async function sendRecoveryAbortHTTP(stepId) {
+    try {
+        await apiCall('/agent/recovery-abort', {
+            method: 'POST',
+            body: JSON.stringify({
+                stepId: stepId
+            })
+        });
+    } catch (error) {
+        console.error('Failed to send recovery abort:', error);
+        addGlobalExecutionLog('error', 'Failed to communicate recovery abort to server');
     }
 }

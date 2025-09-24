@@ -569,15 +569,6 @@ body {
     border-top: 1px solid #dee2e6;
 }
 
-/* Execution Progress Styles */
-.execution-progress {
-    margin-top: 20px;
-    padding: 20px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border: 2px solid #28a745;
-}
-
 .progress-header {
     display: flex;
     justify-content: space-between;
@@ -611,53 +602,6 @@ body {
     height: 100%;
     background: linear-gradient(90deg, #28a745, #20c997);
     transition: width 0.3s ease;
-}
-
-.execution-logs {
-    max-height: 300px;
-    overflow-y: auto;
-    background: #2c3e50;
-    color: #ecf0f1;
-    padding: 15px;
-    border-radius: 6px;
-    font-family: 'Courier New', monospace;
-    font-size: 0.9em;
-    line-height: 1.4;
-}
-
-.log-entry {
-    margin-bottom: 8px;
-    padding: 4px 0;
-    border-bottom: 1px solid #34495e;
-}
-
-.log-entry:last-child {
-    border-bottom: none;
-}
-
-.log-entry .timestamp {
-    color: #95a5a6;
-    margin-right: 10px;
-}
-
-.log-entry .level-info {
-    color: #3498db;
-}
-
-.log-entry .level-success {
-    color: #2ecc71;
-}
-
-.log-entry .level-warning {
-    color: #f39c12;
-}
-
-.log-entry .level-error {
-    color: #e74c3c;
-}
-
-.log-entry .message {
-    color: #ecf0f1;
 }
 
 /* Step Status Indicators */
@@ -798,4 +742,596 @@ body {
     border-radius: 4px;
     margin: 10px 0;
     border: 1px solid #f5c6cb;
+}
+
+/* Step Status Indicators */
+.step-status.recovery-pending {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.step-status.recovery-in-progress {
+    background: #cce5ff;
+    color: #004085;
+}
+
+.step-status.recovery-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.step-status.recovery-failed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Inline Recovery Styles */
+.inline-recovery-container {
+    margin: 15px 0;
+    background: linear-gradient(135deg, #fff8dc 0%, #f8f9fa 100%);
+    border: 2px solid #ffc107;
+    border-radius: 12px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2);
+    animation: slideInFromTop 0.3s ease-out;
+}
+
+@keyframes slideInFromTop {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.recovery-step {
+    padding: 20px;
+}
+
+.recovery-step.recovery-in-progress {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f8f9fa 100%);
+    border-color: #2196f3;
+}
+
+.recovery-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.recovery-header i {
+    color: #ff8c00;
+    font-size: 1.2rem;
+}
+
+.recovery-step.recovery-in-progress .recovery-header i {
+    color: #2196f3;
+}
+
+.recovery-title {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #495057;
+}
+
+.failure-details {
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 1px solid #dee2e6;
+}
+
+.failure-info {
+    color: #dc3545;
+    font-weight: 500;
+    margin-bottom: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f8d7da;
+}
+
+.step-info {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.recovery-analysis {
+    background: #e7f3ff;
+    border: 1px solid #b8daff;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.analysis-item {
+    margin-bottom: 10px;
+}
+
+.analysis-item:last-child {
+    margin-bottom: 0;
+}
+
+.analysis-item strong {
+    color: #0056b3;
+}
+
+.recovery-options-section {
+    margin-bottom: 20px;
+}
+
+.options-header {
+    font-weight: bold;
+    color: #495057;
+    margin-bottom: 12px;
+    font-size: 1rem;
+}
+
+.recovery-options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.inline-recovery-option {
+    background: white;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.inline-recovery-option:hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+.inline-recovery-option.selected {
+    border-color: #28a745;
+    background: linear-gradient(135deg, #d4edda 0%, #ffffff 100%);
+    box-shadow: 0 3px 10px rgba(40, 167, 69, 0.2);
+}
+
+.option-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.option-action {
+    font-weight: bold;
+    color: #495057;
+    font-size: 0.95rem;
+}
+
+.option-metrics {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.success-prob {
+    background: #28a745;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.risk-level {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.risk-level.low {
+    background: #d4edda;
+    color: #155724;
+}
+
+.risk-level.medium {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.risk-level.high {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.option-reasoning {
+    color: #666;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin-bottom: 6px;
+}
+
+.option-details {
+    font-size: 0.75rem;
+    color: #888;
+    font-style: italic;
+}
+
+.recovery-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding-top: 15px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.btn-recovery {
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 120px;
+    justify-content: center;
+}
+
+.btn-abort {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-abort:hover {
+    background: #c82333;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+.btn-proceed {
+    background: #28a745;
+    color: white;
+}
+
+.btn-proceed:hover:not(:disabled) {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.btn-proceed:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.recovery-progress-info {
+    color: #666;
+    font-style: italic;
+    margin-top: 10px;
+}
+
+.no-options {
+    background: #f8f9fa;
+    color: #6c757d;
+    padding: 15px;
+    text-align: center;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+/* Mobile responsiveness for inline recovery */
+@media (max-width: 768px) {
+    .inline-recovery-container {
+        margin: 10px 0;
+    }
+    
+    .recovery-step {
+        padding: 15px;
+    }
+    
+    .recovery-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .btn-recovery {
+        width: 100%;
+        min-width: unset;
+    }
+    
+    .option-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    
+    .option-metrics {
+        align-self: flex-end;
+    }
+}
+
+/* Integrated Execution Plan Styles */
+.execution-header {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.execution-status-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.execution-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 500;
+}
+
+.execution-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.integrated-step {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    transition: box-shadow 0.2s ease;
+}
+
+.integrated-step:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.step-header {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    background: #fafafa;
+    border-bottom: 1px solid #eee;
+}
+
+.step-header .step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #6c757d;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin-right: 15px;
+    font-size: 0.9rem;
+}
+
+.step-info {
+    flex: 1;
+}
+
+.step-info .step-name {
+    font-weight: 600;
+    font-size: 1rem;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+.step-info .step-description {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.step-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.expand-logs {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 4px;
+    color: #666;
+    transition: all 0.2s ease;
+}
+
+.expand-logs:hover {
+    background: #e9ecef;
+    color: #333;
+}
+
+.step-logs {
+    border-top: 1px solid #eee;
+    background: #f8f9fa;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.logs-content {
+    padding: 10px 15px;
+}
+
+.step-log-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.step-log-entry:last-child {
+    border-bottom: none;
+}
+
+.step-log-entry .timestamp {
+    color: #666;
+    font-size: 0.8rem;
+    min-width: 65px;
+}
+
+.step-log-entry .level {
+    font-weight: 600;
+    min-width: 60px;
+    font-size: 0.8rem;
+}
+
+.step-log-entry.level-info .level {
+    color: #007bff;
+}
+
+.step-log-entry.level-success .level {
+    color: #28a745;
+}
+
+.step-log-entry.level-error .level {
+    color: #dc3545;
+}
+
+.step-log-entry.level-recovery .level {
+    color: #ffc107;
+}
+
+.step-log-entry.level-recovery-success .level {
+    color: #28a745;
+}
+
+.step-log-entry.level-recovery-failed .level {
+    color: #dc3545;
+}
+
+.step-log-entry .message {
+    flex: 1;
+    line-height: 1.3;
+}
+
+/* Step Status Updates for Integrated Design */
+.integrated-step .step-status.running {
+    background: #cce5ff;
+    color: #004085;
+}
+
+.integrated-step .step-status.running::before {
+    content: "🔄 ";
+}
+
+.integrated-step .step-status.completed {
+    background: #d4edda;
+    color: #155724;
+}
+
+.integrated-step .step-status.completed::before {
+    content: "✅ ";
+}
+
+.integrated-step .step-status.failed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.integrated-step .step-status.failed::before {
+    content: "❌ ";
+}
+
+.integrated-step .step-status.recovery-pending {
+    background: #fff3cd;
+    color: #856404;
+    animation: pulse 2s infinite;
+}
+
+.integrated-step .step-status.recovery-pending::before {
+    content: "🔧 ";
+}
+
+.integrated-step .step-status.recovery-in-progress {
+    background: #cce5ff;
+    color: #004085;
+}
+
+.integrated-step .step-status.recovery-in-progress::before {
+    content: "⚙️ ";
+}
+
+.integrated-step .step-status.recovery-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.integrated-step .step-status.recovery-success::before {
+    content: "🔧✅ ";
+}
+
+.integrated-step .step-status.recovery-failed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.integrated-step .step-status.recovery-failed::before {
+    content: "🔧❌ ";
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Mobile Responsive for Integrated Steps */
+@media (max-width: 768px) {
+    .step-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px;
+    }
+    
+    .step-header .step-number {
+        margin-right: 0;
+        margin-bottom: 5px;
+    }
+    
+    .step-controls {
+        align-self: flex-end;
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .execution-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    
+    .step-log-entry {
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .step-log-entry .timestamp,
+    .step-log-entry .level {
+        min-width: unset;
+    }
 }

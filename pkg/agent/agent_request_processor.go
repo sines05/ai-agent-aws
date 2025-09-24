@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -256,13 +255,6 @@ func (a *StateAwareAgent) validateDecision(decision *types.AgentDecision, contex
 			}
 		}
 	}
-
-	// if a.config.EnableDebug {
-	// 	// Validate execution plan for hardcoded AWS resource IDs
-	// 	if err := a.validateExecutionPlanDependencies(decision.ExecutionPlan); err != nil {
-	// 		return fmt.Errorf("execution plan validation failed: %w", err)
-	// 	}
-	// }
 
 	return nil
 }
@@ -617,109 +609,4 @@ func (a *StateAwareAgent) parseAIResponseWithPlan(decisionID, request, response 
 		ExecutionPlan: executionPlan,
 		Timestamp:     time.Now(),
 	}, nil
-}
-
-// validateExecutionPlanDependencies validates execution plan to detect hardcoded AWS resource IDs
-func (a *StateAwareAgent) validateExecutionPlanDependencies(executionPlan []*types.ExecutionPlanStep) error {
-	a.Logger.Debug("Validating execution plan for hardcoded AWS resource IDs")
-
-	// AWS resource ID patterns to detect - ONLY match actual AWS resource IDs, not parameter values
-	awsResourcePatterns := map[string]string{
-		"vpc":              `^vpc-[0-9a-f]{8,17}$`,
-		"subnet":           `^subnet-[0-9a-f]{8,17}$`,
-		"security-group":   `^sg-[0-9a-f]{8,17}$`,
-		"instance":         `^i-[0-9a-f]{8,17}$`,
-		"ami":              `^ami-[0-9a-f]{8,17}$`,
-		"load-balancer":    `^arn:aws:elasticloadbalancing:.*:.*:loadbalancer/.*$`,
-		"target-group":     `^arn:aws:elasticloadbalancing:.*:.*:targetgroup/.*$`,
-		"launch-template":  `^lt-[0-9a-f]{8,17}$`,
-		"route-table":      `^rtb-[0-9a-f]{8,17}$`,
-		"internet-gateway": `^igw-[0-9a-f]{8,17}$`,
-		"nat-gateway":      `^nat-[0-9a-f]{8,17}$`,
-		"elastic-ip":       `^eipalloc-[0-9a-f]{8,17}$`,
-	}
-
-	var hardcodedResources []string
-
-	for _, step := range executionPlan {
-		// Check tool parameters for hardcoded AWS resource IDs
-		if step.Parameters != nil {
-			hardcoded := a.detectHardcodedResourceIDs(step.Parameters, awsResourcePatterns, step.ID)
-			hardcodedResources = append(hardcodedResources, hardcoded...)
-		}
-	}
-
-	if len(hardcodedResources) > 0 {
-		a.Logger.WithFields(map[string]interface{}{
-			"hardcoded_resources": hardcodedResources,
-		}).Error("Detected hardcoded AWS resource IDs in execution plan")
-
-		return fmt.Errorf("execution plan contains hardcoded AWS resource IDs that may not exist: %s. Use step dependency references like {{step-create-sg.resourceId}} instead", strings.Join(hardcodedResources, ", "))
-	}
-
-	return nil
-}
-
-// detectHardcodedResourceIDs recursively checks for hardcoded AWS resource IDs in parameters
-func (a *StateAwareAgent) detectHardcodedResourceIDs(params map[string]interface{}, patterns map[string]string, stepID string) []string {
-	var hardcodedIDs []string
-
-	for key, value := range params {
-		switch v := value.(type) {
-		case string:
-			// Skip step references (they start with {{ and end with }})
-			if strings.HasPrefix(v, "{{") && strings.HasSuffix(v, "}}") {
-				continue
-			}
-
-			// Check against AWS resource patterns
-			for resourceType, pattern := range patterns {
-				if matched, _ := regexp.MatchString(pattern, v); matched {
-					hardcodedID := fmt.Sprintf("%s:%s (in %s.%s)", resourceType, v, stepID, key)
-					hardcodedIDs = append(hardcodedIDs, hardcodedID)
-
-					a.Logger.WithFields(map[string]interface{}{
-						"step_id":       stepID,
-						"parameter":     key,
-						"value":         v,
-						"resource_type": resourceType,
-					}).Warn("Detected hardcoded AWS resource ID")
-				}
-			}
-
-		case []interface{}:
-			// Handle arrays (like securityGroupIds)
-			for i, item := range v {
-				if itemStr, ok := item.(string); ok {
-					// Skip step references
-					if strings.HasPrefix(itemStr, "{{") && strings.HasSuffix(itemStr, "}}") {
-						continue
-					}
-
-					// Check against AWS resource patterns
-					for resourceType, pattern := range patterns {
-						if matched, _ := regexp.MatchString(pattern, itemStr); matched {
-							hardcodedID := fmt.Sprintf("%s:%s (in %s.%s[%d])", resourceType, itemStr, stepID, key, i)
-							hardcodedIDs = append(hardcodedIDs, hardcodedID)
-
-							a.Logger.WithFields(map[string]interface{}{
-								"step_id":       stepID,
-								"parameter":     key,
-								"array_index":   i,
-								"value":         itemStr,
-								"resource_type": resourceType,
-							}).Warn("Detected hardcoded AWS resource ID in array")
-						}
-					}
-				}
-			}
-
-		case map[string]interface{}:
-			// Recursive check for nested maps
-			nestedHardcoded := a.detectHardcodedResourceIDs(v, patterns, stepID)
-			hardcodedIDs = append(hardcodedIDs, nestedHardcoded...)
-		}
-	}
-
-	return hardcodedIDs
 }
