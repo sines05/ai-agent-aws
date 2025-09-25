@@ -1,6 +1,12 @@
 package utilities
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+)
 
 // ========== Helper Functions ==========
 
@@ -72,4 +78,34 @@ func GetBoolFromMap(params map[string]interface{}, key string, defaultVal bool) 
 		return val
 	}
 	return defaultVal
+}
+
+// getMapKeys returns the keys of a map for debugging purposes
+func GetMapKeys(m map[string]interface{}) []string {
+	if m == nil {
+		return []string{}
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// isInternalField checks if a field name is for internal system use
+func IsInternalField(fieldName string) bool {
+	internalFields := []string{"status", "message", "timestamp", "duration", "metadata", "error"}
+	fieldLower := strings.ToLower(fieldName)
+
+	for _, internal := range internalFields {
+		if fieldLower == internal {
+			return true
+		}
+	}
+	return false
+}
+
+func Title(text string) string {
+	c := cases.Title(language.English)
+	return c.String(text)
 }

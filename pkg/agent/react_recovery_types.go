@@ -102,13 +102,22 @@ type AIRecoveryAnalysis struct {
 
 // RecoveryOption represents a possible recovery action suggested by the AI
 type RecoveryOption struct {
-	Action             string                 `json:"action"` // "retry_same", "try_alternative", "modify_params", "skip_step"
+	Action             string                 `json:"action"` // "retry_same", "try_alternative", "modify_params", "skip_step", "multi_step_recovery"
 	ToolName           string                 `json:"tool_name,omitempty"`
 	Parameters         map[string]interface{} `json:"parameters,omitempty"`
 	Reasoning          string                 `json:"reasoning"`
-	SuccessProbability float64                `json:"success_probability"`    // 0.0 to 1.0
-	RiskLevel          string                 `json:"risk_level"`             // "low", "medium", "high"
-	Dependencies       []string               `json:"dependencies,omitempty"` // Steps that must be completed first
+	SuccessProbability float64                `json:"success_probability"`       // 0.0 to 1.0
+	RiskLevel          string                 `json:"risk_level"`                // "low", "medium", "high"
+	Dependencies       []string               `json:"dependencies,omitempty"`    // Steps that must be completed first
+	MultiStepPlan      []*RecoveryStep        `json:"multi_step_plan,omitempty"` // For multi-step recovery scenarios
+}
+
+// RecoveryStep represents a single step in a multi-step recovery plan
+type RecoveryStep struct {
+	StepOrder  int                    `json:"step_order"`
+	ToolName   string                 `json:"tool_name"`
+	Parameters map[string]interface{} `json:"parameters,omitempty"`
+	Purpose    string                 `json:"purpose"`
 }
 
 // ========== Enhanced Agent Interface ==========

@@ -482,12 +482,12 @@ func (a *StateAwareAgent) executeExecutionStep(ctx context.Context, planStep *ty
 	switch planStep.Action {
 	case "create":
 		result, err = a.executeCreateAction(planStep, progressChan, execution.ID)
-	case "update":
-		result, err = a.executeUpdateAction(ctx, planStep, progressChan, execution.ID)
-	case "delete":
-		result, err = a.executeDeleteAction(planStep, progressChan, execution.ID)
-	case "validate":
-		result, err = a.executeValidateAction(planStep, progressChan, execution.ID)
+	// case "update":
+	// 	result, err = a.executeUpdateAction(ctx, planStep, progressChan, execution.ID)
+	// case "delete":
+	// 	result, err = a.executeDeleteAction(planStep, progressChan, execution.ID)
+	// case "validate":
+	// 	result, err = a.executeValidateAction(planStep, progressChan, execution.ID)
 	case "api_value_retrieval":
 		result, err = a.executeAPIValueRetrieval(ctx, planStep, progressChan, execution.ID)
 	default:

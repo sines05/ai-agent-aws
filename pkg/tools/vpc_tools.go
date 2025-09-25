@@ -236,6 +236,113 @@ func (t *CreateSubnetTool) Execute(ctx context.Context, arguments map[string]int
 	return t.CreateSuccessResponse(message, data)
 }
 
+// GetDefaultVPCTool implements getting the default VPC using the VPC adapter
+type GetDefaultVPCTool struct {
+	*BaseTool
+	client *aws.Client
+}
+
+// NewGetDefaultVPCTool creates a new get default VPC tool
+func NewGetDefaultVPCTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+	inputSchema := map[string]interface{}{
+		"type":       "object",
+		"properties": map[string]interface{}{},
+	}
+
+	baseTool := NewBaseTool(
+		"get-default-vpc",
+		"Get the default VPC in the current region",
+		"networking",
+		inputSchema,
+		logger,
+	)
+
+	return &GetDefaultVPCTool{
+		BaseTool: baseTool,
+		client:   awsClient,
+	}
+}
+
+// Execute gets the default VPC using the AWS client
+func (t *GetDefaultVPCTool) Execute(ctx context.Context, arguments map[string]interface{}) (*mcp.CallToolResult, error) {
+	// Get default VPC ID using AWS client
+	vpcID, err := t.client.GetDefaultVPC(ctx)
+	if err != nil {
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to get default VPC: %s", err.Error()))
+	}
+
+	// Get full VPC details using the adapter
+	adapter := adapters.NewVPCAdapter(t.client, t.logger)
+	vpc, err := adapter.Get(ctx, vpcID)
+	if err != nil {
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to get VPC details for %s: %s", vpcID, err.Error()))
+	}
+
+	// Return success result with structured data
+	message := fmt.Sprintf("Successfully retrieved default VPC %s", vpc.ID)
+	data := map[string]interface{}{
+		"vpcId":    vpc.ID,
+		"vpc":      vpc,
+		"resource": vpc,
+	}
+
+	return t.CreateSuccessResponse(message, data)
+}
+
+// GetDefaultSubnetTool implements getting the default subnet using the Subnet adapter
+type GetDefaultSubnetTool struct {
+	*BaseTool
+	client *aws.Client
+}
+
+// NewGetDefaultSubnetTool creates a new get default subnet tool
+func NewGetDefaultSubnetTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+	inputSchema := map[string]interface{}{
+		"type":       "object",
+		"properties": map[string]interface{}{},
+	}
+
+	baseTool := NewBaseTool(
+		"get-default-subnet",
+		"Get the default subnet in the current region",
+		"networking",
+		inputSchema,
+		logger,
+	)
+
+	return &GetDefaultSubnetTool{
+		BaseTool: baseTool,
+		client:   awsClient,
+	}
+}
+
+// Execute gets the default subnet using the AWS client
+func (t *GetDefaultSubnetTool) Execute(ctx context.Context, arguments map[string]interface{}) (*mcp.CallToolResult, error) {
+	// Get default subnet info using AWS client
+	subnetInfo, err := t.client.GetDefaultSubnet(ctx)
+	if err != nil {
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to get default subnet: %s", err.Error()))
+	}
+
+	// Get full subnet details using the adapter
+	adapter := adapters.NewSubnetAdapter(t.client, t.logger)
+	subnet, err := adapter.Get(ctx, subnetInfo.SubnetID)
+	if err != nil {
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to get subnet details for %s: %s", subnetInfo.SubnetID, err.Error()))
+	}
+
+	// Return success result with structured data
+	message := fmt.Sprintf("Successfully retrieved default subnet %s in VPC %s", subnet.ID, subnetInfo.VpcID)
+	data := map[string]interface{}{
+		"subnetId": subnet.ID,
+		"vpcId":    subnetInfo.VpcID,
+		"subnet":   subnet,
+		"resource": subnet,
+	}
+
+	return t.CreateSuccessResponse(message, data)
+}
+
 // Helper function for boolean values
 func getBoolValue(params map[string]interface{}, key string, defaultValue bool) bool {
 	if value, ok := params[key].(bool); ok {

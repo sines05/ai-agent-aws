@@ -30,11 +30,11 @@ type wsConnection struct {
 
 // WebServer handles HTTP requests for the AI agent UI
 type WebServer struct {
-	router     *mux.Router
-	templates  *template.Template
-	staticPath string
-	upgrader   websocket.Upgrader
-	aiAgent    *agent.StateAwareAgent
+	router    *mux.Router
+	templates *template.Template
+
+	upgrader websocket.Upgrader
+	aiAgent  *agent.StateAwareAgent
 
 	// WebSocket connection management
 	connections map[string]*wsConnection
@@ -931,43 +931,4 @@ func (ws *WebServer) RequestRecoveryDecision(stepID string, failureContext map[s
 		ws.recoveryMutex.Unlock()
 		return nil, fmt.Errorf("recovery decision timeout after 10 minutes")
 	}
-}
-
-// Recovery-related broadcasting methods
-
-// broadcastStepRecoveryNeeded sends recovery request to all connected clients
-func (ws *WebServer) broadcastStepRecoveryNeeded(stepID string, failureContext interface{}, recoveryOptions interface{}) {
-	ws.broadcastUpdate(map[string]interface{}{
-		"type":            "step_recovery_needed",
-		"stepId":          stepID,
-		"failureContext":  failureContext,
-		"recoveryOptions": recoveryOptions,
-	})
-}
-
-// broadcastStepRecoveryStarted notifies clients that recovery has started
-func (ws *WebServer) broadcastStepRecoveryStarted(stepID, message string) {
-	ws.broadcastUpdate(map[string]interface{}{
-		"type":    "step_recovery_started",
-		"stepId":  stepID,
-		"message": message,
-	})
-}
-
-// broadcastStepRecoveryCompleted notifies clients that recovery completed
-func (ws *WebServer) broadcastStepRecoveryCompleted(stepID, message string) {
-	ws.broadcastUpdate(map[string]interface{}{
-		"type":    "step_recovery_completed",
-		"stepId":  stepID,
-		"message": message,
-	})
-}
-
-// broadcastStepRecoveryFailed notifies clients that recovery failed
-func (ws *WebServer) broadcastStepRecoveryFailed(stepID, message string) {
-	ws.broadcastUpdate(map[string]interface{}{
-		"type":    "step_recovery_failed",
-		"stepId":  stepID,
-		"message": message,
-	})
 }

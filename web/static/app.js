@@ -135,21 +135,77 @@ function handleWebSocketMessage(data) {
         // Remove any recovery progress indicators
         const progressElements = document.querySelectorAll('.recovery-progress');
         progressElements.forEach(el => el.remove());
+    } else if (data.type === 'step_recovery_progress') {
+        // Handle multi-step recovery progress updates
+        addStepLog(data.stepId, 'recovery-progress', data.message || 'Recovery progress');
+        
+        // Update or create progress indicator in the recovery container
+        const recoveryContainer = document.querySelector(`[data-step-id="${data.stepId}"] + .inline-recovery-container`);
+        if (recoveryContainer) {
+            updateMultiStepProgress(recoveryContainer, data.message, data.stepId);
+        }
     } else if (data.type === 'step_recovery_completed') {
         // New: Handle recovery completion
         addStepLog(data.stepId, 'recovery-success', data.message || 'Recovery completed');
         addGlobalExecutionLog('recovery-success', data.message || `Recovery completed for step ${data.stepId}`);
-        updateStepStatus(data.stepId, 'recovery-success');
+        updateStepStatus(data.stepId, 'completed'); // Mark the original step as completed
+        
+        // Remove recovery progress UI and loading indicators
+        const recoveryContainer = document.querySelector(`[data-step-id="${data.stepId}"] + .inline-recovery-container`);
+        if (recoveryContainer) {
+            recoveryContainer.remove();
+        }
     } else if (data.type === 'step_recovery_failed') {
         // New: Handle recovery failure
         addStepLog(data.stepId, 'recovery-failed', data.message || 'Recovery failed');
         addGlobalExecutionLog('recovery-failed', data.message || `Recovery failed for step ${data.stepId}`);
-        updateStepStatus(data.stepId, 'recovery-failed');
+        updateStepStatus(data.stepId, 'failed'); // Mark the original step as failed
+        
+        // Remove recovery progress UI and loading indicators
+        const recoveryContainer = document.querySelector(`[data-step-id="${data.stepId}"] + .inline-recovery-container`);
+        if (recoveryContainer) {
+            // Show failure message in recovery container before removing it
+            recoveryContainer.innerHTML = `
+                <div class="recovery-step recovery-failed-final">
+                    <div class="recovery-header">
+                        <i class="fas fa-times-circle"></i>
+                        <span class="recovery-title">Recovery Failed</span>
+                    </div>
+                    <div class="recovery-failure-info">
+                        ${escapeHtml(data.message || 'Recovery attempts were unsuccessful')}
+                    </div>
+                </div>
+            `;
+            
+            // Remove the container after a short delay to let user see the failure message
+            setTimeout(() => {
+                if (recoveryContainer.parentNode) {
+                    recoveryContainer.remove();
+                }
+            }, 3000);
+        }
+        
+        // Remove any other recovery progress indicators
+        const progressElements = document.querySelectorAll('.recovery-progress, .recovery-in-progress');
+        progressElements.forEach(el => el.remove());
     } else if (data.type === 'execution_completed') {
         addGlobalExecutionLog('success', data.message);
         updateExecutionStatus('Execution completed successfully');
         updateExecutionProgress(100);
         stopExecutionTimer();
+        
+        // Update the execution plan UI to show success state
+        const executionPlan = document.getElementById('executionPlan');
+        if (executionPlan) {
+            executionPlan.classList.add('execution-success');
+        }
+        
+        // Update execution header to show success
+        const executionStatus = document.getElementById('executionStatus');
+        if (executionStatus) {
+            executionStatus.className = 'execution-status-success';
+        }
+        
         // Auto-refresh state after execution to show new infrastructure
         if (currentTab === 'state-tab') {
             setTimeout(() => loadState(true), 1000); // Small delay to allow AWS to propagate changes, force fresh discovery
@@ -889,7 +945,7 @@ function displayExecutionPlan(executionPlan, decision) {
                         <div class="step-description">${step.description}</div>
                     </div>
                     <div class="step-controls">
-                        <div class="step-status pending">Pending</div>
+                        <div class="step-status pending"></div>
                         <button class="expand-logs" onclick="toggleStepLogs('${step.id}')" style="display: none;">
                             <i class="fas fa-chevron-down"></i>
                         </button>
@@ -990,8 +1046,15 @@ function updateStepStatus(stepId, status) {
         const expandButton = stepElement.querySelector('.expand-logs');
         
         if (statusElement) {
-            statusElement.className = `step-status ${status}`;
-            statusElement.textContent = status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ');
+            // Add a subtle fade transition when changing status
+            statusElement.style.opacity = '0.7';
+            setTimeout(() => {
+                // Remove old classes and add new status
+                statusElement.className = `step-status ${status}`;
+                // Don't set text content - let CSS handle icons
+                statusElement.textContent = '';
+                statusElement.style.opacity = '1';
+            }, 150);
         }
         
         // Show expand button when step is running or has logs
@@ -1144,22 +1207,57 @@ function createInlineRecoveryHTML(failureContext, recoveryOptions, stepId) {
             const successProb = Math.round((option.successProbability || 0) * 100);
             const riskLevel = (option.riskLevel || 'medium').toLowerCase();
             
+            // Check if this is a multi-step recovery option
+            const isMultiStep = option.action === 'multi_step_recovery' && option.multiStepPlan && option.multiStepPlan.length > 0;
+            const multiStepDetails = isMultiStep ? `
+                <div class="multi-step-details">
+                    <div class="multi-step-header">
+                        <i class="fas fa-list-ol"></i>
+                        <span>Multi-Step Recovery Plan (${option.totalSteps || option.multiStepPlan.length} steps)</span>
+                        <button class="toggle-steps-btn" type="button">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                    <div class="multi-step-list" style="display: none;">
+                        ${option.multiStepPlan.map((step, stepIndex) => `
+                            <div class="recovery-step-item">
+                                <div class="step-number">${step.stepOrder || stepIndex + 1}</div>
+                                <div class="step-content">
+                                    <div class="step-tool">${escapeHtml(step.toolName)}</div>
+                                    <div class="step-purpose">${escapeHtml(step.purpose)}</div>
+                                    ${step.parameters && Object.keys(step.parameters).length > 0 ? `
+                                        <div class="step-params">
+                                            <span class="params-label">Parameters:</span>
+                                            <span class="params-value">${escapeHtml(JSON.stringify(step.parameters, null, 2))}</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : '';
+            
             return `
-                <div class="inline-recovery-option" data-option-index="${index}">
+                <div class="inline-recovery-option ${isMultiStep ? 'multi-step-option' : ''}" data-option-index="${index}">
                     <div class="option-header">
-                        <div class="option-action">${escapeHtml(option.action || 'Unknown action')}</div>
+                        <div class="option-action">
+                            ${escapeHtml(option.action || 'Unknown action')}
+                            ${isMultiStep ? `<span class="multi-step-badge">${option.totalSteps || option.multiStepPlan.length} steps</span>` : ''}
+                        </div>
                         <div class="option-metrics">
                             <span class="success-prob">${successProb}% Success</span>
                             <span class="risk-level ${riskLevel}">${escapeHtml(option.riskLevel || 'Medium')} Risk</span>
                         </div>
                     </div>
                     <div class="option-reasoning">${escapeHtml(option.reasoning || 'No reasoning provided')}</div>
-                    ${option.newTool || option.modifiedParameters ? `
+                    ${!isMultiStep && (option.newTool || option.modifiedParameters) ? `
                         <div class="option-details">
                             ${option.newTool ? `New Tool: ${escapeHtml(option.newTool)}` : ''}
                             ${option.modifiedParameters ? ` | Parameters: ${escapeHtml(JSON.stringify(option.modifiedParameters))}` : ''}
                         </div>
                     ` : ''}
+                    ${multiStepDetails}
                 </div>
             `;
         }).join('') : '<div class="no-options">No recovery options available</div>';
@@ -1223,7 +1321,12 @@ function setupInlineRecoveryHandlers(container) {
     });
     
     options.forEach(option => {
-        option.addEventListener('click', function() {
+        option.addEventListener('click', function(e) {
+            // Don't trigger selection if clicking on toggle button
+            if (e.target.closest('.toggle-steps-btn')) {
+                return;
+            }
+            
             // Remove selected class from all options in this container
             options.forEach(opt => opt.classList.remove('selected'));
             
@@ -1236,6 +1339,27 @@ function setupInlineRecoveryHandlers(container) {
             }
             
             console.log('Recovery option selected:', this.getAttribute('data-option-index'));
+        });
+    });
+    
+    // Set up toggle handlers for multi-step details
+    const toggleButtons = container.querySelectorAll('.toggle-steps-btn');
+    toggleButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.stopPropagation(); // Prevent option selection
+            
+            const stepsList = this.closest('.multi-step-details').querySelector('.multi-step-list');
+            const icon = this.querySelector('i');
+            
+            if (stepsList.style.display === 'none' || stepsList.style.display === '') {
+                stepsList.style.display = 'block';
+                icon.className = 'fas fa-chevron-up';
+                this.closest('.multi-step-details').classList.add('expanded');
+            } else {
+                stepsList.style.display = 'none';
+                icon.className = 'fas fa-chevron-down';
+                this.closest('.multi-step-details').classList.remove('expanded');
+            }
         });
     });
     
@@ -1253,6 +1377,54 @@ function setupInlineRecoveryHandlers(container) {
             
             proceedWithRecovery(optionIndex, stepId, container);
         });
+    }
+}
+
+function updateMultiStepProgress(recoveryContainer, progressMessage, stepId) {
+    // Check if this is a recovery-in-progress container
+    const progressContainer = recoveryContainer.querySelector('.recovery-in-progress');
+    if (!progressContainer) {
+        return; // Not in progress state
+    }
+    
+    // Update or create progress details section
+    let progressDetails = progressContainer.querySelector('.multi-step-progress');
+    if (!progressDetails) {
+        progressDetails = document.createElement('div');
+        progressDetails.className = 'multi-step-progress';
+        progressContainer.appendChild(progressDetails);
+    }
+    
+    // Extract step info from progress message (format: "Recovery step X/Y: purpose")
+    const stepMatch = progressMessage.match(/Recovery step (\d+)\/(\d+): (.+)/);
+    if (stepMatch) {
+        const currentStep = stepMatch[1];
+        const totalSteps = stepMatch[2];
+        const stepPurpose = stepMatch[3];
+        
+        // Update progress display
+        progressDetails.innerHTML = `
+            <div class="progress-step-info">
+                <div class="progress-step-number">Step ${currentStep} of ${totalSteps}</div>
+                <div class="progress-step-purpose">${escapeHtml(stepPurpose)}</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${(currentStep / totalSteps) * 100}%"></div>
+                </div>
+            </div>
+        `;
+        
+        // Update the recovery title to reflect current step
+        const recoveryTitle = progressContainer.querySelector('.recovery-title');
+        if (recoveryTitle) {
+            recoveryTitle.textContent = `Executing Recovery Step ${currentStep}/${totalSteps}`;
+        }
+    } else {
+        // Fallback for generic progress messages
+        progressDetails.innerHTML = `
+            <div class="progress-step-info">
+                <div class="progress-step-purpose">${escapeHtml(progressMessage)}</div>
+            </div>
+        `;
     }
 }
 
