@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=2024091802">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
@@ -73,19 +73,6 @@
                                     <i class="fas fa-times"></i> Cancel
                                 </button>
                             </div>
-                        </div>
-
-                        <!-- Execution Progress Display -->
-                        <div id="executionProgress" class="execution-progress" style="display: none;">
-                            <h3>Execution Progress</h3>
-                            <div class="progress-header">
-                                <span id="executionStatus">Starting execution...</span>
-                                <span id="executionTimer">00:00</span>
-                            </div>
-                            <div class="progress-bar">
-                                <div id="progressFill" class="progress-fill" style="width: 0%"></div>
-                            </div>
-                            <div id="executionLogs" class="execution-logs"></div>
                         </div>
                     </div>
                 </div>
@@ -177,6 +164,6 @@
 
     <!-- Mermaid.js for diagram rendering -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2024091802"></script>
 </body>
 </html>

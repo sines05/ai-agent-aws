@@ -43,6 +43,130 @@ import (
 //   1. execution := agent.ExecuteConfirmedPlanWithDryRun(ctx, decision, progressChan, false)
 //   2. // Monitor execution through progressChan updates
 
+// ExecuteConfirmedPlanWithRecovery executes a plan with UI-coordinated recovery
+func (a *StateAwareAgent) ExecuteConfirmedPlanWithRecovery(ctx context.Context, decision *types.AgentDecision, progressChan chan<- *types.ExecutionUpdate, dryRun bool, coordinator RecoveryCoordinator) (*types.PlanExecution, error) {
+	if dryRun {
+		// Dry run doesn't need recovery coordination
+		return a.ExecuteConfirmedPlanWithDryRun(ctx, decision, progressChan, dryRun)
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"decision_id": decision.ID,
+		"action":      decision.Action,
+		"plan_steps":  len(decision.ExecutionPlan),
+	}).Info("Executing confirmed plan with recovery coordination")
+
+	// Create execution plan
+	execution := &types.PlanExecution{
+		ID:        uuid.New().String(),
+		Name:      fmt.Sprintf("Execute %s", decision.Action),
+		Status:    "running",
+		StartedAt: time.Now(),
+		Steps:     []*types.ExecutionStep{},
+		Changes:   []*types.ChangeDetection{},
+		Errors:    []string{},
+	}
+
+	// Send initial progress update
+	if progressChan != nil {
+		progressChan <- &types.ExecutionUpdate{
+			Type:        "execution_started",
+			ExecutionID: execution.ID,
+			Message:     "Starting plan execution with recovery",
+			Timestamp:   time.Now(),
+		}
+	}
+
+	// Define default recovery strategy
+	defaultRecoveryStrategy := &RecoveryStrategy{
+		MaxAttempts:          1,
+		EnableAIConsultation: true,
+		AllowToolSwapping:    true,
+		AllowParameterMod:    true,
+		TimeoutPerAttempt:    5 * time.Minute,
+	}
+
+	// Execute each step in the plan with ReAct-style recovery
+	for i, planStep := range decision.ExecutionPlan {
+		// Define a custom type for the context key
+		type contextKey string
+		const stepNumberKey contextKey = "step_number"
+
+		// Add step number to context for tracking
+		stepCtx := context.WithValue(ctx, stepNumberKey, i+1)
+
+		if progressChan != nil {
+			progressChan <- &types.ExecutionUpdate{
+				Type:        "step_started",
+				ExecutionID: execution.ID,
+				StepID:      planStep.ID,
+				Message:     fmt.Sprintf("Starting step %d/%d: %s", i+1, len(decision.ExecutionPlan), planStep.Name),
+				Timestamp:   time.Now(),
+			}
+		}
+
+		// Execute the step with ReAct-style recovery and UI coordination
+		step, err := a.ExecuteStepWithRecoveryAndCoordinator(stepCtx, planStep, execution, progressChan, defaultRecoveryStrategy, coordinator)
+		if err != nil {
+			execution.Status = "failed"
+			execution.Errors = append(execution.Errors, fmt.Sprintf("Step %s failed after recovery attempts: %v", planStep.ID, err))
+
+			if progressChan != nil {
+				progressChan <- &types.ExecutionUpdate{
+					Type:        "step_failed_final",
+					ExecutionID: execution.ID,
+					StepID:      planStep.ID,
+					Message:     fmt.Sprintf("Step failed permanently after recovery attempts: %v", err),
+					Error:       err.Error(),
+					Timestamp:   time.Now(),
+				}
+			}
+			break
+		}
+
+		execution.Steps = append(execution.Steps, step)
+
+		// 🔥 CRITICAL: Save state after each successful step
+		// This ensures that if later steps fail, we don't lose track of successfully created resources
+		a.Logger.WithField("step_id", planStep.ID).Info("Attempting to persist state after successful step")
+
+		if err := a.persistCurrentState(); err != nil {
+			a.Logger.WithError(err).WithField("step_id", planStep.ID).Error("CRITICAL: Failed to persist state after successful step - this may cause state inconsistency")
+			// Don't fail the execution for state persistence issues, but make it very visible
+		} else {
+			a.Logger.WithField("step_id", planStep.ID).Info("Successfully persisted state after step completion")
+		}
+	}
+
+	// Calculate and set final status
+	if execution.Status != "failed" {
+		execution.Status = "completed"
+	}
+
+	now := time.Now()
+	execution.CompletedAt = &now
+
+	// Send final progress update
+	if progressChan != nil {
+		progressChan <- &types.ExecutionUpdate{
+			Type:        "execution_completed",
+			ExecutionID: execution.ID,
+			Message:     fmt.Sprintf("Execution %s", execution.Status),
+			Timestamp:   time.Now(),
+		}
+	}
+
+	a.Logger.WithFields(map[string]interface{}{
+		"execution_id":   execution.ID,
+		"status":         execution.Status,
+		"total_steps":    len(execution.Steps),
+		"total_errors":   len(execution.Errors),
+		"execution_time": execution.CompletedAt.Sub(execution.StartedAt),
+	}).Info("Plan execution completed")
+
+	return execution, nil
+}
+
 // ExecuteConfirmedPlanWithDryRun executes a confirmed execution plan with a specific dry run setting
 func (a *StateAwareAgent) ExecuteConfirmedPlanWithDryRun(ctx context.Context, decision *types.AgentDecision, progressChan chan<- *types.ExecutionUpdate, dryRun bool) (*types.PlanExecution, error) {
 
@@ -93,7 +217,16 @@ func (a *StateAwareAgent) ExecuteConfirmedPlanWithDryRun(ctx context.Context, de
 	// Define a constant for the key
 	const stepNumberKey contextKey = "step_number"
 
-	// Execute each step in the plan
+	// Define default recovery strategy
+	defaultRecoveryStrategy := &RecoveryStrategy{
+		MaxAttempts:          1,
+		EnableAIConsultation: true,
+		AllowToolSwapping:    true,
+		AllowParameterMod:    true,
+		TimeoutPerAttempt:    5 * time.Minute,
+	}
+
+	// Execute each step in the plan with ReAct-style recovery
 	for i, planStep := range decision.ExecutionPlan {
 		stepCtx := context.WithValue(ctx, stepNumberKey, i+1)
 
@@ -108,18 +241,18 @@ func (a *StateAwareAgent) ExecuteConfirmedPlanWithDryRun(ctx context.Context, de
 			}
 		}
 
-		// Execute the step
-		step, err := a.executeExecutionStep(stepCtx, planStep, execution, progressChan)
+		// Execute the step with ReAct-style recovery
+		step, err := a.ExecuteStepWithRecovery(stepCtx, planStep, execution, progressChan, defaultRecoveryStrategy)
 		if err != nil {
 			execution.Status = "failed"
-			execution.Errors = append(execution.Errors, fmt.Sprintf("Step %s failed: %v", planStep.ID, err))
+			execution.Errors = append(execution.Errors, fmt.Sprintf("Step %s failed after all recovery attempts: %v", planStep.ID, err))
 
 			if progressChan != nil {
 				progressChan <- &types.ExecutionUpdate{
-					Type:        "step_failed",
+					Type:        "step_failed_final",
 					ExecutionID: execution.ID,
 					StepID:      planStep.ID,
-					Message:     fmt.Sprintf("Step failed: %v", err),
+					Message:     fmt.Sprintf("Step failed permanently after recovery attempts: %v", err),
 					Error:       err.Error(),
 					Timestamp:   time.Now(),
 				}
@@ -349,12 +482,12 @@ func (a *StateAwareAgent) executeExecutionStep(ctx context.Context, planStep *ty
 	switch planStep.Action {
 	case "create":
 		result, err = a.executeCreateAction(planStep, progressChan, execution.ID)
-	case "update":
-		result, err = a.executeUpdateAction(ctx, planStep, progressChan, execution.ID)
-	case "delete":
-		result, err = a.executeDeleteAction(planStep, progressChan, execution.ID)
-	case "validate":
-		result, err = a.executeValidateAction(planStep, progressChan, execution.ID)
+	// case "update":
+	// 	result, err = a.executeUpdateAction(ctx, planStep, progressChan, execution.ID)
+	// case "delete":
+	// 	result, err = a.executeDeleteAction(planStep, progressChan, execution.ID)
+	// case "validate":
+	// 	result, err = a.executeValidateAction(planStep, progressChan, execution.ID)
 	case "api_value_retrieval":
 		result, err = a.executeAPIValueRetrieval(ctx, planStep, progressChan, execution.ID)
 	default:

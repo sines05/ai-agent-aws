@@ -73,6 +73,10 @@ func (f *ToolFactoryImpl) CreateTool(toolType string, dependencies interface{}) 
 		return NewCreateVPCTool(deps.AWSClient, f.logger), nil
 	case "list-vpcs":
 		return NewListVPCsTool(deps.AWSClient, f.logger), nil
+	case "get-default-vpc":
+		return NewGetDefaultVPCTool(deps.AWSClient, f.logger), nil
+	case "get-default-subnet":
+		return NewGetDefaultSubnetTool(deps.AWSClient, f.logger), nil
 	case "create-subnet":
 		return NewCreateSubnetTool(deps.AWSClient, f.logger), nil
 	case "create-private-subnet":
@@ -202,6 +206,8 @@ func (f *ToolFactoryImpl) GetSupportedToolTypes() []string {
 		// VPC Tools
 		"create-vpc",
 		"list-vpcs",
+		"get-default-vpc",
+		"get-default-subnet",
 		"create-subnet",
 		"create-private-subnet",
 		"create-public-subnet",

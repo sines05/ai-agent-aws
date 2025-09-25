@@ -185,6 +185,16 @@ resource_id_extraction:
         resource_types: ["ec2_instance"]
         priority: 2
         
+      # Subnet query patterns (specifically for list-subnets tool)
+      - field_paths: ["subnetId", "subnet_id", "result.subnetId", "result.subnet_id"]
+        resource_types: ["subnet"]
+        priority: 2
+        
+      # Availability zone query patterns (specifically for get-availability-zones tool)
+      - field_paths: ["availabilityZone", "availability_zone", "result.availabilityZone", "result.availability_zone"]
+        resource_types: ["availability_zone"]
+        priority: 2
+        
   association_tools:
     # Association tools create new association resources - look in result like creation tools
     patterns:

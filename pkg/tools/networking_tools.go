@@ -281,24 +281,38 @@ func (t *ListSubnetsTool) Execute(ctx context.Context, arguments map[string]inte
 	var filteredSubnets []*types.AWSResource
 	if vpcID != "" {
 		for _, subnet := range subnets {
-			if vpcId, ok := subnet.Details["VpcId"].(string); ok && vpcId == vpcID {
+			if vpcId, ok := subnet.Details["vpcId"].(string); ok && vpcId == vpcID {
 				filteredSubnets = append(filteredSubnets, subnet)
 			}
 		}
 		subnets = filteredSubnets
 	}
 
-	message := fmt.Sprintf("Found %d subnets", len(subnets))
-	if vpcID != "" {
-		message = fmt.Sprintf("Found %d subnets in VPC %s", len(subnets), vpcID)
+	if len(subnets) == 0 {
+		return t.CreateErrorResponse(fmt.Sprintf("Found 0 subnets in VPC %s", vpcID))
 	}
 
-	data := map[string]interface{}{
-		"subnets": subnets,
-		"count":   len(subnets),
+	message := fmt.Sprintf("Found %d subnets", len(subnets))
+
+	// Create subnet IDs list for dependency resolution
+	var subnetIDs []string
+	for _, subnet := range subnets {
+		subnetIDs = append(subnetIDs, subnet.ID)
 	}
+
+	data := map[string]interface{}{}
+
+	// Add dependency resolution fields (following retrieveSubnetsInVPC pattern)
+	if len(subnetIDs) > 0 {
+		data["subnetId"] = subnetIDs[0] // First subnet ID for {{step-id.subnetId}} resolution
+		data["value"] = subnetIDs[0]    // For {{step-id.resourceId}} resolution
+		data["subnet_ids"] = subnetIDs  // Full list for comprehensive access
+		data["subnets"] = subnets       // Subnet details
+	}
+
 	if vpcID != "" {
-		data["vpcId"] = vpcID
+		data["vpcId"] = vpcID  // VPC ID
+		data["vpc_id"] = vpcID // Alternative format for consistency
 	}
 
 	return t.CreateSuccessResponse(message, data)

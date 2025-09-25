@@ -153,7 +153,7 @@ tool_resource_patterns:
   vpc: ['.*create.*vpc.*', '.*vpc.*', '.*virtual.*private.*cloud.*']
   
   # Subnet patterns  
-  subnet: ['.*create.*subnet.*', '.*subnet.*']
+  subnet: ['.*create.*subnet.*', '.*subnet.*', 'list-subnets']
   
   # Security Group patterns
   security_group: ['.*create.*security.*group.*', '.*security.*group.*', '.*sg.*']
@@ -177,6 +177,9 @@ tool_resource_patterns:
   internet_gateway: ['.*create.*internet.*gateway$', '^create.*internet.*gateway$', 'create-internet-gateway']
   nat_gateway: ['.*create.*nat.*gateway$', '^create.*nat.*gateway$', 'create-nat-gateway']
   route_table: ['.*create.*route.*table$', '^create.*route.*table$', 'create-.*route-table']
+  
+  # Utility patterns
+  availability_zone: ['.*availability.*zone.*', '.*get.*availability.*zones.*', 'get-availability-zones']
 
 # Resource hierarchy and relationships
 resource_relationships:

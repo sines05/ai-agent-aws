@@ -69,6 +69,22 @@ func (v *VPCAdapter) Delete(ctx context.Context, id string) error {
 	return fmt.Errorf("VPC deletion not implemented - requires manual dependency cleanup")
 }
 
+// GetDefaultVPC finds and returns the default VPC in the current region
+func (v *VPCAdapter) GetDefaultVPC(ctx context.Context) (*types.AWSResource, error) {
+	vpcID, err := v.client.GetDefaultVPC(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default VPC: %w", err)
+	}
+
+	// Get the full VPC details
+	vpc, err := v.Get(ctx, vpcID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve default VPC details for %s: %w", vpcID, err)
+	}
+
+	return vpc, nil
+}
+
 // GetSupportedOperations returns the operations supported by this adapter
 func (v *VPCAdapter) GetSupportedOperations() []string {
 	return []string{
@@ -76,6 +92,7 @@ func (v *VPCAdapter) GetSupportedOperations() []string {
 		"list",
 		"get",
 		"delete",
+		"get-default-vpc",
 		"create-subnet",
 		"create-internet-gateway",
 		"create-route-table",
@@ -100,6 +117,9 @@ func (v *VPCAdapter) ValidateParams(operation string, params interface{}) error 
 		if params == nil {
 			return fmt.Errorf("VPC ID is required for %s operation", operation)
 		}
+		return nil
+	case "get-default-vpc":
+		// No parameters required for get-default-vpc
 		return nil
 	default:
 		return fmt.Errorf("unsupported operation: %s", operation)
@@ -163,6 +183,22 @@ func (s *SubnetAdapter) Delete(ctx context.Context, id string) error {
 	return fmt.Errorf("subnet deletion not implemented in AWS client")
 }
 
+// GetDefaultSubnet finds and returns the default subnet in the current region
+func (s *SubnetAdapter) GetDefaultSubnet(ctx context.Context) (*types.AWSResource, error) {
+	subnetInfo, err := s.client.GetDefaultSubnet(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default subnet: %w", err)
+	}
+
+	// Get the full subnet details
+	subnet, err := s.Get(ctx, subnetInfo.SubnetID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve default subnet details for %s: %w", subnetInfo.SubnetID, err)
+	}
+
+	return subnet, nil
+}
+
 // GetSupportedOperations returns the operations supported by this adapter
 func (s *SubnetAdapter) GetSupportedOperations() []string {
 	return []string{
@@ -170,6 +206,7 @@ func (s *SubnetAdapter) GetSupportedOperations() []string {
 		"list",
 		"get",
 		"delete",
+		"get-default-subnet",
 	}
 }
 
@@ -192,6 +229,9 @@ func (s *SubnetAdapter) ValidateParams(operation string, params interface{}) err
 		if params == nil {
 			return fmt.Errorf("subnet ID is required for %s operation", operation)
 		}
+		return nil
+	case "get-default-subnet":
+		// No parameters required for get-default-subnet
 		return nil
 	default:
 		return fmt.Errorf("unsupported operation: %s", operation)

@@ -19,6 +19,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 // WebSocket connection wrapper
@@ -31,16 +32,36 @@ type wsConnection struct {
 type WebServer struct {
 	router    *mux.Router
 	templates *template.Template
-	aiAgent   *agent.StateAwareAgent
-	upgrader  websocket.Upgrader
+
+	upgrader websocket.Upgrader
+	aiAgent  *agent.StateAwareAgent
 
 	// WebSocket connection management
 	connections map[string]*wsConnection
 	connMutex   sync.RWMutex
 
-	// Decision storage (in-memory for now)
+	// Decision storage for plan confirmations
 	decisions      map[string]*StoredDecision
 	decisionsMutex sync.RWMutex
+
+	// Recovery coordination
+	recoveryRequests map[string]*RecoveryRequest
+	recoveryMutex    sync.RWMutex
+}
+
+// RecoveryRequest represents a pending recovery decision
+type RecoveryRequest struct {
+	StepID          string                   `json:"stepId"`
+	FailureContext  map[string]interface{}   `json:"failureContext"`
+	RecoveryOptions []map[string]interface{} `json:"recoveryOptions"`
+	ResponseChan    chan *RecoveryResponse   `json:"-"`
+	Timestamp       time.Time                `json:"timestamp"`
+}
+
+// RecoveryResponse represents the user's recovery decision
+type RecoveryResponse struct {
+	SelectedOptionIndex string `json:"selectedOptionIndex"`
+	Abort               bool   `json:"abort"`
 }
 
 // StoredDecision stores a decision along with its execution parameters
@@ -52,9 +73,10 @@ type StoredDecision struct {
 // NewWebServer creates a new web server instance
 func NewWebServer(cfg *config.Config, awsClient *aws.Client, logger *logging.Logger) *WebServer {
 	ws := &WebServer{
-		router:      mux.NewRouter(),
-		connections: make(map[string]*wsConnection),
-		decisions:   make(map[string]*StoredDecision),
+		router:           mux.NewRouter(),
+		connections:      make(map[string]*wsConnection),
+		decisions:        make(map[string]*StoredDecision),
+		recoveryRequests: make(map[string]*RecoveryRequest),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins in development
@@ -494,7 +516,7 @@ func (ws *WebServer) executeConfirmedPlanHandler(w http.ResponseWriter, r *http.
 			"dry_run":     dryRun,
 		}).Debug("Starting agent execution")
 
-		execution, err := ws.aiAgent.ExecuteConfirmedPlanWithDryRun(ctx, decision, progressChan, dryRun)
+		execution, err := ws.aiAgent.ExecuteConfirmedPlanWithRecovery(ctx, decision, progressChan, dryRun, ws)
 		if err != nil {
 			ws.aiAgent.Logger.WithError(err).Error("Plan execution failed")
 			// Send error update
@@ -633,13 +655,16 @@ func (ws *WebServer) websocketHandler(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer close(done)
 		for {
-			_, _, err := conn.ReadMessage()
+			_, msgData, err := conn.ReadMessage()
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 					ws.aiAgent.Logger.WithError(err).WithField("conn_id", connID).Error("WebSocket read error")
 				}
 				return
 			}
+
+			// Process incoming message
+			ws.handleIncomingMessage(connID, msgData)
 		}
 	}()
 
@@ -764,4 +789,146 @@ func (ws *WebServer) removeStoredDecision(decisionID string) {
 	defer ws.decisionsMutex.Unlock()
 	delete(ws.decisions, decisionID)
 	ws.aiAgent.Logger.WithField("decision_id", decisionID).Debug("Removed stored decision")
+}
+
+// RecoveryMessage represents incoming recovery-related messages from WebSocket clients
+type RecoveryMessage struct {
+	Type                string    `json:"type"`
+	StepID              string    `json:"stepId,omitempty"`
+	SelectedOptionIndex string    `json:"selectedOptionIndex,omitempty"`
+	Timestamp           time.Time `json:"timestamp"`
+}
+
+// handleIncomingMessage processes messages received from WebSocket clients
+func (ws *WebServer) handleIncomingMessage(connID string, msgData []byte) {
+	var message RecoveryMessage
+	if err := json.Unmarshal(msgData, &message); err != nil {
+		ws.aiAgent.Logger.WithError(err).WithField("conn_id", connID).Error("Failed to parse WebSocket message")
+		return
+	}
+
+	ws.aiAgent.Logger.WithFields(logrus.Fields{
+		"conn_id": connID,
+		"type":    message.Type,
+		"step_id": message.StepID,
+	}).Debug("Received WebSocket message")
+
+	switch message.Type {
+	case "recovery_decision":
+		ws.handleRecoveryDecision(message)
+	case "recovery_abort":
+		ws.handleRecoveryAbort(message)
+	default:
+		ws.aiAgent.Logger.WithFields(logrus.Fields{
+			"conn_id": connID,
+			"type":    message.Type,
+		}).Warn("Unknown WebSocket message type")
+	}
+}
+
+// handleRecoveryDecision processes user's recovery decision
+func (ws *WebServer) handleRecoveryDecision(message RecoveryMessage) {
+	ws.aiAgent.Logger.WithFields(logrus.Fields{
+		"step_id":               message.StepID,
+		"selected_option_index": message.SelectedOptionIndex,
+	}).Info("Processing recovery decision")
+
+	// Find the pending recovery request
+	ws.recoveryMutex.Lock()
+	request, exists := ws.recoveryRequests[message.StepID]
+	ws.recoveryMutex.Unlock()
+
+	if !exists {
+		ws.aiAgent.Logger.WithField("step_id", message.StepID).Warn("No pending recovery request found")
+		return
+	}
+
+	// Send response back to waiting goroutine
+	response := &RecoveryResponse{
+		SelectedOptionIndex: message.SelectedOptionIndex,
+		Abort:               false,
+	}
+
+	select {
+	case request.ResponseChan <- response:
+		ws.aiAgent.Logger.WithField("step_id", message.StepID).Info("Recovery decision sent to execution")
+	default:
+		ws.aiAgent.Logger.WithField("step_id", message.StepID).Error("Failed to send recovery decision - channel full or closed")
+	}
+}
+
+// handleRecoveryAbort processes user's recovery abort decision
+func (ws *WebServer) handleRecoveryAbort(message RecoveryMessage) {
+	ws.aiAgent.Logger.WithField("step_id", message.StepID).Info("Processing recovery abort")
+
+	// Find the pending recovery request
+	ws.recoveryMutex.Lock()
+	request, exists := ws.recoveryRequests[message.StepID]
+	ws.recoveryMutex.Unlock()
+
+	if !exists {
+		ws.aiAgent.Logger.WithField("step_id", message.StepID).Warn("No pending recovery request found for abort")
+		return
+	}
+
+	// Send abort response back to waiting goroutine
+	response := &RecoveryResponse{
+		SelectedOptionIndex: "",
+		Abort:               true,
+	}
+
+	select {
+	case request.ResponseChan <- response:
+		ws.aiAgent.Logger.WithField("step_id", message.StepID).Info("Recovery abort sent to execution")
+	default:
+		ws.aiAgent.Logger.WithField("step_id", message.StepID).Error("Failed to send recovery abort - channel full or closed")
+	}
+}
+
+// RequestRecoveryDecision implements RecoveryCoordinator interface
+func (ws *WebServer) RequestRecoveryDecision(stepID string, failureContext map[string]interface{}, recoveryOptions []map[string]interface{}) (map[string]interface{}, error) {
+	// Create response channel for this request
+	responseChan := make(chan *RecoveryResponse, 1)
+
+	// Store the recovery request
+	ws.recoveryMutex.Lock()
+	ws.recoveryRequests[stepID] = &RecoveryRequest{
+		StepID:          stepID,
+		FailureContext:  failureContext,
+		RecoveryOptions: recoveryOptions,
+		ResponseChan:    responseChan,
+		Timestamp:       time.Now(),
+	}
+	ws.recoveryMutex.Unlock()
+
+	// Send recovery needed message to UI
+	ws.broadcastUpdate(map[string]interface{}{
+		"type":            "step_recovery_needed",
+		"stepId":          stepID,
+		"failureContext":  failureContext,
+		"recoveryOptions": recoveryOptions,
+	})
+
+	// Wait for user response with timeout
+	select {
+	case response := <-responseChan:
+		// Cleanup
+		ws.recoveryMutex.Lock()
+		delete(ws.recoveryRequests, stepID)
+		ws.recoveryMutex.Unlock()
+
+		// Convert RecoveryResponse to map
+		result := map[string]interface{}{
+			"selectedOptionIndex": response.SelectedOptionIndex,
+			"abort":               response.Abort,
+		}
+		return result, nil
+
+	case <-time.After(10 * time.Minute): // 10 minute timeout
+		// Cleanup
+		ws.recoveryMutex.Lock()
+		delete(ws.recoveryRequests, stepID)
+		ws.recoveryMutex.Unlock()
+		return nil, fmt.Errorf("recovery decision timeout after 10 minutes")
+	}
 }
