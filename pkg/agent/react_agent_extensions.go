@@ -518,6 +518,27 @@ func (a *StateAwareAgent) executeMultiStepRecoveryPlan(ctx context.Context, modi
 		// No need to call extractAndStoreResourceMapping manually as the main execution system
 		// handles all resource mapping through executeNativeMCPTool and other action handlers
 
+		// IMPORTANT: Update the original step's resource mapping so dependent steps can resolve references
+		// When recovery succeeds, the original failed step should point to the recovery result
+		if executedStep != nil {
+			a.mappingsMutex.Lock()
+			
+			// Get the recovery step's resource ID from the mapping
+			recoveryResourceID, exists := a.resourceMappings[recoveryStepID]
+			if exists && recoveryResourceID != "" {
+				// Update the original step ID to point to the same resource
+				a.resourceMappings[modifiedStep.ID] = recoveryResourceID
+				
+				a.Logger.WithFields(map[string]interface{}{
+					"original_step_id":    modifiedStep.ID,
+					"recovery_step_id":    recoveryStepID,
+					"resource_id":         recoveryResourceID,
+				}).Info("Updated original step mapping to point to recovery result for dependency resolution")
+			}
+			
+			a.mappingsMutex.Unlock()
+		}
+
 		lastExecutedStep = executedStep
 
 		a.Logger.WithFields(map[string]interface{}{

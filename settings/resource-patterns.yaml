@@ -177,6 +177,9 @@ tool_resource_patterns:
   internet_gateway: ['.*create.*internet.*gateway$', '^create.*internet.*gateway$', 'create-internet-gateway']
   nat_gateway: ['.*create.*nat.*gateway$', '^create.*nat.*gateway$', 'create-nat-gateway']
   route_table: ['.*create.*route.*table$', '^create.*route.*table$', 'create-.*route-table']
+  
+  # Utility patterns
+  availability_zone: ['.*availability.*zone.*', '.*get.*availability.*zones.*', 'get-availability-zones']
 
 # Resource hierarchy and relationships
 resource_relationships:

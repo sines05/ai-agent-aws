@@ -973,16 +973,19 @@ func (m *MockMCPServer) mockExportInfrastructureState(arguments map[string]inter
 
 // Utility Mock Responses
 func (m *MockMCPServer) mockGetAvailabilityZones(arguments map[string]interface{}) (*mcp.CallToolResult, error) {
-	zones := []string{"us-west-2a", "us-west-2b", "us-west-2c"}
+	zones := []string{"ap-southeast-1a", "ap-southeast-1b", "ap-southeast-1c"}
 
 	response := map[string]interface{}{
-		"all_zones":          zones,
-		"availability_zones": zones,
-		"count":              len(zones),
-		"value":              zones[0], // Return first zone as primary value
+		"zones":            zones,
+		"count":            len(zones),
+		"allZones":         zones,
+		"allCount":         len(zones),
+		"availabilityZone": zones[0],    // First AZ for {{step-id.availabilityZone}} resolution
+		"value":            zones[0],    // For {{step-id.resourceId}} resolution
+		"zone_names":       zones,       // Alternative access pattern
 	}
 
-	return m.createSuccessResponse(fmt.Sprintf("Found %d availability zones", len(zones)), response)
+	return m.createSuccessResponse(fmt.Sprintf("Retrieved %d availability zones", len(zones)), response)
 }
 
 // Utility methods

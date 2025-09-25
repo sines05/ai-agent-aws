@@ -85,5 +85,12 @@ func (t *GetAvailabilityZonesTool) Execute(ctx context.Context, arguments map[st
 		"allCount": len(zones),
 	}
 
+	// Add dependency resolution fields
+	if len(limitedZones) > 0 {
+		data["availabilityZone"] = limitedZones[0] // First AZ for {{step-id.availabilityZone}} resolution
+		data["value"] = limitedZones[0]            // For {{step-id.resourceId}} resolution
+		data["zone_names"] = limitedZones          // Alternative access pattern
+	}
+
 	return t.CreateSuccessResponse(message, data)
 }
