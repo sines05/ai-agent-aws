@@ -1053,9 +1053,14 @@ func (m *MockMCPServer) mockListSubnets(arguments map[string]interface{}) (*mcp.
 		},
 	}
 
+	// Extract subnet IDs for dependency resolution
+	subnetIDs := []string{"subnet-default123", "subnet-12345"}
+
 	response := map[string]interface{}{
-		"subnets": subnets,
-		"count":   len(subnets),
+		"subnets":    subnets,      // Subnet details
+		"subnetId":   subnetIDs[0], // First subnet for dependency resolution
+		"value":      subnetIDs[0], // For {{step-id.resourceId}} resolution
+		"subnet_ids": subnetIDs,    // Full list for comprehensive access
 	}
 
 	return m.createSuccessResponse(fmt.Sprintf("Found %d subnets", len(subnets)), response)

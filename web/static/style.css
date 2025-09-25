@@ -845,6 +845,23 @@ body {
     font-weight: 900;
 }
 
+.step-status.recovery-generating {
+    background: #6f42c1;
+    color: white;
+    border: 2px solid #6f42c1;
+    animation: pulse 1.5s infinite;
+}
+
+.step-status.recovery-generating::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
 .step-status.recovery-in-progress {
     background: #17a2b8;
     color: white;
@@ -1603,6 +1620,10 @@ body {
 
 .step-log-entry.level-recovery .level {
     color: #ffc107;
+}
+
+.step-log-entry.level-recovery-generating .level {
+    color: #6f42c1;
 }
 
 .step-log-entry.level-recovery-success .level {

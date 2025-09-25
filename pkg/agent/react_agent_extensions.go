@@ -106,6 +106,17 @@ func (a *StateAwareAgent) ExecuteStepWithRecoveryAndCoordinator(
 			return nil, err // Return original error
 		}
 
+		// Notify UI that recovery analysis is starting
+		if progressChan != nil {
+			progressChan <- &types.ExecutionUpdate{
+				Type:        "step_recovery_generating",
+				ExecutionID: execution.ID,
+				StepID:      planStep.ID,
+				Message:     "Generating recovery plan using AI analysis...",
+				Timestamp:   time.Now(),
+			}
+		}
+
 		// Get AI recovery analysis
 		aiAnalysis, aiErr := recoveryEngine.AnalyzeFailure(ctx, failureContext)
 		if aiErr != nil {
@@ -488,6 +499,7 @@ func (a *StateAwareAgent) executeMultiStepRecoveryPlan(ctx context.Context, modi
 			MCPTool:        recoveryStep.ToolName,
 			ToolParameters: recoveryStep.Parameters, // AI parameters will be resolved by main system
 			Parameters:     recoveryStep.Parameters, // Maintain compatibility
+			ResourceID:     recoveryStepID,          // Initialize ResourceID to step ID for proper fallback behavior
 		}
 
 		// Execute this recovery step using the main execution system

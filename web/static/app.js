@@ -108,6 +108,11 @@ function handleWebSocketMessage(data) {
         addStepLog(data.stepId, 'error', data.message);
         addGlobalExecutionLog('error', data.message);
         updateStepStatus(data.stepId, 'failed');
+    } else if (data.type === 'step_recovery_generating') {
+        // New: Handle recovery generation notification
+        addStepLog(data.stepId, 'recovery-generating', data.message);
+        addGlobalExecutionLog('recovery-generating', data.message);
+        updateStepStatus(data.stepId, 'recovery-generating');
     } else if (data.type === 'step_recovery_needed') {
         // New: Handle recovery requests
         console.log('Recovery needed:', data);
