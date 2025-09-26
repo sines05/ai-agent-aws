@@ -163,7 +163,7 @@ docker run -d \
   -e AWS_ACCESS_KEY_ID="your-aws-access-key" \
   -e AWS_SECRET_ACCESS_KEY="your-aws-secret-key" \
   -e AWS_DEFAULT_REGION="us-west-2" \
-  ghcr.io/versuscontrol/ai-infrastructure-agent:v0.0.1
+  ghcr.io/versuscontrol/ai-infrastructure-agent
 ```
 
 #### Docker Compose (Recommended)
@@ -175,7 +175,7 @@ version: '3.8'
 
 services:
   ai-infrastructure-agent:
-    image: ghcr.io/versuscontrol/ai-infrastructure-agent:v0.0.1
+    image: ghcr.io/versuscontrol/ai-infrastructure-agent
     container_name: ai-infrastructure-agent
     restart: unless-stopped
     ports:

@@ -1,4 +1,4 @@
-package web
+package api
 
 import (
 	"context"
@@ -145,6 +145,25 @@ func (ws *WebServer) initializeAIAgent(cfg *config.Config, awsClient *aws.Client
 	logger.Info("AI agent initialized successfully")
 }
 
+// corsMiddleware adds CORS headers to responses
+func (ws *WebServer) corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
+
+		// Handle preflight requests
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// Continue to next handler
+		next.ServeHTTP(w, r)
+	})
+}
+
 // setupRoutes configures HTTP routes
 func (ws *WebServer) setupRoutes() {
 	// Static files
@@ -154,8 +173,13 @@ func (ws *WebServer) setupRoutes() {
 	ws.router.HandleFunc("/", ws.indexHandler).Methods("GET")
 	ws.router.HandleFunc("/dashboard", ws.dashboardHandler).Methods("GET")
 
-	// API routes
+	// Health check endpoint
+	ws.router.HandleFunc("/health", ws.healthHandler).Methods("GET")
+
+	// API routes with CORS middleware
 	api := ws.router.PathPrefix("/api").Subrouter()
+	api.Use(ws.corsMiddleware) // Apply CORS middleware to all API routes
+	api.HandleFunc("/health", ws.healthHandler).Methods("GET")
 	api.HandleFunc("/state", ws.getStateHandler).Methods("GET")
 	api.HandleFunc("/discover", ws.discoverInfrastructureHandler).Methods("POST")
 	api.HandleFunc("/graph", ws.getGraphHandler).Methods("GET")
@@ -164,6 +188,12 @@ func (ws *WebServer) setupRoutes() {
 	api.HandleFunc("/agent/process", ws.processRequestHandler).Methods("POST")
 	api.HandleFunc("/agent/execute", ws.executeConfirmedPlanHandler).Methods("POST")
 	api.HandleFunc("/export", ws.exportStateHandler).Methods("GET")
+
+	// Handle OPTIONS requests for all API routes
+	api.HandleFunc("/{path:.*}", func(w http.ResponseWriter, r *http.Request) {
+		// CORS middleware will handle this
+		w.WriteHeader(http.StatusOK)
+	}).Methods("OPTIONS")
 
 	// WebSocket for real-time updates
 	ws.router.HandleFunc("/ws", ws.websocketHandler)
@@ -189,6 +219,19 @@ func (ws *WebServer) Start(port int) error {
 }
 
 // Handlers
+
+func (ws *WebServer) healthHandler(w http.ResponseWriter, r *http.Request) {
+	// Return a simple health check response
+	health := map[string]interface{}{
+		"status":    "ok",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"service":   "ai-infrastructure-agent",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(health)
+}
 
 func (ws *WebServer) indexHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/dashboard", http.StatusFound)
