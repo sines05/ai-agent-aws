@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/versus-control/ai-infrastructure-agent/pkg/types"
-	"github.com/versus-control/ai-infrastructure-agent/pkg/utilities"
 )
 
 // ========== StateAwareAgent Extensions for ReAct Recovery ==========
@@ -433,7 +432,7 @@ func (a *StateAwareAgent) applyRecoveryOption(originalStep *types.ExecutionPlanS
 		modifiedStep.Parameters = make(map[string]interface{})
 	}
 
-	// Apply AI-recommended parameters directly (no hardcoded logic)
+	// Apply AI-recommended parameters directly
 	if selectedOption.Parameters != nil {
 		for k, v := range selectedOption.Parameters {
 			modifiedStep.ToolParameters[k] = v
@@ -506,11 +505,6 @@ func (a *StateAwareAgent) executeMultiStepRecoveryPlan(ctx context.Context, modi
 		// This automatically handles dependency resolution using resolveDependencyReference()
 		executedStep, err := a.executeExecutionStep(ctx, recoveryExecStep, execution, progressChan)
 		if err != nil {
-			a.Logger.WithError(err).WithFields(map[string]interface{}{
-				"step_id":          modifiedStep.ID,
-				"recovery_step_id": recoveryStepID,
-				"recovery_step":    stepNum,
-			}).Error("AI-designed recovery step failed")
 			return nil, fmt.Errorf("recovery step %d (%s) failed: %w", stepNum, recoveryStepID, err)
 		}
 
@@ -522,31 +516,24 @@ func (a *StateAwareAgent) executeMultiStepRecoveryPlan(ctx context.Context, modi
 		// When recovery succeeds, the original failed step should point to the recovery result
 		if executedStep != nil {
 			a.mappingsMutex.Lock()
-			
+
 			// Get the recovery step's resource ID from the mapping
 			recoveryResourceID, exists := a.resourceMappings[recoveryStepID]
 			if exists && recoveryResourceID != "" {
 				// Update the original step ID to point to the same resource
 				a.resourceMappings[modifiedStep.ID] = recoveryResourceID
-				
+
 				a.Logger.WithFields(map[string]interface{}{
-					"original_step_id":    modifiedStep.ID,
-					"recovery_step_id":    recoveryStepID,
-					"resource_id":         recoveryResourceID,
+					"original_step_id": modifiedStep.ID,
+					"recovery_step_id": recoveryStepID,
+					"resource_id":      recoveryResourceID,
 				}).Info("Updated original step mapping to point to recovery result for dependency resolution")
 			}
-			
+
 			a.mappingsMutex.Unlock()
+
+			lastExecutedStep = executedStep
 		}
-
-		lastExecutedStep = executedStep
-
-		a.Logger.WithFields(map[string]interface{}{
-			"step_id":          modifiedStep.ID,
-			"recovery_step_id": recoveryStepID,
-			"recovery_step":    stepNum,
-			"output_keys":      utilities.GetMapKeys(executedStep.Output),
-		}).Info("AI-designed recovery step completed successfully - resource mappings handled by main system")
 	}
 
 	// Return the result of the final step in the AI-designed plan

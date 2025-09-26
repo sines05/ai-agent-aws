@@ -10,19 +10,12 @@ import (
 
 // Config is the main configuration structure
 type Config struct {
-	Server  ServerConfig  `mapstructure:"server"`
 	AWS     AWSConfig     `mapstructure:"aws"`
 	MCP     MCPConfig     `mapstructure:"mcp"`
 	Agent   AgentConfig   `mapstructure:"agent"`
 	Logging LoggingConfig `mapstructure:"logging"`
 	State   StateConfig   `mapstructure:"state"`
 	Web     WebConfig     `mapstructure:"web"`
-}
-
-// ServerConfig contains general server configuration
-type ServerConfig struct {
-	Port int    `mapstructure:"port"`
-	Host string `mapstructure:"host"`
 }
 
 // AWSConfig contains AWS-specific configuration
@@ -121,10 +114,6 @@ func Load() (*Config, error) {
 
 // setDefaults sets default configuration values
 func setDefaults() {
-	// Server defaults
-	viper.SetDefault("server.port", 3000)
-	viper.SetDefault("server.host", "localhost")
-
 	// AWS defaults
 	viper.SetDefault("aws.region", "us-west-2")
 
@@ -166,10 +155,7 @@ func (c *Config) GetStateFilePath() string {
 
 // GetWebPort returns the web server port (fallback to server port if not set)
 func (c *Config) GetWebPort() int {
-	if c.Web.Port != 0 {
-		return c.Web.Port
-	}
-	return c.Server.Port
+	return c.Web.Port
 }
 
 // IsProductionMode returns true if running in production mode

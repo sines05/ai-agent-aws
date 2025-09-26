@@ -1,8 +1,4 @@
 # Example configuration for Google AI (Gemini) provider
-server:
-  port: 3000
-  host: "localhost"
-
 aws:
   region: "ap-southeast-5"
 

@@ -11,8 +11,8 @@ import (
 
 	"github.com/versus-control/ai-infrastructure-agent/internal/config"
 	"github.com/versus-control/ai-infrastructure-agent/internal/logging"
+	"github.com/versus-control/ai-infrastructure-agent/pkg/api"
 	"github.com/versus-control/ai-infrastructure-agent/pkg/aws"
-	"github.com/versus-control/ai-infrastructure-agent/pkg/web"
 )
 
 func main() {
@@ -34,7 +34,7 @@ func main() {
 	}
 
 	// Create web server with shared infrastructure
-	webServer := web.NewWebServer(cfg, awsClient, logger)
+	webServer := api.NewWebServer(cfg, awsClient, logger)
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
