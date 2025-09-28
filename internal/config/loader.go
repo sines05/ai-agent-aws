@@ -87,6 +87,7 @@ type ResourcePatternConfig struct {
 	ToolResourcePatterns   map[string][]string         `yaml:"tool_resource_patterns"`
 	ResourceRelationships  ResourceRelationships       `yaml:"resource_relationships"`
 	ValueTypeInference     map[string]ValueTypePattern `yaml:"value_type_inference"`
+	ToolCategories         map[string][]string         `yaml:"tool_categories"`
 }
 
 // ResourceIdentification contains patterns for identifying resource types

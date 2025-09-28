@@ -1,0 +1,294 @@
+{{MCP_TOOLS_SCHEMAS}}
+
+=== EXECUTION PLAN STRUCTURE ===
+
+When creating execution plans, use this structure for each step:
+{
+  "id": "step-1",
+  "name": "Descriptive step name",
+  "description": "What this step accomplishes",
+  "action": "create|update|delete|validate|api_value_retrieval",
+  "resourceId": "unique-resource-identifier",
+  "mcpTool": "exact-tool-name-from-above",
+  "toolParameters": {
+    "use": "exact parameter names from tool schema",
+    "imageId": "{{step-ami.resourceId}}",
+    "instanceType": "t3.micro",
+    "name": "my-instance"
+  },
+  "parameters": {
+    "value_type": "latest_ami",
+    "os_type": "amazon-linux-2",
+    "architecture": "x86_64"
+  },
+  "dependsOn": ["previous-step-id"],
+  "estimatedDuration": "30s",
+  "status": "pending"
+}
+
+=== API VALUE RETRIEVAL STEPS ===
+
+For resources that need real AWS values instead of AI-generated placeholders, add API retrieval steps:
+
+STEP 1 - API Value Retrieval:
+{
+  "id": "step-ami",
+  "name": "Get Latest Amazon Linux 2 AMI",
+  "description": "Call AWS API to get real AMI ID because user didn't provide one",
+  "action": "api_value_retrieval",
+  "resourceId": "latest-ami",
+  "parameters": {
+    "value_type": "latest_ami",
+    "os_type": "amazon-linux-2",
+    "architecture": "x86_64"
+  },
+  "dependsOn": [],
+  "estimatedDuration": "10s"
+}
+
+STEP 2 - Use Retrieved Value:
+{
+  "id": "step-create-instance",
+  "name": "Create EC2 Instance",
+  "action": "create",
+  "mcpTool": "create-ec2-instance",
+  "toolParameters": {
+    "imageId": "{{step-ami.resourceId}}",
+    "instanceType": "t3.micro",
+    "name": "my-instance"
+  },
+  "dependsOn": ["step-ami"]
+}
+
+Available value_type options:
+- "latest_ami": Get latest AMI for specified OS
+  * os_type: amazon-linux-2, ubuntu, windows
+  * architecture: x86_64, arm64 (default: x86_64)
+- "default_vpc": Get default VPC for the region
+- "default_subnet": Get default subnet in the region
+- "available_azs": Get available availability zones
+  * max_azs: limit number of AZs returned (optional)
+- "select_subnets_for_alb": Select subnets for ALB creation
+  * scheme: internet-facing, internal (default: internet-facing)
+  * vpc_id: specific VPC ID (optional, uses default VPC if not specified)
+  ⚠️  IMPORTANT: Always use this for ALB subnet selection, never use 'default_subnet'!
+- "vpc_id": Get existing VPC ID from state file
+  * resource_name: name of VPC to find (e.g., "production-vpc")
+  * resource_id: specific VPC ID to find (optional)
+- "subnet_id": Get existing subnet ID from state file
+  * resource_name: name of subnet to find
+  * resource_id: specific subnet ID to find (optional)
+- "security_group_id": Get existing security group ID from state file
+  * resource_name: name of security group to find
+- "instance_id": Get existing EC2 instance ID from state file
+  * resource_name: name of instance to find
+- "existing_resource": Get any existing resource from state file
+  * resource_name: name of resource to find
+  * resource_id: specific resource ID to find (optional)
+
+=== EXTENDED API VALUE RETRIEVAL EXAMPLES ===
+
+Example 1 - Ubuntu AMI:
+{
+  "id": "step-ubuntu-ami",
+  "action": "api_value_retrieval",
+  "parameters": {
+    "value_type": "latest_ami",
+    "os_type": "ubuntu",
+    "architecture": "x86_64"
+  }
+}
+
+Example 2 - Default VPC:
+{
+  "id": "step-vpc",
+  "action": "api_value_retrieval",
+  "parameters": {
+    "value_type": "default_vpc"
+  }
+}
+
+Example 3 - Default Subnet:
+{
+  "id": "step-subnet",
+  "action": "api_value_retrieval",
+  "parameters": {
+    "value_type": "default_subnet"
+  }
+}
+
+Example 4 - Availability Zones (limit to 2):
+{
+  "id": "step-azs",
+  "action": "api_value_retrieval",
+  "parameters": {
+    "value_type": "available_azs",
+    "max_azs": 2
+  }
+}
+
+Example 5 - Get Existing VPC from State File:
+{
+  "id": "step-get-vpc",
+  "name": "Get Production VPC ID",
+  "action": "api_value_retrieval",
+  "parameters": {
+    "value_type": "vpc_id",
+    "resource_name": "production-vpc"
+  }
+}
+
+Example 6 - Get Existing Security Group from State:
+{
+  "id": "step-get-sg",
+  "action": "api_value_retrieval",
+  "parameters": {
+    "value_type": "security_group_id",
+    "resource_name": "web-security-group"
+  }
+}
+
+Example 7 - CORRECT EC2 Instance Pattern:
+{
+  "id": "step-get-subnet",
+  "name": "Get Default Subnet",
+  "action": "api_value_retrieval",
+  "parameters": { "value_type": "default_subnet" }
+},
+{
+  "id": "step-create-instance",
+  "name": "Create EC2 Instance",
+  "action": "create",
+  "mcpTool": "create-ec2-instance",
+  "toolParameters": {
+    "subnetId": "{{step-get-subnet.resourceId}}",
+    "imageId": "ami-12345",
+    "instanceType": "t3.micro"
+  },
+  "dependsOn": ["step-get-subnet"]
+}
+⚠️  NOTE: subnetId uses step-get-subnet (default_subnet), NOT step-get-vpc!
+
+=== CRITICAL NETWORKING RULES ===
+
+⚠️  IMPORTANT: EC2 instances require SUBNET IDs, NOT VPC IDs
+✅ CORRECT: "subnetId": "{{step-subnet.resourceId}}" (where step-subnet uses default_subnet)
+❌ WRONG:   "subnetId": "{{step-vpc.resourceId}}" (VPC ID cannot be used as subnet ID)
+
+⚠️  IMPORTANT: Security groups require VPC IDs
+✅ CORRECT: "vpcId": "{{step-vpc.resourceId}}" (use separate default_vpc step)
+❌ WRONG:   "vpcId": "{{step-subnet.resourceId}}" (subnet ID cannot be used as VPC ID)
+
+📝 Resource ID Access Pattern:
+- {{step-name.resourceId}} → returns the primary resource ID
+- default_vpc step → returns VPC ID
+- default_subnet step → returns subnet ID
+
+=== COMMON PATTERNS ===
+
+Pattern 1 - Complete Infrastructure Setup:
+1. Retrieve default subnet → step-subnet (this gets both VPC discovery and subnet selection)
+2. Retrieve AMI → step-ami
+3. Create instance using {{step-ami.resourceId}}, {{step-subnet.resourceId}}
+   NOTE: Use step-subnet.resourceId for subnetId parameter!
+   NOTE: keyName is optional - omit if no key pair needed
+
+Pattern 2 - Security Group + EC2 Creation:
+1. Retrieve default VPC → step-vpc (for security group)
+2. Retrieve default subnet → step-subnet (for EC2 instance)
+3. Create security group → step-sg using {{step-vpc.resourceId}}
+4. Create EC2 instance using {{step-subnet.resourceId}} and security group
+Example:
+{
+  "id": "step-vpc",
+  "action": "api_value_retrieval",
+  "parameters": { "value_type": "default_vpc" }
+},
+{
+  "id": "step-subnet",
+  "action": "api_value_retrieval",
+  "parameters": { "value_type": "default_subnet" }
+},
+{
+  "id": "step-sg",
+  "action": "create",
+  "mcpTool": "create-security-group",
+  "toolParameters": {
+    "name": "web-sg",
+    "description": "Web server security group",
+    "vpcId": "{{step-vpc.resourceId}}"
+  }
+}
+
+Pattern 3 - VPC and Subnet Discovery:
+1. Retrieve default VPC → step-vpc (only if you need VPC ID for other resources)
+2. Retrieve default subnet → step-subnet (for EC2 instances)
+3. Create resources using appropriate IDs
+   - VPC resources: {{step-vpc.resourceId}}
+   - EC2 instances: {{step-subnet.resourceId}} for subnetId
+
+Pattern 4 - Custom Network Setup:
+1. Retrieve default VPC → step-vpc
+2. Retrieve AZs → step-azs  
+3. Create custom subnet using {{step-vpc.resourceId}} and {{step-azs.resourceId}}
+4. Retrieve AMI
+5. Create instance with custom subnet
+
+Pattern 5 - Application Load Balancer Setup:
+1. Select appropriate subnets for ALB → step-alb-subnets
+2. Get security group ID → step-alb-sg
+3. Create ALB using selected subnets and security group
+Example:
+{
+  "id": "step-alb-subnets",
+  "name": "Select Subnets for ALB",
+  "action": "api_value_retrieval",
+  "parameters": {
+    "value_type": "select_subnets_for_alb",
+    "min_azs": 2
+  }
+},
+{
+  "id": "step-alb-sg",
+  "action": "api_value_retrieval",
+  "parameters": {
+    "value_type": "security_group_id",
+    "resource_name": "alb-security-group"
+  }
+},
+{
+  "id": "step-create-alb",
+  "name": "Create Application Load Balancer",
+  "action": "create",
+  "mcpTool": "create-alb",
+  "toolParameters": {
+    "name": "my-application-load-balancer",
+    "subnetIds": "{{step-alb-subnets.resourceId}}",
+    "securityGroupIds": ["{{step-alb-sg.resourceId}}"]
+  },
+  "dependsOn": ["step-alb-subnets", "step-alb-sg"]
+}
+
+Pattern 6 - Multi-OS Deployment:
+1. Get Linux AMI → step-linux-ami (os_type: ubuntu)
+2. Get Windows AMI → step-windows-ami (os_type: windows)
+3. Create Linux instances → {{step-linux-ami.resourceId}}
+4. Create Windows instances → {{step-windows-ami.resourceId}}
+
+=== CRITICAL INSTRUCTIONS ===
+1. Use EXACT tool names and parameter names from the schemas above
+2. Include 'mcpTool' field specifying which tool to use
+3. Put tool parameters in 'toolParameters' field with exact schema format
+4. The agent will call MCP tools directly with your parameters
+5. Only required parameters need values - optional ones can be omitted
+6. Use dependency references like {{step-1.resourceId}} for resource IDs from previous steps
+7. IMPORTANT: For AMI IDs, VPC IDs, subnet IDs, etc., add api_value_retrieval steps BEFORE create steps
+8. This prevents "Invalid AMI ID", "VPCIdNotSpecified", and subnet errors by using real AWS values
+
+=== DEPENDENCY MANAGEMENT ===
+AWS resource creation order:
+1. VPC → Subnets → Internet Gateway → Route Tables
+2. Security Groups (after VPC)
+3. Launch Templates, Load Balancers, Target Groups
+4. EC2 Instances, Auto Scaling Groups
+5. RDS Instances, other dependent services

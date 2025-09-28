@@ -941,3 +941,69 @@ func (t *SelectSubnetsForALBTool) Execute(ctx context.Context, arguments map[str
 
 	return t.CreateSuccessResponse(message, data)
 }
+
+// DescribeNATGatewaysTool implements MCPTool for describing NAT gateways
+type DescribeNATGatewaysTool struct {
+	*BaseTool
+	adapter interfaces.SpecializedOperations
+}
+
+// NewDescribeNATGatewaysTool creates a new NAT gateway description tool
+func NewDescribeNATGatewaysTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+	inputSchema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"natGatewayIds": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "string",
+				},
+				"description": "Optional list of NAT Gateway IDs to describe. If not provided, all NAT gateways will be returned",
+			},
+		},
+	}
+
+	baseTool := NewBaseTool(
+		"describe-nat-gateways",
+		"Describe NAT gateways in the current AWS region",
+		"networking",
+		inputSchema,
+		logger,
+	)
+
+	adapter := adapters.NewVPCSpecializedAdapter(awsClient, logger)
+
+	return &DescribeNATGatewaysTool{
+		BaseTool: baseTool,
+		adapter:  adapter,
+	}
+}
+
+// Execute describes NAT gateways using the VPC adapter
+func (t *DescribeNATGatewaysTool) Execute(ctx context.Context, arguments map[string]interface{}) (*mcp.CallToolResult, error) {
+	// Use the adapter's ExecuteSpecialOperation
+	result, err := t.adapter.ExecuteSpecialOperation(ctx, "describe-nat-gateways", arguments)
+	if err != nil {
+		return t.CreateErrorResponse(fmt.Sprintf("Failed to describe NAT gateways: %s", err.Error()))
+	}
+
+	// Extract the NAT gateways from the composite resource
+	natGateways, ok := result.Details["natGateways"].([]*types.AWSResource)
+	if !ok {
+		return t.CreateErrorResponse("Failed to extract NAT gateway data")
+	}
+
+	count, ok := result.Details["count"].(int)
+	if !ok {
+		count = len(natGateways)
+	}
+
+	// Format response
+	message := fmt.Sprintf("Retrieved %d NAT gateways", count)
+	data := map[string]interface{}{
+		"count":       count,
+		"natGateways": natGateways,
+	}
+
+	return t.CreateSuccessResponse(message, data)
+}

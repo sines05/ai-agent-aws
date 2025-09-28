@@ -178,6 +178,15 @@ tool_resource_patterns:
   nat_gateway: ['.*create.*nat.*gateway$', '^create.*nat.*gateway$', 'create-nat-gateway']
   route_table: ['.*create.*route.*table$', '^create.*route.*table$', 'create-.*route-table']
   
+  # Discovery/List patterns
+  list_vpcs: ['.*list.*vpcs.*', '.*describe.*vpcs.*', 'list-vpcs', 'describe-vpcs']
+  list_subnets: ['.*list.*subnets.*', '.*describe.*subnets.*', 'list-subnets', 'describe-subnets']
+  list_security_groups: ['.*list.*security.*groups.*', '.*describe.*security.*groups.*', 'list-security-groups', 'describe-security-groups']
+  list_ec2_instances: ['.*list.*ec2.*instances.*', '.*describe.*instances.*', 'list-instances', 'describe-instances']
+  list_images: ['.*list.*images.*', '.*describe.*images.*', 'list-images', 'describe-images']
+  list_instance_types: ['.*list.*instance.*types.*', '.*describe.*instance.*types.*', 'list-instance-types']
+  describe_resources: ['.*describe.*', '.*get.*', '.*fetch.*']
+  
   # Utility patterns
   availability_zone: ['.*availability.*zone.*', '.*get.*availability.*zones.*', 'get-availability-zones']
 
@@ -524,3 +533,44 @@ value_type_inference:
       - ".*"
     required_terms: []
     optional_terms: []
+
+# Tool Category Mapping - Maps resource types to UI categories for better organization
+tool_categories:
+  "CORE VPC TOOLS":
+    - vpc
+    - subnet
+    - internet_gateway
+    - nat_gateway
+    - route_table
+    
+  "SECURITY TOOLS":
+    - security_group
+    
+  "COMPUTE TOOLS":
+    - ec2_instance
+    - launch_template
+    - availability_zone
+    
+  "LOAD BALANCING TOOLS":
+    - load_balancer
+    - target_group
+    
+  "AUTO SCALING TOOLS":
+    - auto_scaling_group
+    - launch_template
+    
+  "DATABASE TOOLS":
+    - rds_instance
+    - db_subnet_group
+    
+  "DISCOVERY TOOLS":
+    - list_vpcs
+    - list_subnets
+    - list_security_groups
+    - list_ec2_instances
+    - list_images
+    - list_instance_types
+    - describe_resources
+    
+  "Other":
+    - unknown

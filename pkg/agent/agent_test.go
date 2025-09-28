@@ -207,6 +207,237 @@ Please deploy this complete infrastructure stack and provide me with the key res
 	return prompt
 }
 
+// Comprehensive Serverless Infrastructure
+func comprehensiveServerlessPrompt() string {
+	prompt := `Deploy a complete serverless application infrastructure on AWS with the following specifications:
+
+API Layer:
+- Create an API Gateway REST API with regional endpoint
+- Define resources and methods: GET /items, POST /items, GET /items/{id}
+- Enable CORS for all methods
+- Set up usage plan with throttling: 100 requests/second burst, 50 requests/second steady
+
+Compute Layer:
+- Create three Lambda functions in Node.js 20.x runtime
+- Function 1: listItems - GET all items from DynamoDB
+- Function 2: createItem - POST new item to DynamoDB
+- Function 3: getItem - GET single item by ID
+- Configure 128MB memory, 10s timeout for each
+- Use environment variables for DynamoDB table name
+- Integrate each function with corresponding API Gateway methods
+- Enable Lambda function URLs for testing
+
+Database Layer:
+- Provision DynamoDB table named 'Items' with partition key 'id' (string)
+- Add global secondary index on 'category' attribute
+- Set provisioned capacity: 5 read/write capacity units
+- Enable point-in-time recovery and auto-scaling (min 5, max 100)
+- Encrypt with AWS-managed KMS key
+
+Security and Authentication:
+- Create Cognito User Pool for user authentication
+- Add app client with OAuth flows enabled
+- Configure API Gateway authorizer using Cognito
+- Apply authorizer to all API methods except public GET /items
+
+Monitoring and Logging:
+- Enable X-Ray tracing for API Gateway and Lambda
+- Create CloudWatch Log Groups for each Lambda with 7-day retention
+- Set up CloudWatch alarms for Lambda errors (>0) and API 5xx errors (>1%)
+
+Additional Requirements:
+- Deploy in us-east-1 region
+- Tag all resources with Environment=production, Application=serverless-app
+- Ensure IAM roles follow least privilege: Lambda role with DynamoDB access only
+- Provide API endpoint and test commands after deployment
+
+Create a step-by-step execution plan including all AWS API calls, resource dependencies, and validation steps.`
+
+	return prompt
+}
+
+// Comprehensive EKS Infrastructure
+func comprehensiveEKSPrompt() string {
+	prompt := `Set up a production-ready Kubernetes cluster on AWS EKS with these requirements:
+
+Cluster Foundation:
+- Create EKS cluster version 1.30 in us-west-2
+- Enable public and private endpoint access
+- Configure cluster logging: api, audit, authenticator, controllerManager, scheduler
+
+Networking:
+- Use existing VPC or create new with CIDR 10.100.0.0/16
+- Public subnets: 10.100.1.0/24, 10.100.2.0/24
+- Private subnets: 10.100.11.0/24, 10.100.12.0/24
+- Ensure proper route tables and security groups for cluster communication
+
+Node Groups:
+- Managed node group with t3.medium instances
+- Min 2, max 10, desired 3 nodes
+- Use Amazon Linux 2 EKS-optimized AMI
+- Enable auto-scaling and cluster autoscaler
+- Add labels: role=worker
+
+Add-ons:
+- Install CoreDNS, kube-proxy, VPC CNI
+- Add EBS CSI driver for persistent storage
+- Deploy AWS Load Balancer Controller
+
+Security:
+- Create IAM roles for cluster and nodes with least privilege
+- Enable IRSA (IAM Roles for Service Accounts)
+- Configure security groups to allow only necessary ports
+
+Monitoring:
+- Enable EKS Control Plane logging to CloudWatch
+- Install Prometheus and Grafana for cluster monitoring
+- Set up alerts for node CPU >80% and pod evictions
+
+Deployment Validation:
+- Deploy sample nginx deployment and service (type LoadBalancer)
+- Verify external access to the service
+- Check cluster health and node status
+
+Provide a detailed plan with sequential steps, AWS CLI commands where applicable, and resource verification.`
+
+	return prompt
+}
+
+// Comprehensive S3 with CloudFront Infrastructure
+func comprehensiveS3CloudFrontPrompt() string {
+	prompt := `Build a global static website hosting infrastructure on AWS:
+
+Storage Layer:
+- Create S3 bucket for website assets in us-east-1
+- Enable versioning and server-side encryption (SSE-S3)
+- Set bucket policy for public read access
+- Upload sample index.html and error.html
+
+Distribution Layer:
+- Create CloudFront distribution with S3 as origin
+- Configure default root object: index.html
+- Enable HTTP/2 and IPv6
+- Set price class: Use All Edge Locations
+- Configure error pages: 404 -> error.html (HTTP 200)
+
+Security:
+- Create Origin Access Control (OAC) for S3
+- Update S3 bucket policy to allow only CloudFront
+- Enable WAF web ACL with AWS managed rules for common exploits
+
+Domain and SSL:
+- Assume domain example.com in Route 53
+- Create ACM certificate for *.example.com
+- Configure CloudFront alternate domain names
+- Set up Route 53 A record alias to CloudFront
+
+Logging and Monitoring:
+- Enable CloudFront standard logging to S3
+- Create CloudWatch alarms for BytesDownloaded > threshold
+- Set S3 access logging
+
+Additional Features:
+- Enable compression for text/* MIME types
+- Set cache behavior: TTL min 0, default 1 day, max 1 year
+- Add geo-restriction whitelist: US, CA
+
+Deploy the infrastructure and provide the CloudFront domain name, S3 bucket name, and test URLs.`
+
+	return prompt
+}
+
+// Comprehensive ECS Infrastructure
+func comprehensiveECSPrompt() string {
+	prompt := `Deploy a containerized application on AWS ECS with Fargate:
+
+Cluster Setup:
+- Create ECS cluster in us-east-1
+- Enable Container Insights for monitoring
+
+Networking:
+- Use VPC with public and private subnets across 2 AZs
+- CIDR: 10.20.0.0/16
+- Public: 10.20.1.0/24, 10.20.2.0/24
+- Private: 10.20.11.0/24, 10.20.12.0/24
+- Internet Gateway and NAT for outbound
+
+Task Definition:
+- Fargate launch type
+- Task: 0.5 vCPU, 1GB memory
+- Container: nginx:latest, port 80
+- Add environment variables if needed
+- Enable AWS Logs driver
+
+Service:
+- Create ECS service with 2 desired tasks
+- Deploy in private subnets
+- Enable auto-scaling: min 2, max 10, CPU target 70%
+- Integrate with Application Load Balancer
+
+Load Balancer:
+- Internet-facing ALB in public subnets
+- HTTP listener port 80
+- Target group with health check on /
+- Security group: allow 80 from 0.0.0.0/0
+
+Database (Optional Integration):
+- RDS PostgreSQL in private subnets
+- Allow access from ECS security group on port 5432
+
+Security:
+- ECS task role with S3 read access (if needed)
+- Security groups with least privilege
+
+Validation:
+- Verify service is running and accessible via ALB
+- Scale tasks and check auto-scaling
+
+Provide execution plan with all steps, dependencies, and final endpoints.`
+
+	return prompt
+}
+
+// Comprehensive Monitoring and Logging Infrastructure
+func comprehensiveMonitoringPrompt() string {
+	prompt := `Set up comprehensive monitoring and logging for an existing AWS infrastructure:
+
+Core Services:
+- Enable CloudWatch for all supported resources
+- Create CloudTrail trail for management events, multi-region
+- Configure S3 bucket for CloudTrail logs with lifecycle policy (30 days to Glacier)
+
+Alarms and Dashboards:
+- Create CloudWatch alarms:
+  - EC2 CPU >80% for 5 minutes
+  - ALB 5xx errors >5 in 1 minute
+  - RDS free storage <20%
+- Build CloudWatch dashboard with widgets for CPU, network, errors
+
+Logging:
+- Set up centralized logging with CloudWatch Logs
+- Create log groups for EC2, Lambda, ECS with 14-day retention
+- Enable VPC Flow Logs to CloudWatch Logs group
+
+Advanced Monitoring:
+- Enable X-Ray for application tracing (API Gateway, Lambda, ECS)
+- Set up Synthetics canaries for endpoint monitoring (every 5 min)
+- Configure EventBridge rules for critical events (e.g., instance termination)
+
+Notifications:
+- Create SNS topic for alarms
+- Subscribe email endpoint
+- Integrate with alarms for notifications
+
+Security Monitoring:
+- Enable GuardDuty for threat detection
+- Configure Config rules for compliance (e.g., encrypted volumes)
+- Set up Security Hub with CIS benchmarks
+
+Deploy in us-west-2, tag resources with Monitoring=true, and provide dashboard URL and alarm names.`
+
+	return prompt
+}
+
 // === Test Suites ===
 
 // TestComprehensiveExecutionPipeline tests all aspects of the execution pipeline

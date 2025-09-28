@@ -91,6 +91,8 @@ func (f *ToolFactoryImpl) CreateTool(toolType string, dependencies interface{}) 
 		return NewCreateInternetGatewayTool(deps.AWSClient, f.logger), nil
 	case "create-nat-gateway":
 		return NewCreateNATGatewayTool(deps.AWSClient, f.logger), nil
+	case "describe-nat-gateways":
+		return NewDescribeNATGatewaysTool(deps.AWSClient, f.logger), nil
 	case "create-public-route-table":
 		return NewCreatePublicRouteTableTool(deps.AWSClient, f.logger), nil
 	case "create-private-route-table":
@@ -215,6 +217,7 @@ func (f *ToolFactoryImpl) GetSupportedToolTypes() []string {
 		"select-subnets-for-alb",
 		"create-internet-gateway",
 		"create-nat-gateway",
+		"describe-nat-gateways",
 		"create-public-route-table",
 		"create-private-route-table",
 		"associate-route-table",

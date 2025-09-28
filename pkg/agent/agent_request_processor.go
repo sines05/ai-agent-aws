@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -108,7 +109,10 @@ func (a *StateAwareAgent) generateDecisionWithPlan(ctx context.Context, decision
 	a.Logger.Debug("Generating AI decision with execution plan")
 
 	// Create prompt for the AI that includes plan generation
-	prompt := a.buildDecisionWithPlanPrompt(request, context)
+	prompt, promptErr := a.buildDecisionWithPlanPrompt(request, context)
+	if promptErr != nil {
+		return nil, fmt.Errorf("failed to build decision prompt: %w", promptErr)
+	}
 
 	// Log prompt details for debugging
 	a.Logger.WithFields(map[string]interface{}{
@@ -260,13 +264,17 @@ func (a *StateAwareAgent) validateDecision(decision *types.AgentDecision, contex
 }
 
 // buildDecisionWithPlanPrompt builds a prompt for AI decision-making with execution plan
-func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *DecisionContext) string {
+func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *DecisionContext) (string, error) {
 	var prompt strings.Builder
 
 	prompt.WriteString("You are an expert AWS infrastructure automation agent with comprehensive state management capabilities.\n\n")
 
 	// Add available tools context
-	prompt.WriteString(a.getAvailableToolsContext())
+	toolsContext, err := a.getAvailableToolsContext()
+	if err != nil {
+		return "", fmt.Errorf("failed to get available tools context: %w", err)
+	}
+	prompt.WriteString(toolsContext)
 	prompt.WriteString("\n")
 
 	prompt.WriteString("USER REQUEST: " + request + "\n\n")
@@ -355,125 +363,15 @@ func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *D
 		prompt.WriteString("\n")
 	}
 
-	// === DECISION GUIDELINES ===
-	prompt.WriteString("🎯 DECISION-MAKING GUIDELINES:\n")
-	prompt.WriteString("1. RESOURCE REUSE: Always prefer existing AWS resources over creating new ones\n")
-	prompt.WriteString("2. STATE AWARENESS: Consider all resources in the state file for dependencies and conflicts\n")
-	prompt.WriteString("3. INTELLIGENT PLANNING: Create execution plans that leverage existing infrastructure\n")
-	prompt.WriteString("4. MINIMAL CHANGES: Make only necessary changes to achieve the user's request\n")
-	prompt.WriteString("5. DEPENDENCY MANAGEMENT: Ensure proper dependency ordering in execution plans\n\n")
+	// Load decision guidelines from template file
+	decisionTemplate, err := a.loadTemplate("settings/templates/decision-plan-prompt.txt")
+	if err != nil {
+		a.Logger.WithError(err).Error("Failed to load decision template")
+		return "", fmt.Errorf("failed to load decision template: %w", err)
+	}
+	prompt.WriteString(decisionTemplate)
 
-	// === AI DECISION PROMPT ===
-	prompt.WriteString("📋 YOUR TASK:\n")
-	prompt.WriteString("Based on the user request and ALL infrastructure state information above:\n")
-	prompt.WriteString("1. Analyze what already exists in both managed and discovered resources\n")
-	prompt.WriteString("2. Determine the minimal set of actions needed to fulfill the request\n")
-	prompt.WriteString("3. Create an execution plan using available MCP tools\n")
-	prompt.WriteString("4. Provide clear reasoning for your decisions\n\n")
-
-	// === JSON RESPONSE SCHEMA ===
-	prompt.WriteString("🔧 REQUIRED JSON RESPONSE FORMAT:\n")
-	prompt.WriteString("Respond with ONLY valid JSON in this exact format:\n\n")
-	prompt.WriteString("{\n")
-	prompt.WriteString("  \"action\": \"create_infrastructure|update_infrastructure|delete_infrastructure|no_action\",\n")
-	prompt.WriteString("  \"reasoning\": \"Detailed explanation of your analysis and decision-making process\",\n")
-	prompt.WriteString("  \"confidence\": 0.0-1.0,\n")
-	prompt.WriteString("  \"resourcesAnalyzed\": {\n")
-	prompt.WriteString("    \"managedCount\": 0,\n")
-	prompt.WriteString("    \"discoveredCount\": 0,\n")
-	prompt.WriteString("    \"reusableResources\": [\"list of resources that can be reused\"]\n")
-	prompt.WriteString("  },\n")
-	prompt.WriteString("  \"executionPlan\": [\n")
-	prompt.WriteString("    {\n")
-	prompt.WriteString("      \"id\": \"step-1\",\n")
-	prompt.WriteString("      \"name\": \"Step Description\",\n")
-	prompt.WriteString("      \"description\": \"Detailed step description\",\n")
-	prompt.WriteString("      \"action\": \"create|update|delete|validate|api_value_retrieval\",\n")
-	prompt.WriteString("      \"resourceId\": \"logical-resource-id\",\n")
-	prompt.WriteString("      \"mcpTool\": \"exact-mcp-tool-name\",\n")
-	prompt.WriteString("      \"toolParameters\": {\n")
-	prompt.WriteString("        \"parameter\": \"value\"\n")
-	prompt.WriteString("      },\n")
-	prompt.WriteString("      \"dependsOn\": [\"list-of-step-ids\"],\n")
-	prompt.WriteString("      \"estimatedDuration\": \"10s\",\n")
-	prompt.WriteString("      \"status\": \"pending\"\n")
-	prompt.WriteString("    }\n")
-	prompt.WriteString("  ]\n")
-	prompt.WriteString("}\n\n")
-
-	// === CRITICAL INSTRUCTIONS ===
-	prompt.WriteString("🚨 STEP DEPENDENCY REQUIREMENTS:\n")
-	prompt.WriteString("NEVER use hardcoded AWS resource IDs like sg-12345678, vpc-abcdef, ami-987654, etc.\n")
-	prompt.WriteString("ALWAYS create step dependencies and use {{step-id.resourceId}} references:\n\n")
-	prompt.WriteString("✅ CORRECT Load Balancer Pattern:\n")
-	prompt.WriteString("{\n")
-	prompt.WriteString("  \"id\": \"step-create-lb-sg\",\n")
-	prompt.WriteString("  \"action\": \"create\",\n")
-	prompt.WriteString("  \"mcpTool\": \"create-security-group\",\n")
-	prompt.WriteString("  \"toolParameters\": {\n")
-	prompt.WriteString("    \"groupName\": \"web-alb-sg\",\n")
-	prompt.WriteString("    \"description\": \"Security group for load balancer\",\n")
-	prompt.WriteString("    \"vpcId\": \"{{step-vpc.resourceId}}\"\n")
-	prompt.WriteString("  }\n")
-	prompt.WriteString("},\n")
-	prompt.WriteString("{\n")
-	prompt.WriteString("  \"id\": \"step-create-alb\",\n")
-	prompt.WriteString("  \"action\": \"create\",\n")
-	prompt.WriteString("  \"mcpTool\": \"create-load-balancer\",\n")
-	prompt.WriteString("  \"toolParameters\": {\n")
-	prompt.WriteString("    \"name\": \"web-app-alb\",\n")
-	prompt.WriteString("    \"securityGroupIds\": [\"{{step-create-lb-sg.resourceId}}\"]\n")
-	prompt.WriteString("  },\n")
-	prompt.WriteString("  \"dependsOn\": [\"step-create-lb-sg\"]\n")
-	prompt.WriteString("}\n\n")
-	prompt.WriteString("❌ WRONG - Hardcoded IDs will cause failures:\n")
-	prompt.WriteString("\"securityGroupIds\": [\"sg-05dc049424690e203\"]  // This ID may not exist!\n\n")
-
-	prompt.WriteString("� IMPORTANT: Distinguish between HARDCODED AWS IDs vs LEGITIMATE PARAMETERS:\n")
-	prompt.WriteString("✅ LEGITIMATE parameter values (these are fine):\n")
-	prompt.WriteString("  - Resource names: \"web-app-alb\", \"production-vpc\", \"public-subnet-1\"\n")
-	prompt.WriteString("  - Parameter types: \"vpc_id\", \"subnet_id\", \"security_group_id\", \"existing_resource\"\n")
-	prompt.WriteString("  - Schemes/types: \"internet-facing\", \"application\", \"HTTP\", \"HTTPS\"\n")
-	prompt.WriteString("  - CIDR blocks: \"10.0.0.0/16\", \"192.168.1.0/24\"\n")
-	prompt.WriteString("❌ HARDCODED AWS resource IDs (NEVER use these):\n")
-	prompt.WriteString("  - VPC IDs: \"vpc-12345678abcdef\"\n")
-	prompt.WriteString("  - Subnet IDs: \"subnet-87654321fedcba\"\n")
-	prompt.WriteString("  - Security Group IDs: \"sg-05dc049424690e203\"\n")
-	prompt.WriteString("  - Instance IDs: \"i-1234567890abcdef0\"\n")
-	prompt.WriteString("  - AMI IDs: \"ami-0abcdef1234567890\"\n\n")
-
-	prompt.WriteString("�🚨 CRITICAL INSTRUCTIONS:\n")
-	prompt.WriteString("1. ANALYZE ALL RESOURCES: Consider every resource shown above before making decisions\n")
-	prompt.WriteString("2. REUSE FIRST: Always check if existing resources can fulfill the request\n")
-	prompt.WriteString("3. USE EXACT TOOL NAMES: Only use MCP tool names shown in the tools context above\n")
-	prompt.WriteString("4. PARAMETER ACCURACY: Use correct parameter names and types for each tool\n")
-	prompt.WriteString("5. DEPENDENCY REFERENCES: Use {{step-id.resourceId}} format for dependencies\n")
-	prompt.WriteString("6. JSON ONLY: Return only valid JSON - no markdown, no explanations, no extra text\n")
-	prompt.WriteString("7. STATE FILE AWARENESS: Remember that managed resources exist in the state file\n")
-	prompt.WriteString("8. ACTION TYPE USAGE:\n")
-	prompt.WriteString("   - create: For new AWS resources that don't exist (VPC, subnets, route table associations, routes, security rules, etc.)\n")
-	prompt.WriteString("   - update: For modifying properties of existing resources (changing tags, descriptions)\n")
-	prompt.WriteString("   - delete: For removing AWS resources\n")
-	prompt.WriteString("   - validate: For checking resource states or configurations\n")
-	prompt.WriteString("   - api_value_retrieval: For fetching real AWS values to replace placeholders\n")
-	prompt.WriteString("   🚨 ONLY use these exact actions: create, update, add, delete, validate, api_value_retrieval\n")
-	prompt.WriteString("   🚨 NEVER use: associate, attach, connect, link, join, bind, or any other action names\n\n")
-
-	// === EXAMPLES ===
-	prompt.WriteString("💡 DECISION EXAMPLES:\n")
-	prompt.WriteString("Example 1 - Resource Reuse: If user wants a web server and you see existing VPC and security groups, reuse them\n")
-	prompt.WriteString("Example 2 - Minimal Changes: If user wants to add a database and VPC exists, only create database resources\n")
-	prompt.WriteString("Example 3 - No Action: If user requests something that already exists, return action: \"no_action\"\n\n")
-
-	prompt.WriteString("💡 ACTION EXAMPLES:\n")
-	prompt.WriteString("✅ CREATE: \"action\": \"create\" for new VPC, subnets, security groups, route table associations, routes, etc.\n")
-	prompt.WriteString("✅ CREATE: \"action\": \"create\" for associating route tables with subnets (creates new association resource)\n")
-	prompt.WriteString("✅ CREATE: \"action\": \"create\" for adding routes to route tables (creates new route resource)\n")
-	prompt.WriteString("❌ NEVER USE: associate, attach, connect, link, join, bind\n\n")
-
-	prompt.WriteString("BEGIN YOUR ANALYSIS AND PROVIDE YOUR JSON RESPONSE:\n")
-
-	return prompt.String()
+	return prompt.String(), nil
 }
 
 // parseAIResponseWithPlan parses the AI response into an AgentDecision with execution plan
@@ -481,7 +379,7 @@ func (a *StateAwareAgent) parseAIResponseWithPlan(decisionID, request, response 
 	a.Logger.Debug("Parsing AI response for execution plan")
 
 	// Check if response appears to be truncated JSON
-	if strings.HasPrefix(response, "{") && !strings.HasSuffix(response, "}") {
+	if strings.HasPrefix(response, "{") && !strings.HasSuffix(response, "}") && a.config.EnableDebug {
 		a.Logger.WithFields(map[string]interface{}{
 			"response_starts_with": response[:min(100, len(response))],
 			"response_ends_with":   response[max(0, len(response)-100):],
@@ -502,12 +400,14 @@ func (a *StateAwareAgent) parseAIResponseWithPlan(decisionID, request, response 
 	}
 
 	if jsonStr == "" {
-		a.Logger.WithFields(map[string]interface{}{
-			"response_preview":  response[:min(500, len(response))],
-			"response_length":   len(response),
-			"starts_with_brace": strings.HasPrefix(response, "{"),
-			"ends_with_brace":   strings.HasSuffix(response, "}"),
-		}).Error("No valid JSON found in AI response")
+		if a.config.EnableDebug {
+			a.Logger.WithFields(map[string]interface{}{
+				"response_preview":  response[:min(500, len(response))],
+				"response_length":   len(response),
+				"starts_with_brace": strings.HasPrefix(response, "{"),
+				"ends_with_brace":   strings.HasSuffix(response, "}"),
+			}).Error("No valid JSON found in AI response")
+		}
 		return nil, fmt.Errorf("no valid JSON found in AI response")
 	}
 
@@ -542,29 +442,7 @@ func (a *StateAwareAgent) parseAIResponseWithPlan(decisionID, request, response 
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
 		a.Logger.WithError(err).WithField("json", jsonStr).Error("Failed to parse AI response JSON")
 
-		// Try fallback parsing without execution plan
-		var simpleParsed struct {
-			Action     string                 `json:"action"`
-			Reasoning  string                 `json:"reasoning"`
-			Confidence float64                `json:"confidence"`
-			Parameters map[string]interface{} `json:"parameters"`
-		}
-
-		if fallbackErr := json.Unmarshal([]byte(jsonStr), &simpleParsed); fallbackErr != nil {
-			return nil, fmt.Errorf("failed to parse AI response JSON: %w", err)
-		}
-
-		a.Logger.Warn("Using fallback parsing - no execution plan available")
-		return &types.AgentDecision{
-			ID:            decisionID,
-			Action:        simpleParsed.Action,
-			Resource:      request,
-			Reasoning:     simpleParsed.Reasoning,
-			Confidence:    simpleParsed.Confidence,
-			Parameters:    simpleParsed.Parameters,
-			ExecutionPlan: []*types.ExecutionPlanStep{}, // Empty plan
-			Timestamp:     time.Now(),
-		}, nil
+		return nil, fmt.Errorf("failed to parse AI response JSON: %w", err)
 	}
 
 	// Convert execution plan with native MCP support
@@ -609,4 +487,28 @@ func (a *StateAwareAgent) parseAIResponseWithPlan(decisionID, request, response 
 		ExecutionPlan: executionPlan,
 		Timestamp:     time.Now(),
 	}, nil
+}
+
+// loadTemplate loads a template file from the filesystem
+func (a *StateAwareAgent) loadTemplate(templatePath string) (string, error) {
+	data, err := os.ReadFile(templatePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read template file %s: %w", templatePath, err)
+	}
+	return string(data), nil
+}
+
+// loadTemplateWithPlaceholders loads a template and processes placeholders
+func (a *StateAwareAgent) loadTemplateWithPlaceholders(templatePath string, placeholders map[string]string) (string, error) {
+	content, err := a.loadTemplate(templatePath)
+	if err != nil {
+		return "", err
+	}
+
+	// Replace placeholders
+	for placeholder, value := range placeholders {
+		content = strings.ReplaceAll(content, "{{"+placeholder+"}}", value)
+	}
+
+	return content, nil
 }

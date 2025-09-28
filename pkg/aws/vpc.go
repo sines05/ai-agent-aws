@@ -599,3 +599,73 @@ func (c *Client) convertSubnet(subnet ec2types.Subnet) *types.AWSResource {
 		LastSeen: time.Now(),
 	}
 }
+
+// DescribeNATGateways retrieves NAT Gateway information
+func (c *Client) DescribeNATGateways(ctx context.Context, natGatewayIDs []string) ([]*types.AWSResource, error) {
+	input := &ec2.DescribeNatGatewaysInput{}
+
+	if len(natGatewayIDs) > 0 {
+		input.NatGatewayIds = natGatewayIDs
+	}
+
+	result, err := c.ec2.DescribeNatGateways(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe NAT gateways: %w", err)
+	}
+
+	var natGateways []*types.AWSResource
+	for _, natGateway := range result.NatGateways {
+		resource := c.convertNATGatewayToResource(natGateway)
+		natGateways = append(natGateways, resource)
+	}
+
+	return natGateways, nil
+}
+
+// convertNATGatewayToResource converts an EC2 NAT Gateway to our AWSResource format
+func (c *Client) convertNATGatewayToResource(natGateway ec2types.NatGateway) *types.AWSResource {
+	tags := make(map[string]string)
+	for _, tag := range natGateway.Tags {
+		if tag.Key != nil && tag.Value != nil {
+			tags[*tag.Key] = *tag.Value
+		}
+	}
+
+	// Extract NAT Gateway addresses information
+	var addresses []map[string]interface{}
+	for _, addr := range natGateway.NatGatewayAddresses {
+		address := map[string]interface{}{
+			"allocationId":       aws.ToString(addr.AllocationId),
+			"networkInterfaceId": aws.ToString(addr.NetworkInterfaceId),
+			"privateIp":          aws.ToString(addr.PrivateIp),
+			"publicIp":           aws.ToString(addr.PublicIp),
+			"associationId":      aws.ToString(addr.AssociationId),
+			"isPrimary":          aws.ToBool(addr.IsPrimary),
+			"status":             string(addr.Status),
+		}
+		addresses = append(addresses, address)
+	}
+
+	details := map[string]interface{}{
+		"subnetId":             aws.ToString(natGateway.SubnetId),
+		"vpcId":                aws.ToString(natGateway.VpcId),
+		"state":                string(natGateway.State),
+		"failureCode":          aws.ToString(natGateway.FailureCode),
+		"failureMessage":       aws.ToString(natGateway.FailureMessage),
+		"provisionedBandwidth": natGateway.ProvisionedBandwidth,
+		"connectivityType":     string(natGateway.ConnectivityType),
+		"natGatewayAddresses":  addresses,
+		"createTime":           natGateway.CreateTime,
+		"deleteTime":           natGateway.DeleteTime,
+	}
+
+	return &types.AWSResource{
+		ID:       aws.ToString(natGateway.NatGatewayId),
+		Type:     "nat-gateway",
+		Region:   c.cfg.Region,
+		State:    string(natGateway.State),
+		Tags:     tags,
+		Details:  details,
+		LastSeen: time.Now(),
+	}
+}

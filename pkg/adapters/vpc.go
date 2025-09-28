@@ -369,6 +369,44 @@ func (v *VPCSpecializedAdapter) ExecuteSpecialOperation(ctx context.Context, ope
 
 		return v.client.CreateNATGateway(ctx, natGwParams)
 
+	case "describe-nat-gateways":
+		// Handle NAT gateway description
+		var natGatewayIDs []string
+
+		if params != nil {
+			if paramsMap, ok := params.(map[string]interface{}); ok {
+				if ids, exists := paramsMap["natGatewayIds"]; exists {
+					if idList, ok := ids.([]interface{}); ok {
+						for _, id := range idList {
+							if idStr, ok := id.(string); ok {
+								natGatewayIDs = append(natGatewayIDs, idStr)
+							}
+						}
+					} else if idList, ok := ids.([]string); ok {
+						natGatewayIDs = idList
+					}
+				}
+			}
+		}
+
+		// This operation returns multiple resources, but we need to return a single resource
+		// We'll return a composite resource with the results
+		natGateways, err := v.client.DescribeNATGateways(ctx, natGatewayIDs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to describe NAT gateways: %w", err)
+		}
+
+		// Create a composite resource containing all NAT gateways
+		return &types.AWSResource{
+			ID:    "nat-gateways-list",
+			Type:  "nat-gateways-list",
+			State: "available",
+			Details: map[string]interface{}{
+				"count":       len(natGateways),
+				"natGateways": natGateways,
+			},
+		}, nil
+
 	case "associate-route-table":
 		assocParams, ok := params.(map[string]interface{})
 		if !ok {
