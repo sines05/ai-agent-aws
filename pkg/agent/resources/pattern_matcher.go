@@ -17,6 +17,8 @@ type PatternMatcher struct {
 	toolPatterns           map[string][]*regexp.Regexp
 	relationships          *config.ResourceRelationships
 	resourceIdentification *config.ResourceIdentification
+	toolCategories         map[string][]string // category -> resource types
+	resourceToCategory     map[string]string   // resource type -> category
 	mu                     sync.RWMutex
 }
 
@@ -29,6 +31,15 @@ func NewPatternMatcher(cfg *config.ResourcePatternConfig) (*PatternMatcher, erro
 		toolPatterns:           make(map[string][]*regexp.Regexp),
 		relationships:          &cfg.ResourceRelationships,
 		resourceIdentification: &cfg.ResourceIdentification,
+		toolCategories:         cfg.ToolCategories,
+		resourceToCategory:     make(map[string]string),
+	}
+
+	// Build reverse mapping: resource type -> category
+	for category, resourceTypes := range cfg.ToolCategories {
+		for _, resourceType := range resourceTypes {
+			pm.resourceToCategory[resourceType] = category
+		}
 	}
 
 	// Compile ID patterns
@@ -128,6 +139,37 @@ func (p *PatternMatcher) IdentifyResourceTypeFromToolName(toolName string) strin
 	defer p.mu.RUnlock()
 
 	return p.matchToolPatterns(toolName)
+}
+
+// GetCategoryForTool returns the category for a given tool name using resource type matching
+func (p *PatternMatcher) GetCategoryForTool(toolName string) string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	// First identify the resource type from the tool name
+	resourceType := p.matchToolPatterns(toolName)
+	if resourceType == "" {
+		return "Other"
+	}
+
+	// Then get the category for that resource type
+	if category, exists := p.resourceToCategory[resourceType]; exists {
+		return category
+	}
+
+	return "Other"
+}
+
+// GetAvailableCategories returns all available categories
+func (p *PatternMatcher) GetAvailableCategories() []string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	categories := make([]string, 0, len(p.toolCategories))
+	for category := range p.toolCategories {
+		categories = append(categories, category)
+	}
+	return categories
 }
 
 // matchIDPatterns tries to match resource ID patterns

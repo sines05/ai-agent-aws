@@ -88,65 +88,16 @@ Once approved, the agent:
 - Quick Tutorial: **[AI Infrastructure Agent for AWS](https://github.com/VersusControl/devops-ai-guidelines/blob/main/resources/ai-infrastructure-agent-for-aws.md)**
 - Series Tutorial: **[Building Your Business on AWS with AI Agent](https://github.com/VersusControl/devops-ai-guidelines/blob/main/04-ai-agent-for-aws/00-toc.md)**
 
-## Quick Installation
+## How To Run
 
-### Prerequisites
+Detailed Guides: [Installation Guide](https://ai-agent.devopsvn.tech/docs.html#/installation)
 
-- **AWS Account** - With appropriate IAM permissions
-- **AI Provider API Key** - Choose from: OpenAI API Key, Google Gemini API Key, Anthropic API Key, or use AWS Bedrock Nova (with AWS credentials)
-
-### Automated Installation (Recommended)
+### Clone the repository
 
 ```bash
-# Clone the repository
 git clone https://github.com/VersusControl/ai-infrastructure-agent.git
 cd ai-infrastructure-agent
-
-# Run the installation script
-./scripts/install.sh
 ```
-
-The installation script will:
-- ✅ Check and install Go 1.24.2+
-- ✅ Setup AWS CLI (if needed)
-- ✅ Create necessary directories
-- ✅ Build both MCP server and Web UI
-- ✅ Create configuration files
-- ✅ Generate launcher scripts
-
-### Manual Installation
-
-<details>
-<summary>Click to expand manual installation steps</summary>
-
-```bash
-# 1. Install Go 1.24.2+
-# Visit: https://golang.org/dl/
-
-# 2. Install AWS CLI
-# Visit: https://aws.amazon.com/cli/
-
-# 3. Clone and build
-git clone https://github.com/VersusControl/ai-infrastructure-agent.git
-cd ai-infrastructure-agent
-
-# 4. Install dependencies
-go mod download
-go mod tidy
-
-# 5. Build applications
-go build -o bin/web-ui cmd/web/main.go
-
-# 6. Create directories
-mkdir -p bin logs backups tmp
-
-# 7. Setup configuration
-cp config.openai.yaml.example config.yaml
-```
-
-</details>
-
-## Configuration
 
 ### 1. Edit Configuration File
 
@@ -172,9 +123,9 @@ agent:
 ### 3. Set Environment Variables
 
 **Detailed Setup Guides:**
-- **OpenAI**: [OpenAI API Key Setup Guide](docs/api-key-setup/openai-api-setup.md)
-- **Google Gemini**: [Gemini API Key Setup Guide](docs/api-key-setup/gemini-api-setup.md)
-- **AWS Bedrock Nova**: [AWS Bedrock Nova Configuration Guide](docs/api-key-setup/aws-bedrock-nova-setup.md)
+- **OpenAI**: [OpenAI API Key Setup Guide](https://ai-agent.devopsvn.tech/docs.html#/api-key-setup/openai-api-setup)
+- **Google Gemini**: [Gemini API Key Setup Guide](https://ai-agent.devopsvn.tech/docs.html#/api-key-setup/gemini-api-setup)
+- **AWS Bedrock Nova**: [AWS Bedrock Nova Configuration Guide](https://ai-agent.devopsvn.tech/docs.html#/api-key-setup/aws-bedrock-nova-setup)
 
 ```bash
 # For OpenAI
@@ -199,9 +150,79 @@ export AWS_SECRET_ACCESS_KEY="your-secret-key"
 export AWS_DEFAULT_REGION="us-west-2"
 ```
 
-## Getting Started
+## Quick Installation
 
-Start the Web UI
+### Method 1: Docker Installation
+
+Basic Docker Run:
+
+```bash
+docker run -d \
+  --name ai-infrastructure-agent \
+  -p 8080:8080 \
+  -v $(pwd)/config.yaml:/app/config.yaml:ro \
+  -v $(pwd)/states:/app/states \
+  -e OPENAI_API_KEY="your-openai-api-key-here" \
+  -e AWS_ACCESS_KEY_ID="your-aws-access-key" \
+  -e AWS_SECRET_ACCESS_KEY="your-aws-secret-key" \
+  -e AWS_DEFAULT_REGION="us-west-2" \
+  ghcr.io/versuscontrol/ai-infrastructure-agent
+```
+
+Docker Compose (Recommended). Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+
+services:
+  ai-infrastructure-agent:
+    image: ghcr.io/versuscontrol/ai-infrastructure-agent
+    container_name: ai-infrastructure-agent
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount configuration file (read-only)
+      - ./config.yaml:/app/config.yaml:ro
+      # Mount data directories (persistent)
+      - ./states:/app/states
+    environment:
+      # AI Provider API Keys (choose one)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      
+      # AWS Configuration
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-west-2}
+```
+
+Start the application:
+
+```bash
+# Start with Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the application
+docker-compose down
+```
+
+### Method 2: Automated Bash Script
+
+```bash
+# Clone the repository
+git clone https://github.com/VersusControl/ai-infrastructure-agent.git
+cd ai-infrastructure-agent
+
+# Run the installation script
+./scripts/install.sh
+```
+
+Start the Web UI:
 
 ```bash
 ./scripts/run-web-ui.sh
@@ -236,7 +257,7 @@ http://localhost:8080
   <img alt="Web Dashboard" src="docs/images/core-components.svg">
 </h1>
 
-Read detail: [Technical Architecture Overview](docs/architecture/architecture-overview.md)
+Read detail: [Technical Architecture Overview](https://ai-agent.devopsvn.tech/docs.html#/architecture/architecture-overview)
 
 ### Components
 
@@ -270,10 +291,7 @@ All operations can be run in "dry-run" mode first:
 
 ## Documentation
 
-- [Technical Architecture Overview](docs/architecture/architecture-overview.md) - Comprehensive system architecture and implementation details
-- [MCP Server](docs/mcp-server.md) *(coming soon)*
-- [Web API Reference](docs/api-reference.md) *(coming soon)*
-- [Configuration Guide](docs/configuration.md) *(coming soon)*
+- [AI Infrastructure Agent documentation](https://ai-agent.devopsvn.tech/docs.html#/)
 
 ## Troubleshooting
 
@@ -366,16 +384,19 @@ agent:
 
 ## Roadmap
 
-### Current Version (v0.1.0 - PoC)
+### Current Version (v0.0.2 - PoC)
 - ✅ Basic natural language processing
 - ✅ Core AWS resource management
 - ✅ Web dashboard
 - ✅ MCP protocol support
+- ✅ ReAct-Style Agent
 
-### Upcoming Features (v0.2.0)
+### Upcoming Version (v0.0.3 - PoC)
 - 🔄 Better UX/UI
-- 🔄 Enhanced conflict resolution
+
+### Upcoming Features (v0.1.*)
 - 🔄 Cost optimization recommendations
+- 🔄 Enhanced conflict resolution
 - 🔄 Infrastructure templates
 - 🔄 Multi States
 - 🔄 Role-based access control

@@ -763,79 +763,79 @@ func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep
 	return resultMap, nil
 }
 
-// executeUpdateAction handles resource updates using real MCP tools
-func (a *StateAwareAgent) executeUpdateAction(_ context.Context, planStep *types.ExecutionPlanStep, progressChan chan<- *types.ExecutionUpdate, executionID string) (map[string]interface{}, error) {
-	// Send progress update
-	if progressChan != nil {
-		progressChan <- &types.ExecutionUpdate{
-			Type:        "step_progress",
-			ExecutionID: executionID,
-			StepID:      planStep.ID,
-			Message:     fmt.Sprintf("Updating %s resource: %s", planStep.ResourceID, planStep.Name),
-			Timestamp:   time.Now(),
-		}
-	}
+// // executeUpdateAction handles resource updates using real MCP tools
+// func (a *StateAwareAgent) executeUpdateAction(_ context.Context, planStep *types.ExecutionPlanStep, progressChan chan<- *types.ExecutionUpdate, executionID string) (map[string]interface{}, error) {
+// 	// Send progress update
+// 	if progressChan != nil {
+// 		progressChan <- &types.ExecutionUpdate{
+// 			Type:        "step_progress",
+// 			ExecutionID: executionID,
+// 			StepID:      planStep.ID,
+// 			Message:     fmt.Sprintf("Updating %s resource: %s", planStep.ResourceID, planStep.Name),
+// 			Timestamp:   time.Now(),
+// 		}
+// 	}
 
-	// For update actions, we mainly just simulate for now since the focus is on create operations
-	// The native MCP approach will be extended to update/delete actions in future iterations
-	a.Logger.WithField("step_id", planStep.ID).Info("Simulating update action as focus is on create operations")
-	time.Sleep(time.Second * 1)
-	return map[string]interface{}{
-		"resource_id": planStep.ResourceID,
-		"status":      "updated",
-		"message":     fmt.Sprintf("%s updated successfully (simulated)", planStep.Name),
-		"changes":     planStep.Parameters,
-		"simulated":   true,
-	}, nil
-}
+// 	// For update actions, we mainly just simulate for now since the focus is on create operations
+// 	// The native MCP approach will be extended to update/delete actions in future iterations
+// 	a.Logger.WithField("step_id", planStep.ID).Info("Simulating update action as focus is on create operations")
+// 	time.Sleep(time.Second * 1)
+// 	return map[string]interface{}{
+// 		"resource_id": planStep.ResourceID,
+// 		"status":      "updated",
+// 		"message":     fmt.Sprintf("%s updated successfully (simulated)", planStep.Name),
+// 		"changes":     planStep.Parameters,
+// 		"simulated":   true,
+// 	}, nil
+// }
 
-// executeDeleteAction handles resource deletion
-func (a *StateAwareAgent) executeDeleteAction(planStep *types.ExecutionPlanStep, progressChan chan<- *types.ExecutionUpdate, executionID string) (map[string]interface{}, error) {
-	// Send progress update
-	if progressChan != nil {
-		progressChan <- &types.ExecutionUpdate{
-			Type:        "step_progress",
-			ExecutionID: executionID,
-			StepID:      planStep.ID,
-			Message:     fmt.Sprintf("Deleting %s resource: %s", planStep.ResourceID, planStep.Name),
-			Timestamp:   time.Now(),
-		}
-	}
+// // executeDeleteAction handles resource deletion
+// func (a *StateAwareAgent) executeDeleteAction(planStep *types.ExecutionPlanStep, progressChan chan<- *types.ExecutionUpdate, executionID string) (map[string]interface{}, error) {
+// 	// Send progress update
+// 	if progressChan != nil {
+// 		progressChan <- &types.ExecutionUpdate{
+// 			Type:        "step_progress",
+// 			ExecutionID: executionID,
+// 			StepID:      planStep.ID,
+// 			Message:     fmt.Sprintf("Deleting %s resource: %s", planStep.ResourceID, planStep.Name),
+// 			Timestamp:   time.Now(),
+// 		}
+// 	}
 
-	// Simulate resource deletion
-	time.Sleep(time.Second * 1)
+// 	// Simulate resource deletion
+// 	time.Sleep(time.Second * 1)
 
-	return map[string]interface{}{
-		"resource_id": planStep.ResourceID,
-		"status":      "deleted",
-		"message":     fmt.Sprintf("%s deleted successfully", planStep.Name),
-	}, nil
-}
+// 	return map[string]interface{}{
+// 		"resource_id": planStep.ResourceID,
+// 		"status":      "deleted",
+// 		"message":     fmt.Sprintf("%s deleted successfully", planStep.Name),
+// 	}, nil
+// }
 
-// executeValidateAction handles validation steps using real MCP tools where possible
-func (a *StateAwareAgent) executeValidateAction(planStep *types.ExecutionPlanStep, progressChan chan<- *types.ExecutionUpdate, executionID string) (map[string]interface{}, error) {
-	// Send progress update
-	if progressChan != nil {
-		progressChan <- &types.ExecutionUpdate{
-			Type:        "step_progress",
-			ExecutionID: executionID,
-			StepID:      planStep.ID,
-			Message:     fmt.Sprintf("Validating %s: %s", planStep.ResourceID, planStep.Name),
-			Timestamp:   time.Now(),
-		}
-	}
+// // executeValidateAction handles validation steps using real MCP tools where possible
+// func (a *StateAwareAgent) executeValidateAction(planStep *types.ExecutionPlanStep, progressChan chan<- *types.ExecutionUpdate, executionID string) (map[string]interface{}, error) {
+// 	// Send progress update
+// 	if progressChan != nil {
+// 		progressChan <- &types.ExecutionUpdate{
+// 			Type:        "step_progress",
+// 			ExecutionID: executionID,
+// 			StepID:      planStep.ID,
+// 			Message:     fmt.Sprintf("Validating %s: %s", planStep.ResourceID, planStep.Name),
+// 			Timestamp:   time.Now(),
+// 		}
+// 	}
 
-	// For validation actions, we mainly just simulate for now since the focus is on create operations
-	// The native MCP approach will be extended to validation actions in future iterations
-	a.Logger.WithField("step_id", planStep.ID).Info("Simulating validation action as focus is on create operations")
-	time.Sleep(time.Millisecond * 500)
-	return map[string]interface{}{
-		"resource_id": planStep.ResourceID,
-		"status":      "validated",
-		"message":     fmt.Sprintf("%s validation completed (simulated)", planStep.Name),
-		"checks":      []string{"basic_validation"},
-	}, nil
-}
+// 	// For validation actions, we mainly just simulate for now since the focus is on create operations
+// 	// The native MCP approach will be extended to validation actions in future iterations
+// 	a.Logger.WithField("step_id", planStep.ID).Info("Simulating validation action as focus is on create operations")
+// 	time.Sleep(time.Millisecond * 500)
+// 	return map[string]interface{}{
+// 		"resource_id": planStep.ResourceID,
+// 		"status":      "validated",
+// 		"message":     fmt.Sprintf("%s validation completed (simulated)", planStep.Name),
+// 		"checks":      []string{"basic_validation"},
+// 	}, nil
+// }
 
 // updateStateFromMCPResult updates the state manager with results from MCP operations
 func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlanStep, result map[string]interface{}) error {
@@ -980,7 +980,7 @@ func (a *StateAwareAgent) extractResourceTypeFromStep(planStep *types.ExecutionP
 }
 
 // getAvailableToolsContext returns a formatted string of available tools for the AI to understand
-func (a *StateAwareAgent) getAvailableToolsContext() string {
+func (a *StateAwareAgent) getAvailableToolsContext() (string, error) {
 	a.capabilityMutex.RLock()
 	toolsCount := len(a.mcpTools)
 	a.capabilityMutex.RUnlock()
@@ -988,8 +988,8 @@ func (a *StateAwareAgent) getAvailableToolsContext() string {
 	if toolsCount == 0 {
 		// Try to ensure capabilities are available
 		if err := a.ensureMCPCapabilities(); err != nil {
-			a.Logger.WithError(err).Warn("Failed to ensure MCP capabilities in getAvailableToolsContext")
-			return "No MCP tools available. MCP server may not be properly initialized. Please check server status."
+			a.Logger.WithError(err).Error("Failed to ensure MCP capabilities in getAvailableToolsContext")
+			return "", fmt.Errorf("failed to ensure MCP capabilities: %w", err)
 		}
 
 		// Re-check after ensuring capabilities
@@ -999,9 +999,29 @@ func (a *StateAwareAgent) getAvailableToolsContext() string {
 	}
 
 	if toolsCount == 0 {
-		return "No MCP tools discovered yet. Available tools will be listed after MCP server initialization."
+		return "", fmt.Errorf("no MCP tools discovered - MCP server may not be properly initialized")
 	}
 
+	// Generate dynamic MCP tools schema
+	mcpToolsSchema := a.generateMCPToolsSchema()
+
+	// Load template with MCP tools placeholder
+	placeholders := map[string]string{
+		"MCP_TOOLS_SCHEMAS": mcpToolsSchema,
+	}
+
+	// Use the new template-based approach
+	executionContext, err := a.loadTemplateWithPlaceholders("settings/templates/tools-execution-context-enhanced.txt", placeholders)
+	if err != nil {
+		a.Logger.WithError(err).Error("Failed to load tools execution template with placeholders")
+		return "", fmt.Errorf("failed to load tools execution template: %w", err)
+	}
+
+	return executionContext, nil
+}
+
+// generateMCPToolsSchema generates the dynamic MCP tools schema section
+func (a *StateAwareAgent) generateMCPToolsSchema() string {
 	a.capabilityMutex.RLock()
 	defer a.capabilityMutex.RUnlock()
 
@@ -1009,34 +1029,30 @@ func (a *StateAwareAgent) getAvailableToolsContext() string {
 	context.WriteString("=== AVAILABLE MCP TOOLS WITH FULL SCHEMAS ===\n\n")
 	context.WriteString("You have direct access to these MCP tools. Use the exact tool names and parameter structures shown below.\n\n")
 
-	// Group tools by category and provide complete schemas
-	categories := map[string][]string{
-		"EC2 Compute":    {},
-		"VPC Networking": {},
-		"Security":       {},
-		"Load Balancing": {},
-		"Auto Scaling":   {},
-		"Database":       {},
-		"Other":          {},
+	// Get available categories from pattern matcher configuration
+	availableCategories := a.patternMatcher.GetAvailableCategories()
+
+	// Initialize categories with empty slices
+	categories := make(map[string][]string)
+	for _, category := range availableCategories {
+		categories[category] = []string{}
+	}
+
+	// Ensure "Other" category exists as fallback
+	if _, exists := categories["Other"]; !exists {
+		categories["Other"] = []string{}
 	}
 
 	toolDetails := make(map[string]string)
 
+	// Categorize tools using pattern matcher
 	for toolName, toolInfo := range a.mcpTools {
-		category := "Other"
-		switch {
-		case strings.Contains(toolName, "ec2") || strings.Contains(toolName, "instance") || strings.Contains(toolName, "ami"):
-			category = "EC2 Compute"
-		case strings.Contains(toolName, "vpc") || strings.Contains(toolName, "subnet") || strings.Contains(toolName, "gateway") || strings.Contains(toolName, "route"):
-			category = "VPC Networking"
-		case strings.Contains(toolName, "security-group"):
-			category = "Security"
-		case strings.Contains(toolName, "load-balancer") || strings.Contains(toolName, "target-group") || strings.Contains(toolName, "listener"):
-			category = "Load Balancing"
-		case strings.Contains(toolName, "auto-scaling") || strings.Contains(toolName, "launch-template"):
-			category = "Auto Scaling"
-		case strings.Contains(toolName, "db-") || strings.Contains(toolName, "rds"):
-			category = "Database"
+		// Use pattern matcher to get category based on tool name and resource type patterns
+		category := a.patternMatcher.GetCategoryForTool(toolName)
+
+		// Fallback to "Other" if category not found
+		if _, exists := categories[category]; !exists {
+			category = "Other"
 		}
 
 		// Build detailed tool schema
@@ -1095,292 +1111,6 @@ func (a *StateAwareAgent) getAvailableToolsContext() string {
 			}
 		}
 	}
-
-	context.WriteString("=== EXECUTION PLAN STRUCTURE ===\n\n")
-	context.WriteString("When creating execution plans, use this structure for each step:\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-1\",\n")
-	context.WriteString("  \"name\": \"Descriptive step name\",\n")
-	context.WriteString("  \"description\": \"What this step accomplishes\",\n")
-	context.WriteString("  \"action\": \"create|update|delete|validate|api_value_retrieval\",\n")
-	context.WriteString("  \"resourceId\": \"unique-resource-identifier\",\n")
-	context.WriteString("  \"mcpTool\": \"exact-tool-name-from-above\",\n")
-	context.WriteString("  \"toolParameters\": {\n")
-	context.WriteString("    \"use\": \"exact parameter names from tool schema\",\n")
-	context.WriteString("    \"imageId\": \"{{step-ami.resourceId}}\",\n")
-	context.WriteString("    \"instanceType\": \"t3.micro\",\n")
-	context.WriteString("    \"name\": \"my-instance\"\n")
-	context.WriteString("  },\n")
-	context.WriteString("  \"parameters\": {\n")
-	context.WriteString("    \"value_type\": \"latest_ami\",\n")
-	context.WriteString("    \"os_type\": \"amazon-linux-2\",\n")
-	context.WriteString("    \"architecture\": \"x86_64\"\n")
-	context.WriteString("  },\n")
-	context.WriteString("  \"dependsOn\": [\"previous-step-id\"],\n")
-	context.WriteString("  \"estimatedDuration\": \"30s\",\n")
-	context.WriteString("  \"status\": \"pending\"\n")
-	context.WriteString("}\n\n")
-
-	context.WriteString("=== API VALUE RETRIEVAL STEPS ===\n\n")
-	context.WriteString("For resources that need real AWS values instead of AI-generated placeholders, add API retrieval steps:\n\n")
-	context.WriteString("STEP 1 - API Value Retrieval:\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-ami\",\n")
-	context.WriteString("  \"name\": \"Get Latest Amazon Linux 2 AMI\",\n")
-	context.WriteString("  \"description\": \"Call AWS API to get real AMI ID because user didn't provide one\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"resourceId\": \"latest-ami\",\n")
-	context.WriteString("  \"parameters\": {\n")
-	context.WriteString("    \"value_type\": \"latest_ami\",\n")
-	context.WriteString("    \"os_type\": \"amazon-linux-2\",\n")
-	context.WriteString("    \"architecture\": \"x86_64\"\n")
-	context.WriteString("  },\n")
-	context.WriteString("  \"dependsOn\": [],\n")
-	context.WriteString("  \"estimatedDuration\": \"10s\"\n")
-	context.WriteString("}\n\n")
-	context.WriteString("STEP 2 - Use Retrieved Value:\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-create-instance\",\n")
-	context.WriteString("  \"name\": \"Create EC2 Instance\",\n")
-	context.WriteString("  \"action\": \"create\",\n")
-	context.WriteString("  \"mcpTool\": \"create-ec2-instance\",\n")
-	context.WriteString("  \"toolParameters\": {\n")
-	context.WriteString("    \"imageId\": \"{{step-ami.resourceId}}\",\n")
-	context.WriteString("    \"instanceType\": \"t3.micro\",\n")
-	context.WriteString("    \"name\": \"my-instance\"\n")
-	context.WriteString("  },\n")
-	context.WriteString("  \"dependsOn\": [\"step-ami\"]\n")
-	context.WriteString("}\n\n")
-	context.WriteString("Available value_type options:\n")
-	context.WriteString("- \"latest_ami\": Get latest AMI for specified OS\n")
-	context.WriteString("  * os_type: amazon-linux-2, ubuntu, windows\n")
-	context.WriteString("  * architecture: x86_64, arm64 (default: x86_64)\n")
-	context.WriteString("- \"default_vpc\": Get default VPC for the region\n")
-	context.WriteString("- \"default_subnet\": Get default subnet in the region\n")
-	context.WriteString("- \"available_azs\": Get available availability zones\n")
-	context.WriteString("  * max_azs: limit number of AZs returned (optional)\n")
-	context.WriteString("- \"select_subnets_for_alb\": Select subnets for ALB creation\n")
-	context.WriteString("  * scheme: internet-facing, internal (default: internet-facing)\n")
-	context.WriteString("  * vpc_id: specific VPC ID (optional, uses default VPC if not specified)\n")
-	context.WriteString("  ⚠️  IMPORTANT: Always use this for ALB subnet selection, never use 'default_subnet'!\n")
-	context.WriteString("- \"vpc_id\": Get existing VPC ID from state file\n")
-	context.WriteString("  * resource_name: name of VPC to find (e.g., \"production-vpc\")\n")
-	context.WriteString("  * resource_id: specific VPC ID to find (optional)\n")
-	context.WriteString("- \"subnet_id\": Get existing subnet ID from state file\n")
-	context.WriteString("  * resource_name: name of subnet to find\n")
-	context.WriteString("  * resource_id: specific subnet ID to find (optional)\n")
-	context.WriteString("- \"security_group_id\": Get existing security group ID from state file\n")
-	context.WriteString("  * resource_name: name of security group to find\n")
-	context.WriteString("- \"instance_id\": Get existing EC2 instance ID from state file\n")
-	context.WriteString("  * resource_name: name of instance to find\n")
-	context.WriteString("- \"existing_resource\": Get any existing resource from state file\n")
-	context.WriteString("  * resource_name: name of resource to find\n")
-	context.WriteString("  * resource_id: specific resource ID to find (optional)\n\n")
-
-	context.WriteString("=== EXTENDED API VALUE RETRIEVAL EXAMPLES ===\n\n")
-
-	context.WriteString("Example 1 - Ubuntu AMI:\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-ubuntu-ami\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"parameters\": {\n")
-	context.WriteString("    \"value_type\": \"latest_ami\",\n")
-	context.WriteString("    \"os_type\": \"ubuntu\",\n")
-	context.WriteString("    \"architecture\": \"x86_64\"\n")
-	context.WriteString("  }\n")
-	context.WriteString("}\n\n")
-
-	context.WriteString("Example 2 - Default VPC:\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-vpc\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"parameters\": {\n")
-	context.WriteString("    \"value_type\": \"default_vpc\"\n")
-	context.WriteString("  }\n")
-	context.WriteString("}\n\n")
-
-	context.WriteString("Example 3 - Default Subnet:\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-subnet\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"parameters\": {\n")
-	context.WriteString("    \"value_type\": \"default_subnet\"\n")
-	context.WriteString("  }\n")
-	context.WriteString("}\n\n")
-
-	context.WriteString("Example 4 - Availability Zones (limit to 2):\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-azs\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"parameters\": {\n")
-	context.WriteString("    \"value_type\": \"available_azs\",\n")
-	context.WriteString("    \"max_azs\": 2\n")
-	context.WriteString("  }\n")
-	context.WriteString("}\n\n")
-
-	context.WriteString("Example 5 - Get Existing VPC from State File:\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-get-vpc\",\n")
-	context.WriteString("  \"name\": \"Get Production VPC ID\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"parameters\": {\n")
-	context.WriteString("    \"value_type\": \"vpc_id\",\n")
-	context.WriteString("    \"resource_name\": \"production-vpc\"\n")
-	context.WriteString("  }\n")
-	context.WriteString("}\n\n")
-
-	context.WriteString("Example 6 - Get Existing Security Group from State:\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-get-sg\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"parameters\": {\n")
-	context.WriteString("    \"value_type\": \"security_group_id\",\n")
-	context.WriteString("    \"resource_name\": \"web-security-group\"\n")
-	context.WriteString("  }\n")
-	context.WriteString("}\n\n")
-
-	context.WriteString("Example 7 - CORRECT EC2 Instance Pattern:\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-get-subnet\",\n")
-	context.WriteString("  \"name\": \"Get Default Subnet\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"parameters\": { \"value_type\": \"default_subnet\" }\n")
-	context.WriteString("},\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-create-instance\",\n")
-	context.WriteString("  \"name\": \"Create EC2 Instance\",\n")
-	context.WriteString("  \"action\": \"create\",\n")
-	context.WriteString("  \"mcpTool\": \"create-ec2-instance\",\n")
-	context.WriteString("  \"toolParameters\": {\n")
-	context.WriteString("    \"subnetId\": \"{{step-get-subnet.resourceId}}\",\n")
-	context.WriteString("    \"imageId\": \"ami-12345\",\n")
-	context.WriteString("    \"instanceType\": \"t3.micro\"\n")
-	context.WriteString("  },\n")
-	context.WriteString("  \"dependsOn\": [\"step-get-subnet\"]\n")
-	context.WriteString("}\n")
-	context.WriteString("⚠️  NOTE: subnetId uses step-get-subnet (default_subnet), NOT step-get-vpc!\n\n")
-
-	context.WriteString("=== CRITICAL NETWORKING RULES ===\n\n")
-	context.WriteString("⚠️  IMPORTANT: EC2 instances require SUBNET IDs, NOT VPC IDs\n")
-	context.WriteString("✅ CORRECT: \"subnetId\": \"{{step-subnet.resourceId}}\" (where step-subnet uses default_subnet)\n")
-	context.WriteString("❌ WRONG:   \"subnetId\": \"{{step-vpc.resourceId}}\" (VPC ID cannot be used as subnet ID)\n\n")
-
-	context.WriteString("⚠️  IMPORTANT: Security groups require VPC IDs\n")
-	context.WriteString("✅ CORRECT: \"vpcId\": \"{{step-vpc.resourceId}}\" (use separate default_vpc step)\n")
-	context.WriteString("❌ WRONG:   \"vpcId\": \"{{step-subnet.resourceId}}\" (subnet ID cannot be used as VPC ID)\n\n")
-
-	context.WriteString("📝 Resource ID Access Pattern:\n")
-	context.WriteString("- {{step-name.resourceId}} → returns the primary resource ID\n")
-	context.WriteString("- default_vpc step → returns VPC ID\n")
-	context.WriteString("- default_subnet step → returns subnet ID\n\n")
-
-	context.WriteString("=== COMMON PATTERNS ===\n\n")
-	context.WriteString("Pattern 1 - Complete Infrastructure Setup:\n")
-	context.WriteString("1. Retrieve default subnet → step-subnet (this gets both VPC discovery and subnet selection)\n")
-	context.WriteString("2. Retrieve AMI → step-ami\n")
-	context.WriteString("3. Create instance using {{step-ami.resourceId}}, {{step-subnet.resourceId}}\n")
-	context.WriteString("   NOTE: Use step-subnet.resourceId for subnetId parameter!\n")
-	context.WriteString("   NOTE: keyName is optional - omit if no key pair needed\n\n")
-
-	context.WriteString("Pattern 2 - Security Group + EC2 Creation:\n")
-	context.WriteString("1. Retrieve default VPC → step-vpc (for security group)\n")
-	context.WriteString("2. Retrieve default subnet → step-subnet (for EC2 instance)\n")
-	context.WriteString("3. Create security group → step-sg using {{step-vpc.resourceId}}\n")
-	context.WriteString("4. Create EC2 instance using {{step-subnet.resourceId}} and security group\n")
-	context.WriteString("Example:\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-vpc\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"parameters\": { \"value_type\": \"default_vpc\" }\n")
-	context.WriteString("},\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-subnet\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"parameters\": { \"value_type\": \"default_subnet\" }\n")
-	context.WriteString("},\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-sg\",\n")
-	context.WriteString("  \"action\": \"create\",\n")
-	context.WriteString("  \"mcpTool\": \"create-security-group\",\n")
-	context.WriteString("  \"toolParameters\": {\n")
-	context.WriteString("    \"name\": \"web-sg\",\n")
-	context.WriteString("    \"description\": \"Web server security group\",\n")
-	context.WriteString("    \"vpcId\": \"{{step-vpc.resourceId}}\"\n")
-	context.WriteString("  }\n")
-	context.WriteString("}\n\n")
-
-	context.WriteString("Pattern 3 - VPC and Subnet Discovery:\n")
-	context.WriteString("1. Retrieve default VPC → step-vpc (only if you need VPC ID for other resources)\n")
-	context.WriteString("2. Retrieve default subnet → step-subnet (for EC2 instances)\n")
-	context.WriteString("3. Create resources using appropriate IDs\n")
-	context.WriteString("   - VPC resources: {{step-vpc.resourceId}}\n")
-	context.WriteString("   - EC2 instances: {{step-subnet.resourceId}} for subnetId\n\n")
-
-	context.WriteString("Pattern 4 - Custom Network Setup:\n")
-	context.WriteString("1. Retrieve default VPC → step-vpc\n")
-	context.WriteString("2. Retrieve AZs → step-azs  \n")
-	context.WriteString("3. Create custom subnet using {{step-vpc.resourceId}} and {{step-azs.resourceId}}\n")
-	context.WriteString("4. Retrieve AMI\n")
-	context.WriteString("5. Create instance with custom subnet\n\n")
-
-	context.WriteString("Pattern 5 - Application Load Balancer Setup:\n")
-	context.WriteString("1. Select appropriate subnets for ALB → step-alb-subnets\n")
-	context.WriteString("2. Get security group ID → step-alb-sg\n")
-	context.WriteString("3. Create ALB using selected subnets and security group\n")
-	context.WriteString("Example:\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-alb-subnets\",\n")
-	context.WriteString("  \"name\": \"Select Subnets for ALB\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"parameters\": {\n")
-	context.WriteString("    \"value_type\": \"select_subnets_for_alb\",\n")
-	context.WriteString("    \"min_azs\": 2\n")
-	context.WriteString("  }\n")
-	context.WriteString("},\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-alb-sg\",\n")
-	context.WriteString("  \"action\": \"api_value_retrieval\",\n")
-	context.WriteString("  \"parameters\": {\n")
-	context.WriteString("    \"value_type\": \"security_group_id\",\n")
-	context.WriteString("    \"resource_name\": \"alb-security-group\"\n")
-	context.WriteString("  }\n")
-	context.WriteString("},\n")
-	context.WriteString("{\n")
-	context.WriteString("  \"id\": \"step-create-alb\",\n")
-	context.WriteString("  \"name\": \"Create Application Load Balancer\",\n")
-	context.WriteString("  \"action\": \"create\",\n")
-	context.WriteString("  \"mcpTool\": \"create-alb\",\n")
-	context.WriteString("  \"toolParameters\": {\n")
-	context.WriteString("    \"name\": \"my-application-load-balancer\",\n")
-	context.WriteString("    \"subnetIds\": \"{{step-alb-subnets.resourceId}}\",\n")
-	context.WriteString("    \"securityGroupIds\": [\"{{step-alb-sg.resourceId}}\"]\n")
-	context.WriteString("  },\n")
-	context.WriteString("  \"dependsOn\": [\"step-alb-subnets\", \"step-alb-sg\"]\n")
-	context.WriteString("}\n\n")
-
-	context.WriteString("Pattern 6 - Multi-OS Deployment:\n")
-	context.WriteString("1. Get Linux AMI → step-linux-ami (os_type: ubuntu)\n")
-	context.WriteString("2. Get Windows AMI → step-windows-ami (os_type: windows)\n")
-	context.WriteString("3. Create Linux instances → {{step-linux-ami.resourceId}}\n")
-	context.WriteString("4. Create Windows instances → {{step-windows-ami.resourceId}}\n\n")
-
-	context.WriteString("=== CRITICAL INSTRUCTIONS ===\n")
-	context.WriteString("1. Use EXACT tool names and parameter names from the schemas above\n")
-	context.WriteString("2. Include 'mcpTool' field specifying which tool to use\n")
-	context.WriteString("3. Put tool parameters in 'toolParameters' field with exact schema format\n")
-	context.WriteString("4. The agent will call MCP tools directly with your parameters\n")
-	context.WriteString("5. Only required parameters need values - optional ones can be omitted\n")
-	context.WriteString("6. Use dependency references like {{step-1.resourceId}} for resource IDs from previous steps\n")
-	context.WriteString("7. IMPORTANT: For AMI IDs, VPC IDs, subnet IDs, etc., add api_value_retrieval steps BEFORE create steps\n")
-	context.WriteString("8. This prevents \"Invalid AMI ID\", \"VPCIdNotSpecified\", and subnet errors by using real AWS values\n\n")
-
-	context.WriteString("=== DEPENDENCY MANAGEMENT ===\n")
-	context.WriteString("AWS resource creation order:\n")
-	context.WriteString("1. VPC → Subnets → Internet Gateway → Route Tables\n")
-	context.WriteString("2. Security Groups (after VPC)\n")
-	context.WriteString("3. Launch Templates, Load Balancers, Target Groups\n")
-	context.WriteString("4. EC2 Instances, Auto Scaling Groups\n")
-	context.WriteString("5. RDS Instances, other dependent services\n")
 
 	return context.String()
 }
