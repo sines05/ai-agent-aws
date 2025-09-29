@@ -266,11 +266,13 @@ value_type_inference:
 
   subnets_in_vpc:
     description_patterns:
+      - "subnet.*vpc"
       - "subnets.*vpc"
-      - "subnet.*list.*vpc"
+      - "subnet.*existing.*vpc"
     name_patterns:
+      - "subnet.*vpc"
       - "subnets.*vpc"
-      - "vpc.*subnets"
+      - "subnet.*existing.*vpc"
     required_terms: ["subnet", "vpc"]
     optional_terms: []
 
