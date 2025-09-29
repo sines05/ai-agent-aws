@@ -418,6 +418,9 @@ func (a *StateAwareAgent) parseAIResponseWithPlan(decisionID, request, response 
 		}).Info("Successfully extracted JSON from AI response")
 	}
 
+	// Clean JSON comments that AI models sometimes include
+	jsonStr = a.cleanJSONComments(jsonStr)
+
 	// Parse JSON with execution plan - updated for native MCP tool support
 	var parsed struct {
 		Action        string                 `json:"action"`

@@ -7,46 +7,61 @@ This system supports adaptive execution with ReAct-style recovery. Your executio
 When you need dynamic parameter resolution during execution, use api_value_retrieval actions with these intelligent patterns:
 
 1. **SUBNET_ID DISCOVERY** - Dynamically find subnets in any VPC:
-   ```
-   "action": "api_value_retrieval",
-   "mcpTool": "list-subnets",
-   "toolParameters": {
-     "filters": {
-       "vpc-id": "{{vpc-resource-reference}}",
-       "availability-zone": "us-east-1a"  // Optional: specify AZ
+   ```json
+   {
+     "action": "api_value_retrieval",
+     "name": "List subnets in VPC",           // ✅ MUST match inference patterns
+     "description": "List subnets in VPC for EC2 placement",  // ✅ MUST match inference patterns
+     "mcpTool": "list-subnets",
+     "toolParameters": {
+       "filters": {
+         "vpc-id": "{{vpc-resource-reference}}",
+         "availability-zone": "us-east-1a"  // Optional: specify AZ
+       }
      }
    }
    ```
 
 2. **SECURITY_GROUP_ID DISCOVERY** - Intelligent SG identification:
-   ```
-   "action": "api_value_retrieval", 
-   "mcpTool": "list-security-groups",
-   "toolParameters": {
-     "filters": {
-       "vpc-id": "{{vpc-resource-reference}}",
-       "group-name": "web-sg"  // Optional: find by name
+   ```json
+   {
+     "action": "api_value_retrieval",
+     "name": "List security groups",         // ✅ MUST match inference patterns
+     "description": "List security groups in VPC for instance protection",
+     "mcpTool": "list-security-groups",
+     "toolParameters": {
+       "filters": {
+         "vpc-id": "{{vpc-resource-reference}}",
+         "group-name": "web-sg"  // Optional: find by name
+       }
      }
    }
    ```
 
 3. **VPC_ID DISCOVERY** - Contextual VPC identification:
-   ```
-   "action": "api_value_retrieval",
-   "mcpTool": "list-vpcs", 
-   "toolParameters": {
-     "filters": {
-       "is-default": "true"  // Or find by tag, CIDR, etc.
+   ```json
+   {
+     "action": "api_value_retrieval",
+     "name": "List VPCs",                   // ✅ MUST match inference patterns  
+     "description": "List VPCs to find suitable network",
+     "mcpTool": "list-vpcs",
+     "toolParameters": {
+       "filters": {
+         "is-default": "true"  // Or find by tag, CIDR, etc.
+       }
      }
    }
    ```
 
 4. **AMI_ID DISCOVERY** - Latest AMI resolution:
-   ```
-   "action": "api_value_retrieval",
-   "mcpTool": "list-images",
-   "toolParameters": {
-     "filters": {
+   ```json
+   {
+     "action": "api_value_retrieval", 
+     "name": "Get latest AMI",              // ✅ MUST match inference patterns
+     "description": "Get latest AMI for instance creation",
+     "mcpTool": "list-images",
+     "toolParameters": {
+       "filters": {
        "name": "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*",
        "owner-alias": "amazon",
        "state": "available"
@@ -150,9 +165,7 @@ Instead of hardcoded values, use context-driven defaults:
 🔍 CONTEXT-AWARE RESOURCE REFERENCES:
 
 **INTELLIGENT REFERENCING:**
-- Use `{{step-id.resourceId}}` for direct resource ID references
-- Use `{{step-id.property}}` for specific property access
-- Use `{{step-id.output.field}}` for complex output parsing
+- Use `{{step-id.resourceId}}` for direct resource ID references (e.g., `{{step-ami.imageId}}`)
 
 **CONDITIONAL REFERENCES:**
 - Reference existing resources when available and compatible

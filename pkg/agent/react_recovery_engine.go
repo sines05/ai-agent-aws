@@ -565,7 +565,7 @@ func (r *DefaultStepRecoveryEngine) parseRecoveryAnalysis(response string) (*AIR
 	}
 
 	// Clean up common AI JSON issues (like inline comments)
-	jsonStr = r.cleanJSONComments(jsonStr)
+	jsonStr = r.agent.cleanJSONComments(jsonStr)
 
 	if r.agent.config.EnableDebug {
 		r.agent.Logger.WithFields(map[string]interface{}{
@@ -585,54 +585,6 @@ func (r *DefaultStepRecoveryEngine) parseRecoveryAnalysis(response string) (*AIR
 	}
 
 	return &analysis, nil
-}
-
-// cleanJSONComments removes JavaScript-style comments from JSON that AI models sometimes include
-func (r *DefaultStepRecoveryEngine) cleanJSONComments(jsonStr string) string {
-	lines := strings.Split(jsonStr, "\n")
-	var cleanedLines []string
-
-	for _, line := range lines {
-		// Find the position of // comment (but not inside strings)
-		inString := false
-		escaped := false
-		commentPos := -1
-
-		for i, char := range line {
-			if escaped {
-				escaped = false
-				continue
-			}
-
-			if char == '\\' {
-				escaped = true
-				continue
-			}
-
-			if char == '"' {
-				inString = !inString
-				continue
-			}
-
-			// If we're not inside a string and find //, mark it as comment start
-			if !inString && char == '/' && i+1 < len(line) && line[i+1] == '/' {
-				commentPos = i
-				break
-			}
-		}
-
-		// Remove the comment part if found
-		if commentPos != -1 {
-			line = strings.TrimSpace(line[:commentPos])
-		}
-
-		// Skip empty lines that resulted from comment removal
-		if strings.TrimSpace(line) != "" {
-			cleanedLines = append(cleanedLines, line)
-		}
-	}
-
-	return strings.Join(cleanedLines, "\n")
 }
 
 // createFallbackAnalysis creates a basic analysis when AI parsing fails
