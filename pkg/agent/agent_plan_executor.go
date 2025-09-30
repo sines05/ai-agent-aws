@@ -1011,7 +1011,7 @@ func (a *StateAwareAgent) getAvailableToolsContext() (string, error) {
 	}
 
 	// Use the new template-based approach
-	executionContext, err := a.loadTemplateWithPlaceholders("settings/templates/tools-execution-context-enhanced.txt", placeholders)
+	executionContext, err := a.loadTemplateWithPlaceholders("settings/templates/tools-execution-context-optimized.txt", placeholders)
 	if err != nil {
 		a.Logger.WithError(err).Error("Failed to load tools execution template with placeholders")
 		return "", fmt.Errorf("failed to load tools execution template: %w", err)
