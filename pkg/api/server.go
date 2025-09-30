@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -30,8 +30,7 @@ type wsConnection struct {
 
 // WebServer handles HTTP requests for the AI agent UI
 type WebServer struct {
-	router    *mux.Router
-	templates *template.Template
+	router *mux.Router
 
 	upgrader websocket.Upgrader
 	aiAgent  *agent.StateAwareAgent
@@ -90,7 +89,6 @@ func NewWebServer(cfg *config.Config, awsClient *aws.Client, logger *logging.Log
 	ws.initializeAIAgent(cfg, awsClient, logger)
 
 	ws.setupRoutes()
-	ws.loadTemplates()
 
 	return ws
 }
@@ -166,12 +164,16 @@ func (ws *WebServer) corsMiddleware(next http.Handler) http.Handler {
 
 // setupRoutes configures HTTP routes
 func (ws *WebServer) setupRoutes() {
-	// Static files
-	ws.router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
+	// Serve React build files
+	buildDir := "web/build"
 
-	// UI routes
-	ws.router.HandleFunc("/", ws.indexHandler).Methods("GET")
-	ws.router.HandleFunc("/dashboard", ws.dashboardHandler).Methods("GET")
+	// Serve static assets (CSS, JS, images) from React build
+	fs := http.FileServer(http.Dir(buildDir))
+	ws.router.PathPrefix("/static/").Handler(http.StripPrefix("/", fs))
+	ws.router.PathPrefix("/aws-service-icons/").Handler(http.StripPrefix("/", fs))
+	ws.router.PathPrefix("/manifest.json").Handler(fs)
+	ws.router.PathPrefix("/robots.txt").Handler(fs)
+	ws.router.PathPrefix("/ai-infrastructure-agent.svg").Handler(fs)
 
 	// Health check endpoint
 	ws.router.HandleFunc("/health", ws.healthHandler).Methods("GET")
@@ -197,17 +199,25 @@ func (ws *WebServer) setupRoutes() {
 
 	// WebSocket for real-time updates
 	ws.router.HandleFunc("/ws", ws.websocketHandler)
+
+	// Handler for React Router
+	// This serves index.html for all non-API routes to support client-side routing
+	ws.router.PathPrefix("/").HandlerFunc(ws.reactHandler).Methods("GET")
 }
 
-// loadTemplates loads HTML templates
-func (ws *WebServer) loadTemplates() {
-	templatePath := filepath.Join("web", "templates", "*.html")
-	templates, err := template.ParseGlob(templatePath)
-	if err != nil {
-		ws.aiAgent.Logger.WithError(err).Error("Failed to load templates")
+// reactHandler serves the React app for all non-API routes
+func (ws *WebServer) reactHandler(w http.ResponseWriter, r *http.Request) {
+	indexPath := filepath.Join("web", "build", "index.html")
+
+	// Check if the file exists
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		ws.aiAgent.Logger.WithError(err).Error("React build index.html not found")
+		http.Error(w, "React build not found. Please run 'npm run build' in the web directory.", http.StatusNotFound)
 		return
 	}
-	ws.templates = templates
+
+	// Serve the React index.html file
+	http.ServeFile(w, r, indexPath)
 }
 
 // Start starts the web server
@@ -231,28 +241,6 @@ func (ws *WebServer) healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(health)
-}
-
-func (ws *WebServer) indexHandler(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "/dashboard", http.StatusFound)
-}
-
-func (ws *WebServer) dashboardHandler(w http.ResponseWriter, r *http.Request) {
-	if ws.templates == nil {
-		http.Error(w, "Templates not loaded", http.StatusInternalServerError)
-		return
-	}
-
-	data := map[string]interface{}{
-		"Title": "AI Infrastructure Agent Dashboard",
-		"Time":  time.Now().Format("2006-01-02 15:04:05"),
-	}
-
-	if err := ws.templates.ExecuteTemplate(w, "dashboard.html", data); err != nil {
-		ws.aiAgent.Logger.WithError(err).Error("Failed to execute template")
-		http.Error(w, "Template execution failed", http.StatusInternalServerError)
-		return
-	}
 }
 
 // API Handlers
