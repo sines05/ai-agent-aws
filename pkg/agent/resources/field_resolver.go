@@ -13,7 +13,6 @@ import (
 // FieldResolver handles dynamic field resolution using configuration
 type FieldResolver struct {
 	mappings        map[string]map[string][]string
-	defaults        map[string][]string
 	transformations *config.FieldTransformations
 	patternMatcher  *PatternMatcher // Add reference to pattern matcher
 	mu              sync.RWMutex
@@ -23,7 +22,6 @@ type FieldResolver struct {
 func NewFieldResolver(cfg *config.FieldMappingConfig) *FieldResolver {
 	return &FieldResolver{
 		mappings:        cfg.ResourceFields,
-		defaults:        cfg.DefaultFieldPriorities,
 		transformations: &cfg.FieldTransformations,
 		patternMatcher:  nil, // Will be set via SetPatternMatcher
 	}
@@ -37,27 +35,18 @@ func (f *FieldResolver) SetPatternMatcher(pm *PatternMatcher) {
 }
 
 // ResolveField attempts to resolve a field value from the provided data
-// It tries resource-specific mappings first, then falls back to defaults
+// It tries resource-specific mappings only
 func (f *FieldResolver) ResolveField(resourceType, fieldName string, data map[string]interface{}) (interface{}, bool) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	// Try resource-specific mappings first
+	// Try resource-specific mappings
 	if resourceMappings, exists := f.mappings[resourceType]; exists {
 		if fieldList, exists := resourceMappings[fieldName]; exists {
 			for _, field := range fieldList {
 				if value, exists := data[field]; exists {
 					return f.transformValue(fieldName, value), true
 				}
-			}
-		}
-	}
-
-	// Fall back to defaults
-	if defaultFields, exists := f.defaults[fieldName]; exists {
-		for _, field := range defaultFields {
-			if value, exists := data[field]; exists {
-				return f.transformValue(fieldName, value), true
 			}
 		}
 	}
@@ -75,15 +64,6 @@ func (f *FieldResolver) ResolveAllFields(resourceType string, data map[string]in
 	// Get all field names for this resource type
 	if resourceMappings, exists := f.mappings[resourceType]; exists {
 		for fieldName := range resourceMappings {
-			if value, found := f.ResolveField(resourceType, fieldName, data); found {
-				result[fieldName] = value
-			}
-		}
-	}
-
-	// Also try default fields
-	for fieldName := range f.defaults {
-		if _, alreadySet := result[fieldName]; !alreadySet {
 			if value, found := f.ResolveField(resourceType, fieldName, data); found {
 				result[fieldName] = value
 			}
@@ -335,10 +315,23 @@ func (f *FieldResolver) GetResourceFieldMapping(resourceType, fieldName string) 
 	defer f.mu.RUnlock()
 
 	if resourceMappings, exists := f.mappings[resourceType]; exists {
+		// First try direct lookup
 		if fields, exists := resourceMappings[fieldName]; exists {
 			return fields
 		}
+
+		// If not found, search through all field mappings to find which canonical field
+		// the requested fieldName might be an alias for
+		for _, aliases := range resourceMappings {
+			for _, alias := range aliases {
+				if alias == fieldName {
+					// Found it! Return the full alias list for this canonical field
+					return aliases
+				}
+			}
+		}
 	}
+
 	return nil
 }
 
@@ -347,23 +340,23 @@ func (f *FieldResolver) GetFieldsForRequest(requestedField string) []string {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	// First, check if there's a specific mapping for this field in any resource type
+	// Search through all resource types to find a mapping for this field
 	for _, resourceMappings := range f.mappings {
+		// First try direct lookup by canonical field name
 		if fields, exists := resourceMappings[requestedField]; exists {
 			return fields
 		}
+
+		// If not found, search through aliases
+		for _, aliases := range resourceMappings {
+			for _, alias := range aliases {
+				if alias == requestedField {
+					// Found it! Return the full alias list
+					return aliases
+				}
+			}
+		}
 	}
 
-	// Fall back to default priority list if available
-	if defaults, exists := f.defaults[requestedField]; exists {
-		return defaults
-	}
-
-	// Ultimate fallback - return the general default order
-	if generalDefaults, exists := f.defaults["default"]; exists {
-		return generalDefaults
-	}
-
-	// If no configuration exists, return a minimal fallback
-	return []string{requestedField}
+	return nil
 }

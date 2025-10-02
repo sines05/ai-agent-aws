@@ -12,7 +12,8 @@ type MCPTool interface {
 	// Tool identification
 	Name() string
 	Description() string
-	Category() string // e.g., "ec2", "vpc", "rds", "state-management"
+	Category() string   // e.g., "ec2", "vpc", "rds", "state-management"
+	ActionType() string // e.g., "creation", "modification", "association", "deletion", "query"
 
 	// Tool execution
 	Execute(ctx context.Context, arguments map[string]interface{}) (*mcp.CallToolResult, error)
@@ -69,6 +70,7 @@ type StateAwareTool interface {
 
 // ToolFactory creates tools with proper dependencies
 type ToolFactory interface {
-	CreateTool(toolType string, dependencies interface{}) (MCPTool, error)
-	GetSupportedToolTypes() []string
+	CreateTool(toolType string, actionType string, dependencies interface{}) (MCPTool, error)
+	GetSupportedToolTypes() map[string][]string
+	GetToolActionType(toolName string) string
 }

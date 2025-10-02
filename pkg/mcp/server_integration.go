@@ -15,29 +15,32 @@ func (s *Server) registerServerTools() {
 	// Create factory instance
 	factory := tools.NewToolFactory(s.AWSClient, s.Logger)
 
-	// Get all supported tool types from the factory (includes both regular and state-aware tools)
-	supportedTools := factory.GetSupportedToolTypes()
+	// Get all supported tool types from the factory (grouped by action type)
+	supportedToolsByAction := factory.GetSupportedToolTypes()
 
-	for _, toolType := range supportedTools {
-		// Create tool instance using factory with basic dependencies
-		tool, err := factory.CreateTool(toolType, &tools.ToolDependencies{
-			AWSClient:        s.AWSClient,
-			StateManager:     s.StateManager,
-			DiscoveryScanner: s.DiscoveryScanner,
-			GraphManager:     s.GraphManager,
-			GraphAnalyzer:    s.GraphAnalyzer,
-			ConflictResolver: s.ConflictResolver,
-			Config:           s.Config,
-		})
-		if err != nil {
-			s.Logger.WithField("toolType", toolType).WithError(err).Debug("Skipping tool (may require additional dependencies)")
-			continue
+	// Flatten the map to get all tool names
+	for actionType, toolNames := range supportedToolsByAction {
+		for _, toolName := range toolNames {
+			// Create tool instance using factory with basic dependencies
+			tool, err := factory.CreateTool(toolName, actionType, &tools.ToolDependencies{
+				AWSClient:        s.AWSClient,
+				StateManager:     s.StateManager,
+				DiscoveryScanner: s.DiscoveryScanner,
+				GraphManager:     s.GraphManager,
+				GraphAnalyzer:    s.GraphAnalyzer,
+				ConflictResolver: s.ConflictResolver,
+				Config:           s.Config,
+			})
+			if err != nil {
+				s.Logger.WithField("toolName", toolName).WithError(err).Debug("Skipping tool (may require additional dependencies)")
+				continue
+			}
+
+			// Register the tool with dynamic registration
+			s.registerToolDynamic(tool)
+
+			s.Logger.WithField("toolName", tool.Name()).Debug("Registered tool via factory pattern")
 		}
-
-		// Register the tool with dynamic registration
-		s.registerToolDynamic(tool)
-
-		s.Logger.WithField("toolName", tool.Name()).Debug("Registered tool via factory pattern")
 	}
 }
 

@@ -10,6 +10,20 @@ type CreateInstanceParams struct {
 	Name            string
 }
 
+// Key Pair Parameters
+type CreateKeyPairParams struct {
+	KeyName   string
+	KeyType   string // "rsa" or "ed25519"
+	TagSpecs  map[string]string
+	KeyFormat string // "pem" or "ppk"
+}
+
+type ImportKeyPairParams struct {
+	KeyName           string
+	PublicKeyMaterial []byte
+	TagSpecs          map[string]string
+}
+
 // VPC Configuration Parameters
 type CreateVPCParams struct {
 	Name               string

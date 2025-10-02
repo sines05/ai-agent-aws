@@ -23,7 +23,7 @@ func NewConfigLoader(configDir string) *ConfigLoader {
 // LoadFieldMappings loads the field mapping configuration
 func (c *ConfigLoader) LoadFieldMappings() (*FieldMappingConfig, error) {
 	var config FieldMappingConfig
-	err := c.loadYAMLFile("field-mappings.yaml", &config)
+	err := c.loadYAMLFile("field-mappings-enhanced.yaml", &config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load field mappings: %w", err)
 	}
@@ -33,7 +33,7 @@ func (c *ConfigLoader) LoadFieldMappings() (*FieldMappingConfig, error) {
 // LoadResourcePatterns loads the resource pattern configuration
 func (c *ConfigLoader) LoadResourcePatterns() (*ResourcePatternConfig, error) {
 	var config ResourcePatternConfig
-	err := c.loadYAMLFile("resource-patterns.yaml", &config)
+	err := c.loadYAMLFile("resource-patterns-enhanced.yaml", &config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load resource patterns: %w", err)
 	}
@@ -43,7 +43,7 @@ func (c *ConfigLoader) LoadResourcePatterns() (*ResourcePatternConfig, error) {
 // LoadResourceExtraction loads the resource extraction configuration
 func (c *ConfigLoader) LoadResourceExtraction() (*ResourceExtractionConfig, error) {
 	var config ResourceExtractionConfig
-	err := c.loadYAMLFile("resource-extraction.yaml", &config)
+	err := c.loadYAMLFile("resource-extraction-enhanced.yaml", &config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load resource extraction config: %w", err)
 	}
@@ -69,9 +69,8 @@ func (c *ConfigLoader) loadYAMLFile(filename string, target interface{}) error {
 
 // FieldMappingConfig represents the field mapping configuration structure
 type FieldMappingConfig struct {
-	ResourceFields         map[string]map[string][]string `yaml:"resource_fields"`
-	DefaultFieldPriorities map[string][]string            `yaml:"default_field_priorities"`
-	FieldTransformations   FieldTransformations           `yaml:"field_transformations"`
+	ResourceFields       map[string]map[string][]string `yaml:"resource_fields"`
+	FieldTransformations FieldTransformations           `yaml:"field_transformations"`
 }
 
 // FieldTransformations represents field transformation rules
@@ -120,7 +119,6 @@ type ValueTypePattern struct {
 type ResourceExtractionConfig struct {
 	CommonFallbackFields   []string                       `yaml:"common_fallback_fields"`
 	ResourceIDExtraction   ResourceIDExtraction           `yaml:"resource_id_extraction"`
-	ToolActionTypes        ToolActionTypes                `yaml:"tool_action_types"`
 	SpecialExtractionRules map[string]map[string][]string `yaml:"special_extraction_rules"`
 	FallbackStrategies     FallbackStrategies             `yaml:"fallback_strategies"`
 }
@@ -144,20 +142,6 @@ type ExtractionPattern struct {
 	FieldPaths    []string `yaml:"field_paths"`
 	ResourceTypes []string `yaml:"resource_types"`
 	Priority      int      `yaml:"priority"`
-}
-
-// ToolActionTypes defines patterns for classifying tool actions
-type ToolActionTypes struct {
-	CreationTools     ActionPatterns `yaml:"creation_tools"`
-	ModificationTools ActionPatterns `yaml:"modification_tools"`
-	AssociationTools  ActionPatterns `yaml:"association_tools"`
-	DeletionTools     ActionPatterns `yaml:"deletion_tools"`
-	QueryTools        ActionPatterns `yaml:"query_tools"`
-}
-
-// ActionPatterns contains regex patterns for identifying tool action types
-type ActionPatterns struct {
-	Patterns []string `yaml:"patterns"`
 }
 
 // FallbackStrategies defines fallback methods when pattern matching fails

@@ -95,6 +95,7 @@ type MCPToolInfo struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
 	InputSchema map[string]interface{} `json:"inputSchema"`
+	Type        string                 `json:"type"`
 }
 
 // MCPResourceInfo represents information about an available MCP resource

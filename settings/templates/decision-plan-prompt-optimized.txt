@@ -85,24 +85,27 @@ generalization patterns to infer the correct tools and parameters:
 
    Discovery Tools:
    - get-default-{resource}           → Get default instance (no parameters)
-     Examples: get-default-vpc, get-default-subnet, get-default-security-group
-   
+     Examples: get-default-vpc, get-default-subnet
+
    - list-{resources}                 → List all instances (no filters)
      Examples: list-vpcs, list-subnets, list-ec2-instances, list-load-balancers
    
    - get-latest-{type}                → Get latest version (optional: architecture, version)
      Examples: get-latest-ubuntu-ami, get-latest-amazon-linux-ami, get-latest-windows-ami
-   
+
+   - get-{resource}                   → Get resource
+     Examples: get-key-pair
+
    - select-{resources}-for-{purpose} → Auto-select optimal instances
      Examples: select-subnets-for-alb (auto-selects 2+ subnets in different AZs)
 
    Creation Tools:
    - create-{resource}                → Create new instance
-     Examples: create-vpc, create-ec2-instance, create-load-balancer, create-db-instance
+     Examples: create-vpc, create-ec2-instance, create-load-balancer, create-db-instance, create-key-pair
 
    Management Tools:
-   - start-{resource}, stop-{resource}, delete-{resource}, terminate-{resource}
-     Examples: start-ec2-instance, stop-ec2-instance, delete-load-balancer
+   - start-{resource}, stop-{resource}
+     Examples: start-ec2-instance, stop-ec2-instance
 
 2. PARAMETER NAMING CONVENTIONS
 
@@ -132,7 +135,7 @@ generalization patterns to infer the correct tools and parameters:
    Compute Resources (EC2, Lambda, ECS, Fargate):
    Required Dependencies:
    - Network: VPC, Subnet (or use get-default-subnet)
-   - Security: Security Group (or use get-default-security-group)
+   - Security: Security Group
    Optional Dependencies:
    - IAM: Execution role (Lambda, ECS)
    - Image: AMI (EC2), Container image (ECS)

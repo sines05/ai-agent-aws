@@ -176,17 +176,19 @@ type BaseTool struct {
 	name        string
 	description string
 	category    string
+	actionType  string
 	inputSchema map[string]interface{}
 	examples    []interfaces.ToolExample
 	logger      *logging.Logger
 }
 
 // NewBaseTool creates a new base tool
-func NewBaseTool(name, description, category string, inputSchema map[string]interface{}, logger *logging.Logger) *BaseTool {
+func NewBaseTool(name, description, category, actionType string, inputSchema map[string]interface{}, logger *logging.Logger) *BaseTool {
 	return &BaseTool{
 		name:        name,
 		description: description,
 		category:    category,
+		actionType:  actionType,
 		inputSchema: inputSchema,
 		examples:    []interfaces.ToolExample{},
 		logger:      logger,
@@ -206,6 +208,11 @@ func (b *BaseTool) Description() string {
 // Category returns the tool category
 func (b *BaseTool) Category() string {
 	return b.category
+}
+
+// ActionType returns the tool action type
+func (b *BaseTool) ActionType() string {
+	return b.actionType
 }
 
 // GetInputSchema returns the input schema
