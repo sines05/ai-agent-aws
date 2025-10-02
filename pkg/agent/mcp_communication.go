@@ -234,24 +234,29 @@ func (a *StateAwareAgent) setupMockMCPCapabilities() error {
 
 	// Create a tool factory to get the real supported tools
 	factory := tools.NewToolFactory(nil, logging.NewLogger("mock", "info"))
-	realTools := factory.GetSupportedToolTypes()
+	realToolsByAction := factory.GetSupportedToolTypes()
 
 	// Initialize mock tools map with all real tools
 	mockTools := make(map[string]MCPToolInfo)
 
-	// Add all real tools - this covers the actual available tools
-	for _, toolName := range realTools {
-		mockTools[toolName] = MCPToolInfo{
-			Name:        toolName,
-			Description: fmt.Sprintf("Tool: %s", toolName),
-			InputSchema: map[string]interface{}{"type": "object"},
+	// Add all real tools from all action types
+	for actionType, toolNames := range realToolsByAction {
+		for _, toolName := range toolNames {
+			mockTools[toolName] = MCPToolInfo{
+				Name:        toolName,
+				Description: fmt.Sprintf("Tool: %s", toolName),
+				InputSchema: map[string]interface{}{"type": "object"},
+				Type:        actionType,
+			}
+
+			// Register the tool's action type with the IDExtractor
+			a.idExtractor.RegisterToolActionType(toolName, actionType)
 		}
 	}
 
 	a.mcpTools = mockTools
 	a.Logger.WithFields(map[string]interface{}{
 		"tool_count": len(mockTools),
-		"real_tools": len(realTools),
 	}).Info("Mock MCP capabilities setup complete with real tools")
 
 	return nil
@@ -403,12 +408,12 @@ func (a *StateAwareAgent) discoverMCPTools() error {
 		return fmt.Errorf("invalid result format from MCP tools list")
 	}
 
-	tools, exists := resultMap["tools"]
+	toolsField, exists := resultMap["tools"]
 	if !exists {
 		return fmt.Errorf("no tools field in MCP response")
 	}
 
-	toolsArray, ok := tools.([]interface{})
+	toolsArray, ok := toolsField.([]interface{})
 	if !ok {
 		return fmt.Errorf("tools field is not an array")
 	}
@@ -418,6 +423,9 @@ func (a *StateAwareAgent) discoverMCPTools() error {
 
 	// Clear existing tools
 	a.mcpTools = make(map[string]MCPToolInfo)
+
+	// Create tool factory to determine action types
+	factory := tools.NewToolFactory(nil, logging.NewLogger("tool-factory", "info"))
 
 	for _, toolInterface := range toolsArray {
 		toolMap, ok := toolInterface.(map[string]interface{})
@@ -435,6 +443,10 @@ func (a *StateAwareAgent) discoverMCPTools() error {
 				Description: description,
 				InputSchema: inputSchema,
 			}
+
+			// Register the tool's action type with the IDExtractor
+			actionType := factory.GetToolActionType(name)
+			a.idExtractor.RegisterToolActionType(name, actionType)
 		}
 	}
 

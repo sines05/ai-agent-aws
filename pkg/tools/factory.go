@@ -38,7 +38,7 @@ func NewToolFactory(awsClient *aws.Client, logger *logging.Logger) interfaces.To
 }
 
 // CreateTool creates a tool by type
-func (f *ToolFactoryImpl) CreateTool(toolType string, dependencies interface{}) (interfaces.MCPTool, error) {
+func (f *ToolFactoryImpl) CreateTool(toolType string, actionType string, dependencies interface{}) (interfaces.MCPTool, error) {
 
 	// Handle regular tool dependencies
 	deps, ok := dependencies.(*ToolDependencies)
@@ -54,224 +54,246 @@ func (f *ToolFactoryImpl) CreateTool(toolType string, dependencies interface{}) 
 	switch toolType {
 	// EC2 Tools
 	case "create-ec2-instance":
-		return NewCreateEC2InstanceTool(deps.AWSClient, f.logger), nil
+		return NewCreateEC2InstanceTool(deps.AWSClient, actionType, f.logger), nil
 	case "list-ec2-instances":
-		return NewListEC2InstancesTool(deps.AWSClient, f.logger), nil
+		return NewListEC2InstancesTool(deps.AWSClient, actionType, f.logger), nil
 	case "start-ec2-instance":
-		return NewStartEC2InstanceTool(deps.AWSClient, f.logger), nil
+		return NewStartEC2InstanceTool(deps.AWSClient, actionType, f.logger), nil
 	case "stop-ec2-instance":
-		return NewStopEC2InstanceTool(deps.AWSClient, f.logger), nil
+		return NewStopEC2InstanceTool(deps.AWSClient, actionType, f.logger), nil
 	case "terminate-ec2-instance":
-		return NewTerminateEC2InstanceTool(deps.AWSClient, f.logger), nil
+		return NewTerminateEC2InstanceTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-ami-from-instance":
-		return NewCreateAMIFromInstanceTool(deps.AWSClient, f.logger), nil
+		return NewCreateAMIFromInstanceTool(deps.AWSClient, actionType, f.logger), nil
 	case "list-amis":
-		return NewListAMIsTool(deps.AWSClient, f.logger), nil
+		return NewListAMIsTool(deps.AWSClient, actionType, f.logger), nil
+
+	// Key Pair Tools
+	case "create-key-pair":
+		return NewCreateKeyPairTool(deps.AWSClient, actionType, f.logger), nil
+	case "list-key-pairs":
+		return NewListKeyPairsTool(deps.AWSClient, actionType, f.logger), nil
+	case "get-key-pair":
+		return NewGetKeyPairTool(deps.AWSClient, actionType, f.logger), nil
+	case "import-key-pair":
+		return NewImportKeyPairTool(deps.AWSClient, actionType, f.logger), nil
 
 	// VPC Tools
 	case "create-vpc":
-		return NewCreateVPCTool(deps.AWSClient, f.logger), nil
+		return NewCreateVPCTool(deps.AWSClient, actionType, f.logger), nil
 	case "list-vpcs":
-		return NewListVPCsTool(deps.AWSClient, f.logger), nil
+		return NewListVPCsTool(deps.AWSClient, actionType, f.logger), nil
 	case "get-default-vpc":
-		return NewGetDefaultVPCTool(deps.AWSClient, f.logger), nil
+		return NewGetDefaultVPCTool(deps.AWSClient, actionType, f.logger), nil
 	case "get-default-subnet":
-		return NewGetDefaultSubnetTool(deps.AWSClient, f.logger), nil
+		return NewGetDefaultSubnetTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-subnet":
-		return NewCreateSubnetTool(deps.AWSClient, f.logger), nil
+		return NewCreateSubnetTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-private-subnet":
-		return NewCreatePrivateSubnetTool(deps.AWSClient, f.logger), nil
+		return NewCreatePrivateSubnetTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-public-subnet":
-		return NewCreatePublicSubnetTool(deps.AWSClient, f.logger), nil
+		return NewCreatePublicSubnetTool(deps.AWSClient, actionType, f.logger), nil
 	case "list-subnets":
-		return NewListSubnetsTool(deps.AWSClient, f.logger), nil
+		return NewListSubnetsTool(deps.AWSClient, actionType, f.logger), nil
 	case "select-subnets-for-alb":
-		return NewSelectSubnetsForALBTool(deps.AWSClient, f.logger), nil
+		return NewSelectSubnetsForALBTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-internet-gateway":
-		return NewCreateInternetGatewayTool(deps.AWSClient, f.logger), nil
+		return NewCreateInternetGatewayTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-nat-gateway":
-		return NewCreateNATGatewayTool(deps.AWSClient, f.logger), nil
+		return NewCreateNATGatewayTool(deps.AWSClient, actionType, f.logger), nil
 	case "describe-nat-gateways":
-		return NewDescribeNATGatewaysTool(deps.AWSClient, f.logger), nil
+		return NewDescribeNATGatewaysTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-public-route-table":
-		return NewCreatePublicRouteTableTool(deps.AWSClient, f.logger), nil
+		return NewCreatePublicRouteTableTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-private-route-table":
-		return NewCreatePrivateRouteTableTool(deps.AWSClient, f.logger), nil
+		return NewCreatePrivateRouteTableTool(deps.AWSClient, actionType, f.logger), nil
 	case "associate-route-table":
-		return NewAssociateRouteTableTool(deps.AWSClient, f.logger), nil
+		return NewAssociateRouteTableTool(deps.AWSClient, actionType, f.logger), nil
 	case "add-route":
-		return NewAddRouteTool(deps.AWSClient, f.logger), nil
+		return NewAddRouteTool(deps.AWSClient, actionType, f.logger), nil
 
 	// Security Group Tools
 	case "create-security-group":
-		return NewCreateSecurityGroupTool(deps.AWSClient, f.logger), nil
+		return NewCreateSecurityGroupTool(deps.AWSClient, actionType, f.logger), nil
 	case "list-security-groups":
-		return NewListSecurityGroupsTool(deps.AWSClient, f.logger), nil
+		return NewListSecurityGroupsTool(deps.AWSClient, actionType, f.logger), nil
 	case "add-security-group-ingress-rule":
-		return NewAddSecurityGroupIngressRuleTool(deps.AWSClient, f.logger), nil
+		return NewAddSecurityGroupIngressRuleTool(deps.AWSClient, actionType, f.logger), nil
 	case "add-security-group-egress-rule":
-		return NewAddSecurityGroupEgressRuleTool(deps.AWSClient, f.logger), nil
+		return NewAddSecurityGroupEgressRuleTool(deps.AWSClient, actionType, f.logger), nil
 	case "delete-security-group":
-		return NewDeleteSecurityGroupTool(deps.AWSClient, f.logger), nil
+		return NewDeleteSecurityGroupTool(deps.AWSClient, actionType, f.logger), nil
 
 	// Auto Scaling Tools
 	case "create-launch-template":
-		return NewCreateLaunchTemplateTool(deps.AWSClient, f.logger), nil
+		return NewCreateLaunchTemplateTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-auto-scaling-group":
-		return NewCreateAutoScalingGroupTool(deps.AWSClient, f.logger), nil
+		return NewCreateAutoScalingGroupTool(deps.AWSClient, actionType, f.logger), nil
 	case "list-auto-scaling-groups":
-		return NewListAutoScalingGroupsTool(deps.AWSClient, f.logger), nil
+		return NewListAutoScalingGroupsTool(deps.AWSClient, actionType, f.logger), nil
 	case "list-launch-templates":
-		return NewListLaunchTemplatesTool(deps.AWSClient, f.logger), nil
+		return NewListLaunchTemplatesTool(deps.AWSClient, actionType, f.logger), nil
 
 	// Load Balancer Tools
 	case "create-load-balancer":
-		return NewCreateLoadBalancerTool(deps.AWSClient, f.logger), nil
+		return NewCreateLoadBalancerTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-target-group":
-		return NewCreateTargetGroupTool(deps.AWSClient, f.logger), nil
+		return NewCreateTargetGroupTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-listener":
-		return NewCreateListenerTool(deps.AWSClient, f.logger), nil
+		return NewCreateListenerTool(deps.AWSClient, actionType, f.logger), nil
 	case "list-load-balancers":
-		return NewListLoadBalancersTool(deps.AWSClient, f.logger), nil
+		return NewListLoadBalancersTool(deps.AWSClient, actionType, f.logger), nil
 	case "list-target-groups":
-		return NewListTargetGroupsTool(deps.AWSClient, f.logger), nil
+		return NewListTargetGroupsTool(deps.AWSClient, actionType, f.logger), nil
 	case "register-targets":
-		return NewRegisterTargetsTool(deps.AWSClient, f.logger), nil
+		return NewRegisterTargetsTool(deps.AWSClient, actionType, f.logger), nil
 	case "deregister-targets":
-		return NewDeregisterTargetsTool(deps.AWSClient, f.logger), nil
+		return NewDeregisterTargetsTool(deps.AWSClient, actionType, f.logger), nil
 
 	// AMI Tools
 	case "get-latest-amazon-linux-ami":
-		return NewGetLatestAmazonLinuxAMITool(deps.AWSClient, f.logger), nil
+		return NewGetLatestAmazonLinuxAMITool(deps.AWSClient, actionType, f.logger), nil
 	case "get-latest-ubuntu-ami":
-		return NewGetLatestUbuntuAMITool(deps.AWSClient, f.logger), nil
+		return NewGetLatestUbuntuAMITool(deps.AWSClient, actionType, f.logger), nil
 	case "get-latest-windows-ami":
-		return NewGetLatestWindowsAMITool(deps.AWSClient, f.logger), nil
+		return NewGetLatestWindowsAMITool(deps.AWSClient, actionType, f.logger), nil
 
 	// Zone Tools
 	case "get-availability-zones":
-		return NewGetAvailabilityZonesTool(deps.AWSClient, f.logger), nil
+		return NewGetAvailabilityZonesTool(deps.AWSClient, actionType, f.logger), nil
 
 	// RDS Tools
 	case "create-db-subnet-group":
-		return NewCreateDBSubnetGroupTool(deps.AWSClient, f.logger), nil
+		return NewCreateDBSubnetGroupTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-db-instance":
-		return NewCreateDBInstanceTool(deps.AWSClient, f.logger), nil
+		return NewCreateDBInstanceTool(deps.AWSClient, actionType, f.logger), nil
 	case "start-db-instance":
-		return NewStartDBInstanceTool(deps.AWSClient, f.logger), nil
+		return NewStartDBInstanceTool(deps.AWSClient, actionType, f.logger), nil
 	case "stop-db-instance":
-		return NewStopDBInstanceTool(deps.AWSClient, f.logger), nil
+		return NewStopDBInstanceTool(deps.AWSClient, actionType, f.logger), nil
 	case "delete-db-instance":
-		return NewDeleteDBInstanceTool(deps.AWSClient, f.logger), nil
+		return NewDeleteDBInstanceTool(deps.AWSClient, actionType, f.logger), nil
 	case "create-db-snapshot":
-		return NewCreateDBSnapshotTool(deps.AWSClient, f.logger), nil
+		return NewCreateDBSnapshotTool(deps.AWSClient, actionType, f.logger), nil
 	case "list-db-instances":
-		return NewListDBInstancesTool(deps.AWSClient, f.logger), nil
+		return NewListDBInstancesTool(deps.AWSClient, actionType, f.logger), nil
 	case "list-db-snapshots":
-		return NewListDBSnapshotsTool(deps.AWSClient, f.logger), nil
+		return NewListDBSnapshotsTool(deps.AWSClient, actionType, f.logger), nil
 
 	// State Management Tools
 	case "analyze-infrastructure-state":
-		return NewAnalyzeStateTool(deps, deps.AWSClient, f.logger), nil
+		return NewAnalyzeStateTool(deps, deps.AWSClient, actionType, f.logger), nil
 	case "export-infrastructure-state":
-		return NewExportStateTool(deps, deps.AWSClient, f.logger), nil
+		return NewExportStateTool(deps, deps.AWSClient, actionType, f.logger), nil
 
 	// State-Aware Tools
 	case "visualize-dependency-graph":
-		return NewVisualizeDependencyGraphTool(deps, f.logger), nil
+		return NewVisualizeDependencyGraphTool(deps, actionType, f.logger), nil
 	case "detect-infrastructure-conflicts":
-		return NewDetectConflictsTool(deps, f.logger), nil
+		return NewDetectConflictsTool(deps, actionType, f.logger), nil
 	case "save-state":
-		return NewSaveStateTool(deps, f.logger), nil
+		return NewSaveStateTool(deps, actionType, f.logger), nil
 	case "add-resource-to-state":
-		return NewAddResourceToStateTool(deps, f.logger), nil
+		return NewAddResourceToStateTool(deps, actionType, f.logger), nil
 	case "plan-infrastructure-deployment":
-		return NewPlanDeploymentTool(deps, f.logger), nil
+		return NewPlanDeploymentTool(deps, actionType, f.logger), nil
 
 	default:
 		return nil, fmt.Errorf("unsupported tool type: %s", toolType)
 	}
 }
 
-// GetSupportedToolTypes returns all supported tool types
-func (f *ToolFactoryImpl) GetSupportedToolTypes() []string {
-	return []string{
-		// EC2 Tools
-		"create-ec2-instance",
-		"list-ec2-instances",
-		"start-ec2-instance",
-		"stop-ec2-instance",
-		"terminate-ec2-instance",
-		"create-ami-from-instance",
-		"list-amis",
-
-		// VPC Tools
-		"create-vpc",
-		"list-vpcs",
-		"get-default-vpc",
-		"get-default-subnet",
-		"create-subnet",
-		"create-private-subnet",
-		"create-public-subnet",
-		"list-subnets",
-		"select-subnets-for-alb",
-		"create-internet-gateway",
-		"create-nat-gateway",
-		"describe-nat-gateways",
-		"create-public-route-table",
-		"create-private-route-table",
-		"associate-route-table",
-		"add-route",
-
-		// Security Group Tools
-		"create-security-group",
-		"list-security-groups",
-		"add-security-group-ingress-rule",
-		"add-security-group-egress-rule",
-		"delete-security-group",
-
-		// Auto Scaling Tools
-		"create-launch-template",
-		"create-auto-scaling-group",
-		"list-auto-scaling-groups",
-		"list-launch-templates",
-
-		// Load Balancer Tools
-		"create-load-balancer",
-		"create-target-group",
-		"create-listener",
-		"list-load-balancers",
-		"list-target-groups",
-		"register-targets",
-		"deregister-targets",
-
-		// AMI Tools
-		"get-latest-amazon-linux-ami",
-		"get-latest-ubuntu-ami",
-		"get-latest-windows-ami",
-
-		// Zone Tools
-		"get-availability-zones",
-
-		// RDS Tools
-		"create-db-subnet-group",
-		"create-db-instance",
-		"start-db-instance",
-		"stop-db-instance",
-		"delete-db-instance",
-		"create-db-snapshot",
-		"list-db-instances",
-		"list-db-snapshots",
-
-		// State Tools
-		"analyze-infrastructure-state",
-		"export-infrastructure-state",
-		"visualize-dependency-graph",
-		"detect-infrastructure-conflicts",
-		"plan-infrastructure-deployment",
-		"add-resource-to-state",
-		"save-state",
+// GetSupportedToolTypes returns all supported tool types grouped by action type
+func (f *ToolFactoryImpl) GetSupportedToolTypes() map[string][]string {
+	return map[string][]string{
+		"creation": {
+			"create-ec2-instance",
+			"create-ami-from-instance",
+			"create-key-pair",
+			"import-key-pair",
+			"create-vpc",
+			"create-subnet",
+			"create-private-subnet",
+			"create-public-subnet",
+			"create-internet-gateway",
+			"create-nat-gateway",
+			"create-public-route-table",
+			"create-private-route-table",
+			"create-security-group",
+			"create-launch-template",
+			"create-auto-scaling-group",
+			"create-load-balancer",
+			"create-target-group",
+			"create-listener",
+			"create-db-subnet-group",
+			"create-db-instance",
+			"create-db-snapshot",
+		},
+		"query": {
+			"list-ec2-instances",
+			"list-amis",
+			"list-key-pairs",
+			"get-key-pair",
+			"list-vpcs",
+			"get-default-vpc",
+			"get-default-subnet",
+			"list-subnets",
+			"select-subnets-for-alb",
+			"describe-nat-gateways",
+			"list-security-groups",
+			"list-auto-scaling-groups",
+			"list-launch-templates",
+			"list-load-balancers",
+			"list-target-groups",
+			"get-latest-amazon-linux-ami",
+			"get-latest-ubuntu-ami",
+			"get-latest-windows-ami",
+			"get-availability-zones",
+			"list-db-instances",
+			"list-db-snapshots",
+		},
+		"modification": {
+			"start-ec2-instance",
+			"stop-ec2-instance",
+			"start-db-instance",
+			"stop-db-instance",
+		},
+		"deletion": {
+			"terminate-ec2-instance",
+			"delete-security-group",
+			"delete-db-instance",
+		},
+		"association": {
+			"associate-route-table",
+			"add-route",
+			"add-security-group-ingress-rule",
+			"add-security-group-egress-rule",
+			"register-targets",
+			"deregister-targets",
+		},
+		"state": {
+			"analyze-infrastructure-state",
+			"export-infrastructure-state",
+			"visualize-dependency-graph",
+			"detect-infrastructure-conflicts",
+			"plan-infrastructure-deployment",
+			"add-resource-to-state",
+			"save-state",
+		},
 	}
+}
+
+// GetToolActionType returns the action type for a given tool name
+func (f *ToolFactoryImpl) GetToolActionType(toolName string) string {
+	toolsByAction := f.GetSupportedToolTypes()
+	for actionType, toolNames := range toolsByAction {
+		for _, name := range toolNames {
+			if name == toolName {
+				return actionType
+			}
+		}
+	}
+	return "unknown"
 }
 
 // ToolRegistrationHelper helps register all standard tools
@@ -288,26 +310,4 @@ func NewToolRegistrationHelper(factory interfaces.ToolFactory, registry interfac
 		registry: registry,
 		logger:   logger,
 	}
-}
-
-// RegisterAllTools registers all available tools
-func (h *ToolRegistrationHelper) RegisterAllTools(deps ToolDependencies) error {
-	supportedTools := h.factory.GetSupportedToolTypes()
-
-	for _, toolType := range supportedTools {
-		tool, err := h.factory.CreateTool(toolType, deps)
-		if err != nil {
-			h.logger.WithError(err).WithField("toolType", toolType).Warn("Skipping tool creation (not implemented)")
-			continue
-		}
-
-		if err := h.registry.Register(tool); err != nil {
-			h.logger.WithError(err).WithField("toolType", toolType).Error("Failed to register tool")
-			continue
-		}
-
-		h.logger.WithField("toolType", toolType).Info("Successfully registered tool")
-	}
-
-	return nil
 }

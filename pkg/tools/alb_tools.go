@@ -21,7 +21,7 @@ type CreateLoadBalancerTool struct {
 }
 
 // NewCreateLoadBalancerTool creates a new load balancer creation tool
-func NewCreateLoadBalancerTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateLoadBalancerTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -116,7 +116,7 @@ func (t *CreateLoadBalancerTool) Execute(ctx context.Context, arguments map[stri
 		t.logger.Info("Insufficient subnets provided, auto-selecting subnets for ALB creation")
 
 		// Create the subnet selection tool and call it
-		subnetSelector := NewSelectSubnetsForALBTool(t.awsClient, t.logger)
+		subnetSelector := NewSelectSubnetsForALBTool(t.awsClient, "query", t.logger)
 		selectionArgs := map[string]interface{}{
 			"scheme": scheme,
 		}
@@ -246,7 +246,7 @@ type CreateTargetGroupTool struct {
 }
 
 // NewCreateTargetGroupTool creates a new target group creation tool
-func NewCreateTargetGroupTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateTargetGroupTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -364,7 +364,7 @@ type CreateListenerTool struct {
 }
 
 // NewCreateListenerTool creates a new listener creation tool
-func NewCreateListenerTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateListenerTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -485,7 +485,7 @@ type ListLoadBalancersTool struct {
 }
 
 // NewListLoadBalancersTool creates a new load balancer listing tool
-func NewListLoadBalancersTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewListLoadBalancersTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type":       "object",
 		"properties": map[string]interface{}{},
@@ -495,6 +495,7 @@ func NewListLoadBalancersTool(awsClient *aws.Client, logger *logging.Logger) int
 		"list-load-balancers",
 		"List all load balancers",
 		"alb",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -541,7 +542,7 @@ type ListTargetGroupsTool struct {
 }
 
 // NewListTargetGroupsTool creates a new target group listing tool
-func NewListTargetGroupsTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewListTargetGroupsTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type":       "object",
 		"properties": map[string]interface{}{},
@@ -551,6 +552,7 @@ func NewListTargetGroupsTool(awsClient *aws.Client, logger *logging.Logger) inte
 		"list-target-groups",
 		"List all target groups",
 		"alb",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -608,7 +610,7 @@ type RegisterTargetsTool struct {
 }
 
 // NewRegisterTargetsTool creates a new target registration tool
-func NewRegisterTargetsTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewRegisterTargetsTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -689,7 +691,7 @@ type DeregisterTargetsTool struct {
 }
 
 // NewDeregisterTargetsTool creates a new target deregistration tool
-func NewDeregisterTargetsTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewDeregisterTargetsTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{

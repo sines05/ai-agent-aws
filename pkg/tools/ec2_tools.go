@@ -19,7 +19,7 @@ type CreateEC2InstanceTool struct {
 }
 
 // NewCreateEC2InstanceTool creates a new EC2 instance creation tool
-func NewCreateEC2InstanceTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateEC2InstanceTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -56,6 +56,7 @@ func NewCreateEC2InstanceTool(awsClient *aws.Client, logger *logging.Logger) int
 		"create-ec2-instance",
 		"Create a new EC2 instance with specified configuration",
 		"ec2",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -130,7 +131,7 @@ type ListEC2InstancesTool struct {
 }
 
 // NewListEC2InstancesTool creates a new tool for listing EC2 instances
-func NewListEC2InstancesTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewListEC2InstancesTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -149,6 +150,7 @@ func NewListEC2InstancesTool(awsClient *aws.Client, logger *logging.Logger) inte
 		"list-ec2-instances",
 		"List EC2 instances with optional filtering",
 		"ec2",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -233,7 +235,7 @@ type StartEC2InstanceTool struct {
 }
 
 // NewStartEC2InstanceTool creates a tool for starting EC2 instances
-func NewStartEC2InstanceTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewStartEC2InstanceTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -249,6 +251,7 @@ func NewStartEC2InstanceTool(awsClient *aws.Client, logger *logging.Logger) inte
 		"start-ec2-instance",
 		"Start a stopped EC2 instance",
 		"ec2",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -297,7 +300,7 @@ type StopEC2InstanceTool struct {
 }
 
 // NewStopEC2InstanceTool creates a tool for stopping EC2 instances
-func NewStopEC2InstanceTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewStopEC2InstanceTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -313,6 +316,7 @@ func NewStopEC2InstanceTool(awsClient *aws.Client, logger *logging.Logger) inter
 		"stop-ec2-instance",
 		"Stop a running EC2 instance",
 		"ec2",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -361,7 +365,7 @@ type TerminateEC2InstanceTool struct {
 }
 
 // NewTerminateEC2InstanceTool creates a tool for terminating EC2 instances
-func NewTerminateEC2InstanceTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewTerminateEC2InstanceTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -377,6 +381,7 @@ func NewTerminateEC2InstanceTool(awsClient *aws.Client, logger *logging.Logger) 
 		"terminate-ec2-instance",
 		"Terminate an EC2 instance (permanent deletion)",
 		"ec2",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -425,7 +430,7 @@ type CreateAMIFromInstanceTool struct {
 }
 
 // NewCreateAMIFromInstanceTool creates a new AMI creation tool
-func NewCreateAMIFromInstanceTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateAMIFromInstanceTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -449,6 +454,7 @@ func NewCreateAMIFromInstanceTool(awsClient *aws.Client, logger *logging.Logger)
 		"create-ami-from-instance",
 		"Create an AMI from an existing EC2 instance",
 		"ec2",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -517,7 +523,7 @@ type ListAMIsTool struct {
 }
 
 // NewListAMIsTool creates a new AMI listing tool
-func NewListAMIsTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewListAMIsTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -533,6 +539,7 @@ func NewListAMIsTool(awsClient *aws.Client, logger *logging.Logger) interfaces.M
 		"list-amis",
 		"List available Amazon Machine Images",
 		"ec2",
+		actionType,
 		inputSchema,
 		logger,
 	)

@@ -1041,3 +1041,245 @@ func (c *Client) ListAMIs(ctx context.Context, owner string) ([]*types.AWSResour
 
 	return amis, nil
 }
+
+// ========== Key Pair Management Methods ==========
+
+// CreateKeyPair creates a new EC2 key pair
+func (c *Client) CreateKeyPair(ctx context.Context, params CreateKeyPairParams) (*types.AWSResource, error) {
+	c.logger.WithFields(logrus.Fields{
+		"keyName":   params.KeyName,
+		"keyType":   params.KeyType,
+		"keyFormat": params.KeyFormat,
+	}).Info("CreateKeyPair called with parameters")
+
+	// Set default key type if not specified
+	keyType := ec2types.KeyTypeRsa
+	if params.KeyType == "ed25519" {
+		keyType = ec2types.KeyTypeEd25519
+	}
+
+	// Set default key format if not specified
+	keyFormat := ec2types.KeyFormatPem
+	if params.KeyFormat == "ppk" {
+		keyFormat = ec2types.KeyFormatPpk
+	}
+
+	input := &ec2.CreateKeyPairInput{
+		KeyName:   aws.String(params.KeyName),
+		KeyType:   keyType,
+		KeyFormat: keyFormat,
+	}
+
+	// Add tag specifications if provided
+	if len(params.TagSpecs) > 0 {
+		tags := make([]ec2types.Tag, 0, len(params.TagSpecs))
+		for key, value := range params.TagSpecs {
+			tags = append(tags, ec2types.Tag{
+				Key:   aws.String(key),
+				Value: aws.String(value),
+			})
+		}
+		input.TagSpecifications = []ec2types.TagSpecification{
+			{
+				ResourceType: ec2types.ResourceTypeKeyPair,
+				Tags:         tags,
+			},
+		}
+	}
+
+	result, err := c.ec2.CreateKeyPair(ctx, input)
+	if err != nil {
+		c.logger.WithError(err).Error("Failed to create key pair")
+		return nil, fmt.Errorf("failed to create key pair: %w", err)
+	}
+
+	// Convert tags from input for the resource
+	tags := make(map[string]string)
+	for key, value := range params.TagSpecs {
+		tags[key] = value
+	}
+
+	resource := &types.AWSResource{
+		ID:     aws.ToString(result.KeyPairId),
+		Type:   "key_pair",
+		Region: c.cfg.Region,
+		State:  "available",
+		Tags:   tags,
+		Details: map[string]interface{}{
+			"keyName":        aws.ToString(result.KeyName),
+			"keyFingerprint": aws.ToString(result.KeyFingerprint),
+			"keyMaterial":    aws.ToString(result.KeyMaterial), // Private key material - only available at creation
+			"keyType":        string(keyType),
+			"keyFormat":      string(keyFormat),
+		},
+		LastSeen: time.Now(),
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"keyPairId": resource.ID,
+		"keyName":   aws.ToString(result.KeyName),
+	}).Info("Key pair created successfully")
+
+	return resource, nil
+}
+
+// ImportKeyPair imports a public key to create an EC2 key pair
+func (c *Client) ImportKeyPair(ctx context.Context, params ImportKeyPairParams) (*types.AWSResource, error) {
+	c.logger.WithFields(logrus.Fields{
+		"keyName": params.KeyName,
+	}).Info("ImportKeyPair called with parameters")
+
+	input := &ec2.ImportKeyPairInput{
+		KeyName:           aws.String(params.KeyName),
+		PublicKeyMaterial: params.PublicKeyMaterial,
+	}
+
+	// Add tag specifications if provided
+	if len(params.TagSpecs) > 0 {
+		tags := make([]ec2types.Tag, 0, len(params.TagSpecs))
+		for key, value := range params.TagSpecs {
+			tags = append(tags, ec2types.Tag{
+				Key:   aws.String(key),
+				Value: aws.String(value),
+			})
+		}
+		input.TagSpecifications = []ec2types.TagSpecification{
+			{
+				ResourceType: ec2types.ResourceTypeKeyPair,
+				Tags:         tags,
+			},
+		}
+	}
+
+	result, err := c.ec2.ImportKeyPair(ctx, input)
+	if err != nil {
+		c.logger.WithError(err).Error("Failed to import key pair")
+		return nil, fmt.Errorf("failed to import key pair: %w", err)
+	}
+
+	// Convert tags from input for the resource
+	tags := make(map[string]string)
+	for key, value := range params.TagSpecs {
+		tags[key] = value
+	}
+
+	resource := &types.AWSResource{
+		ID:     aws.ToString(result.KeyPairId),
+		Type:   "key_pair",
+		Region: c.cfg.Region,
+		State:  "available",
+		Tags:   tags,
+		Details: map[string]interface{}{
+			"keyName":        aws.ToString(result.KeyName),
+			"keyFingerprint": aws.ToString(result.KeyFingerprint),
+			"keyType":        "imported",
+		},
+		LastSeen: time.Now(),
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"keyPairId": resource.ID,
+		"keyName":   aws.ToString(result.KeyName),
+	}).Info("Key pair imported successfully")
+
+	return resource, nil
+}
+
+// ListKeyPairs lists all EC2 key pairs
+func (c *Client) ListKeyPairs(ctx context.Context) ([]*types.AWSResource, error) {
+	c.logger.Info("ListKeyPairs called")
+
+	input := &ec2.DescribeKeyPairsInput{}
+
+	result, err := c.ec2.DescribeKeyPairs(ctx, input)
+	if err != nil {
+		c.logger.WithError(err).Error("Failed to list key pairs")
+		return nil, fmt.Errorf("failed to list key pairs: %w", err)
+	}
+
+	var resources []*types.AWSResource
+	for _, keyPair := range result.KeyPairs {
+		if keyPair.KeyPairId == nil {
+			continue
+		}
+
+		// Convert tags
+		tags := make(map[string]string)
+		for _, tag := range keyPair.Tags {
+			if tag.Key != nil && tag.Value != nil {
+				tags[*tag.Key] = *tag.Value
+			}
+		}
+
+		resource := &types.AWSResource{
+			ID:     aws.ToString(keyPair.KeyPairId),
+			Type:   "key_pair",
+			Region: c.cfg.Region,
+			State:  "available",
+			Tags:   tags,
+			Details: map[string]interface{}{
+				"keyName":        aws.ToString(keyPair.KeyName),
+				"keyFingerprint": aws.ToString(keyPair.KeyFingerprint),
+				"keyType":        string(keyPair.KeyType),
+				"createTime":     keyPair.CreateTime,
+			},
+			LastSeen: time.Now(),
+		}
+
+		resources = append(resources, resource)
+	}
+
+	c.logger.WithField("count", len(resources)).Info("Key pairs listed successfully")
+	return resources, nil
+}
+
+// GetKeyPair retrieves a specific key pair by name
+func (c *Client) GetKeyPair(ctx context.Context, keyName string) (*types.AWSResource, error) {
+	c.logger.WithField("keyName", keyName).Info("GetKeyPair called")
+
+	input := &ec2.DescribeKeyPairsInput{
+		KeyNames: []string{keyName},
+	}
+
+	result, err := c.ec2.DescribeKeyPairs(ctx, input)
+	if err != nil {
+		c.logger.WithError(err).Error("Failed to get key pair")
+		return nil, fmt.Errorf("failed to get key pair %s: %w", keyName, err)
+	}
+
+	if len(result.KeyPairs) == 0 {
+		return nil, fmt.Errorf("key pair %s not found", keyName)
+	}
+
+	keyPair := result.KeyPairs[0]
+
+	// Convert tags
+	tags := make(map[string]string)
+	for _, tag := range keyPair.Tags {
+		if tag.Key != nil && tag.Value != nil {
+			tags[*tag.Key] = *tag.Value
+		}
+	}
+
+	resource := &types.AWSResource{
+		ID:     aws.ToString(keyPair.KeyPairId),
+		Type:   "key_pair",
+		Region: c.cfg.Region,
+		State:  "available",
+		Tags:   tags,
+		Details: map[string]interface{}{
+			"keyName":        aws.ToString(keyPair.KeyName),
+			"keyFingerprint": aws.ToString(keyPair.KeyFingerprint),
+			"keyType":        string(keyPair.KeyType),
+			"createTime":     keyPair.CreateTime,
+		},
+		LastSeen: time.Now(),
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"keyPairId": resource.ID,
+		"keyName":   keyName,
+	}).Info("Key pair retrieved successfully")
+
+	return resource, nil
+}

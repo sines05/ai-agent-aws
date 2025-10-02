@@ -20,7 +20,7 @@ type CreatePrivateSubnetTool struct {
 }
 
 // NewCreatePrivateSubnetTool creates a new private subnet creation tool
-func NewCreatePrivateSubnetTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreatePrivateSubnetTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -48,6 +48,7 @@ func NewCreatePrivateSubnetTool(awsClient *aws.Client, logger *logging.Logger) i
 		"create-private-subnet",
 		"Create a new private subnet",
 		"networking",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -123,7 +124,7 @@ type CreatePublicSubnetTool struct {
 }
 
 // NewCreatePublicSubnetTool creates a new public subnet creation tool
-func NewCreatePublicSubnetTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreatePublicSubnetTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -151,6 +152,7 @@ func NewCreatePublicSubnetTool(awsClient *aws.Client, logger *logging.Logger) in
 		"create-public-subnet",
 		"Create a new public subnet",
 		"networking",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -226,7 +228,7 @@ type ListSubnetsTool struct {
 }
 
 // NewListSubnetsTool creates a new subnet listing tool
-func NewListSubnetsTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewListSubnetsTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -241,6 +243,7 @@ func NewListSubnetsTool(awsClient *aws.Client, logger *logging.Logger) interface
 		"list-subnets",
 		"List all subnets",
 		"networking",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -325,7 +328,7 @@ type CreateInternetGatewayTool struct {
 }
 
 // NewCreateInternetGatewayTool creates a new internet gateway creation tool
-func NewCreateInternetGatewayTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateInternetGatewayTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -345,6 +348,7 @@ func NewCreateInternetGatewayTool(awsClient *aws.Client, logger *logging.Logger)
 		"create-internet-gateway",
 		"Create and attach an internet gateway to a VPC",
 		"networking",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -406,7 +410,7 @@ type CreateNATGatewayTool struct {
 }
 
 // NewCreateNATGatewayTool creates a new NAT gateway creation tool
-func NewCreateNATGatewayTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateNATGatewayTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -466,7 +470,7 @@ type CreatePublicRouteTableTool struct {
 }
 
 // NewCreatePublicRouteTableTool creates a new public route table creation tool
-func NewCreatePublicRouteTableTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreatePublicRouteTableTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -527,7 +531,7 @@ type CreatePrivateRouteTableTool struct {
 }
 
 // NewCreatePrivateRouteTableTool creates a new private route table creation tool
-func NewCreatePrivateRouteTableTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreatePrivateRouteTableTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -595,7 +599,7 @@ type AssociateRouteTableTool struct {
 }
 
 // NewAssociateRouteTableTool creates a new route table association tool
-func NewAssociateRouteTableTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewAssociateRouteTableTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -660,7 +664,7 @@ type AddRouteTool struct {
 }
 
 // NewAddRouteTool creates a new route addition tool
-func NewAddRouteTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewAddRouteTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -771,7 +775,7 @@ type SelectSubnetsForALBTool struct {
 }
 
 // NewSelectSubnetsForALBTool creates a new subnet selection tool for ALB
-func NewSelectSubnetsForALBTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewSelectSubnetsForALBTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -791,6 +795,7 @@ func NewSelectSubnetsForALBTool(awsClient *aws.Client, logger *logging.Logger) i
 		"select-subnets-for-alb",
 		"Select at least two subnets in different Availability Zones for ALB creation",
 		"networking",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -949,7 +954,7 @@ type DescribeNATGatewaysTool struct {
 }
 
 // NewDescribeNATGatewaysTool creates a new NAT gateway description tool
-func NewDescribeNATGatewaysTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewDescribeNATGatewaysTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -967,6 +972,7 @@ func NewDescribeNATGatewaysTool(awsClient *aws.Client, logger *logging.Logger) i
 		"describe-nat-gateways",
 		"Describe NAT gateways in the current AWS region",
 		"networking",
+		actionType,
 		inputSchema,
 		logger,
 	)

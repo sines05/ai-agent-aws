@@ -159,19 +159,6 @@ METHOD A: List all security groups:
   "status": "pending"
 }
 
-METHOD B: Get default security group:
-{
-  "id": "step-get-default-sg",
-  "name": "Get default security group",
-  "description": "Get default security group for VPC",
-  "action": "api_value_retrieval",
-  "resourceId": "default-sg",
-  "mcpTool": "get-default-security-group",
-  "toolParameters": {},
-  "dependsOn": [],
-  "status": "pending"
-}
-
 Output: Returns securityGroupId field
 
 Common filters:
@@ -387,7 +374,7 @@ Discovery Phase (steps 1-4):
 Creation Phase (step 5):
 {
   "action": "create",
-  "mcpTool": "create-instance",
+  "mcpTool": "create-ec2-instance",
   "toolParameters": {
     "imageId": "{{step-discover-ami.imageId}}",
     "instanceType": "t3.micro",

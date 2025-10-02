@@ -18,7 +18,7 @@ type CreateVPCTool struct {
 }
 
 // NewCreateVPCTool creates a new VPC creation tool
-func NewCreateVPCTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateVPCTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -48,6 +48,7 @@ func NewCreateVPCTool(awsClient *aws.Client, logger *logging.Logger) interfaces.
 		"create-vpc",
 		"Create a new VPC (Virtual Private Cloud)",
 		"networking",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -104,7 +105,7 @@ type ListVPCsTool struct {
 }
 
 // NewListVPCsTool creates a new VPC listing tool
-func NewListVPCsTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewListVPCsTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type":       "object",
 		"properties": map[string]interface{}{},
@@ -114,6 +115,7 @@ func NewListVPCsTool(awsClient *aws.Client, logger *logging.Logger) interfaces.M
 		"list-vpcs",
 		"List all VPCs in the region",
 		"networking",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -151,7 +153,7 @@ type CreateSubnetTool struct {
 }
 
 // NewCreateSubnetTool creates a new subnet creation tool
-func NewCreateSubnetTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateSubnetTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -184,6 +186,7 @@ func NewCreateSubnetTool(awsClient *aws.Client, logger *logging.Logger) interfac
 		"create-subnet",
 		"Create a new subnet in a VPC",
 		"networking",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -243,7 +246,7 @@ type GetDefaultVPCTool struct {
 }
 
 // NewGetDefaultVPCTool creates a new get default VPC tool
-func NewGetDefaultVPCTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewGetDefaultVPCTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type":       "object",
 		"properties": map[string]interface{}{},
@@ -253,6 +256,7 @@ func NewGetDefaultVPCTool(awsClient *aws.Client, logger *logging.Logger) interfa
 		"get-default-vpc",
 		"Get the default VPC in the current region",
 		"networking",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -296,7 +300,7 @@ type GetDefaultSubnetTool struct {
 }
 
 // NewGetDefaultSubnetTool creates a new get default subnet tool
-func NewGetDefaultSubnetTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewGetDefaultSubnetTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type":       "object",
 		"properties": map[string]interface{}{},
@@ -306,6 +310,7 @@ func NewGetDefaultSubnetTool(awsClient *aws.Client, logger *logging.Logger) inte
 		"get-default-subnet",
 		"Get the default subnet in the current region",
 		"networking",
+		actionType,
 		inputSchema,
 		logger,
 	)
