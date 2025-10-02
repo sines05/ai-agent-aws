@@ -632,32 +632,21 @@ func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep
 		// Resolve dependency references like {{step-1.resourceId}}
 		if strValue, ok := value.(string); ok {
 			if strings.Contains(strValue, "{{") && strings.Contains(strValue, "}}") {
-				a.Logger.WithFields(map[string]interface{}{
-					"key":            key,
-					"original_value": strValue,
-					"step_id":        planStep.ID,
-					"tool_name":      toolName,
-				}).Debug("Attempting to resolve dependency reference")
 
 				resolvedValue, err := a.resolveDependencyReference(strValue)
 				if err != nil {
-					if a.config.EnableDebug {
-						a.Logger.WithError(err).WithFields(map[string]interface{}{
-							"reference": strValue,
-							"key":       key,
-						}).Error("Failed to resolve dependency reference")
-					}
-					arguments[key] = value // Use original value if resolution fails
-				} else {
-					if a.config.EnableDebug {
-						a.Logger.WithFields(map[string]interface{}{
-							"key":            key,
-							"original_value": strValue,
-							"resolved_value": resolvedValue,
-						}).Info("Successfully resolved dependency reference")
-					}
-					arguments[key] = resolvedValue
+					return nil, fmt.Errorf("failed to resolve dependency reference %s for parameter %s: %w", strValue, key, err)
 				}
+
+				if a.config.EnableDebug {
+					a.Logger.WithFields(map[string]interface{}{
+						"key":            key,
+						"original_value": strValue,
+						"resolved_value": resolvedValue,
+					}).Info("Successfully resolved dependency reference")
+				}
+
+				arguments[key] = resolvedValue
 			} else {
 				arguments[key] = value
 			}
@@ -668,21 +657,10 @@ func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep
 				if strItem, ok := item.(string); ok && strings.Contains(strItem, "{{") && strings.Contains(strItem, "}}") {
 					resolvedValue, err := a.resolveDependencyReference(strItem)
 					if err != nil {
-						a.Logger.WithError(err).WithFields(map[string]interface{}{
-							"reference": strItem,
-							"index":     i,
-							"key":       key,
-						}).Warn("Failed to resolve dependency reference in array")
-						resolvedArray[i] = item // Use original value if resolution fails
-					} else {
-						resolvedArray[i] = resolvedValue
-						a.Logger.WithFields(map[string]interface{}{
-							"reference":      strItem,
-							"resolved_value": resolvedValue,
-							"index":          i,
-							"key":            key,
-						}).Debug("Successfully resolved dependency reference in array")
+						return nil, fmt.Errorf("failed to resolve dependency reference %s in array parameter %s[%d]: %w", strItem, key, i, err)
 					}
+
+					resolvedArray[i] = resolvedValue
 				} else {
 					resolvedArray[i] = item
 				}
@@ -703,12 +681,6 @@ func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep
 		return nil, fmt.Errorf("invalid arguments for MCP tool %s: %w", toolName, err)
 	}
 
-	a.Logger.WithFields(map[string]interface{}{
-		"tool_name":       toolName,
-		"final_arguments": arguments,
-		"step_id":         planStep.ID,
-	}).Debug("Calling MCP tool with final arguments")
-
 	// Call the actual MCP tool
 	result, err := a.callMCPTool(toolName, arguments)
 	if err != nil {
@@ -718,9 +690,7 @@ func (a *StateAwareAgent) executeNativeMCPTool(planStep *types.ExecutionPlanStep
 	// Extract actual resource ID from MCP response
 	resourceID, err := a.extractResourceIDFromResponse(result, toolName)
 	if err != nil {
-		a.Logger.WithError(err).Warn("Could not extract resource ID from MCP response")
-		// Use plan step resource ID as fallback
-		resourceID = planStep.ResourceID
+		return nil, fmt.Errorf("failed to extract resource ID from MCP response for tool %s: %w", toolName, err)
 	}
 
 	// Update the plan step with the actual resource ID so it gets stored correctly
@@ -855,14 +825,6 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 	// Extract resource type
 	resourceType := a.extractResourceTypeFromStep(planStep)
 
-	a.Logger.WithFields(map[string]interface{}{
-		"step_id":       planStep.ID,
-		"resource_type": resourceType,
-		"name":          planStep.Name,
-		"description":   planStep.Description,
-		"properties":    resultData,
-	}).Debug("Extracted resource type and prepared properties")
-
 	// Create a resource state entry
 	resourceState := &types.ResourceState{
 		ID:           planStep.ResourceID,
@@ -902,11 +864,7 @@ func (a *StateAwareAgent) updateStateFromMCPResult(planStep *types.ExecutionPlan
 	// Also store the resource with the step ID as the key for dependency resolution
 	// This ensures that {{step-create-xxx.resourceId}} references can be resolved
 	if planStep.ID != planStep.ResourceID {
-		a.Logger.WithFields(map[string]interface{}{
-			"step_id":     planStep.ID,
-			"resource_id": planStep.ResourceID,
-			"condition":   "step_id != resource_id",
-		}).Info("Creating step reference entry for dependency resolution")
+
 		stepResourceState := &types.ResourceState{
 			ID:           planStep.ID, // Use step ID as the key
 			Name:         planStep.Name,
@@ -1135,47 +1093,35 @@ func (a *StateAwareAgent) persistCurrentState() error {
 
 // extractResourceIDFromResponse extracts the actual AWS resource ID from MCP response
 func (a *StateAwareAgent) extractResourceIDFromResponse(result map[string]interface{}, toolName string) (string, error) {
-	a.Logger.WithFields(map[string]interface{}{
-		"tool_name": toolName,
-		"response":  result,
-	}).Debug("Extracting resource ID from MCP response")
-
-	// Try configuration-driven extraction first
+	// Use configuration-driven extraction
 	resourceType := a.patternMatcher.IdentifyResourceTypeFromToolName(toolName)
-	if resourceType != "" && resourceType != "unknown" {
-		extractedID, err := a.idExtractor.ExtractResourceID(toolName, resourceType, nil, result)
-		if err == nil && extractedID != "" {
-			if a.config.EnableDebug {
-				a.Logger.WithFields(map[string]interface{}{
-					"tool_name":     toolName,
-					"resource_type": resourceType,
-					"resource_id":   extractedID,
-					"source":        "configuration_driven",
-				}).Info("Successfully extracted resource ID using configuration-driven approach")
-			}
-			return extractedID, nil
-		}
+	if resourceType == "" || resourceType == "unknown" {
+		return "", fmt.Errorf("could not identify resource type for tool %s", toolName)
 	}
 
-	// Fallback to legacy extraction logic if configuration-driven approach fails
-	a.Logger.WithField("tool_name", toolName).Debug("Using fallback extraction logic")
-
-	for _, field := range a.extractionConfig.CommonFallbackFields {
-		if value, exists := result[field]; exists {
-			if valueStr, ok := value.(string); ok {
-				if a.config.EnableDebug {
-					a.Logger.WithFields(map[string]interface{}{
-						"tool_name":   toolName,
-						"resource_id": valueStr,
-						"source":      field + "_field",
-					}).Info("Successfully extracted resource ID from common field")
-				}
-				return valueStr, nil
-			}
-		}
+	extractedID, err := a.idExtractor.ExtractResourceID(toolName, resourceType, nil, result)
+	if err != nil {
+		a.Logger.WithFields(map[string]interface{}{
+			"tool_name":     toolName,
+			"resource_type": resourceType,
+			"error":         err.Error(),
+		}).Error("Failed to extract resource ID using configuration-driven approach")
+		return "", fmt.Errorf("could not extract resource ID from MCP response for tool %s: %w", toolName, err)
 	}
 
-	return "", fmt.Errorf("could not extract resource ID from MCP response for tool %s", toolName)
+	if extractedID == "" {
+		return "", fmt.Errorf("extracted empty resource ID for tool %s", toolName)
+	}
+
+	if a.config.EnableDebug {
+		a.Logger.WithFields(map[string]interface{}{
+			"tool_name":     toolName,
+			"resource_type": resourceType,
+			"resource_id":   extractedID,
+		}).Info("Successfully extracted resource ID")
+	}
+
+	return extractedID, nil
 }
 
 // waitForResourceReady waits for AWS resources to be in a ready state before continuing

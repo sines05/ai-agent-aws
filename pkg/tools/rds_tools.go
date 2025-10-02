@@ -18,7 +18,7 @@ type CreateDBSubnetGroupTool struct {
 }
 
 // NewCreateDBSubnetGroupTool creates a new DB subnet group creation tool
-func NewCreateDBSubnetGroupTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateDBSubnetGroupTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -87,7 +87,7 @@ type CreateDBInstanceTool struct {
 }
 
 // NewCreateDBInstanceTool creates a new DB instance creation tool
-func NewCreateDBInstanceTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateDBInstanceTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -196,7 +196,7 @@ type StartDBInstanceTool struct {
 }
 
 // NewStartDBInstanceTool creates a new DB instance start tool
-func NewStartDBInstanceTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewStartDBInstanceTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -248,7 +248,7 @@ type StopDBInstanceTool struct {
 }
 
 // NewStopDBInstanceTool creates a new DB instance stop tool
-func NewStopDBInstanceTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewStopDBInstanceTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -300,7 +300,7 @@ type DeleteDBInstanceTool struct {
 }
 
 // NewDeleteDBInstanceTool creates a new DB instance deletion tool
-func NewDeleteDBInstanceTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewDeleteDBInstanceTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -360,7 +360,7 @@ type CreateDBSnapshotTool struct {
 }
 
 // NewCreateDBSnapshotTool creates a new DB snapshot creation tool
-func NewCreateDBSnapshotTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateDBSnapshotTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -440,7 +440,7 @@ type ListDBInstancesTool struct {
 }
 
 // NewListDBInstancesTool creates a new DB instance listing tool
-func NewListDBInstancesTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewListDBInstancesTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type":       "object",
 		"properties": map[string]interface{}{},
@@ -450,6 +450,7 @@ func NewListDBInstancesTool(awsClient *aws.Client, logger *logging.Logger) inter
 		"list-db-instances",
 		"List all RDS DB instances",
 		"rds",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -494,7 +495,7 @@ type ListDBSnapshotsTool struct {
 }
 
 // NewListDBSnapshotsTool creates a new DB snapshot listing tool
-func NewListDBSnapshotsTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewListDBSnapshotsTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{

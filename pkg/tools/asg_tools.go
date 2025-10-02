@@ -19,7 +19,7 @@ type CreateLaunchTemplateTool struct {
 }
 
 // NewCreateLaunchTemplateTool creates a new launch template creation tool
-func NewCreateLaunchTemplateTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateLaunchTemplateTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -106,6 +106,7 @@ func NewCreateLaunchTemplateTool(awsClient *aws.Client, logger *logging.Logger) 
 		"create-launch-template",
 		"Create a new launch template for Auto Scaling Groups",
 		"autoscaling",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -223,7 +224,7 @@ type CreateAutoScalingGroupTool struct {
 }
 
 // NewCreateAutoScalingGroupTool creates a new auto scaling group creation tool
-func NewCreateAutoScalingGroupTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateAutoScalingGroupTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -290,6 +291,7 @@ func NewCreateAutoScalingGroupTool(awsClient *aws.Client, logger *logging.Logger
 		"create-auto-scaling-group",
 		"Create a new Auto Scaling Group",
 		"autoscaling",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -440,7 +442,7 @@ type ListAutoScalingGroupsTool struct {
 }
 
 // NewListAutoScalingGroupsTool creates a new auto scaling group listing tool
-func NewListAutoScalingGroupsTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewListAutoScalingGroupsTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type":       "object",
 		"properties": map[string]interface{}{},
@@ -450,6 +452,7 @@ func NewListAutoScalingGroupsTool(awsClient *aws.Client, logger *logging.Logger)
 		"list-auto-scaling-groups",
 		"List all auto scaling groups",
 		"autoscaling",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -494,7 +497,7 @@ type ListLaunchTemplatesTool struct {
 }
 
 // NewListLaunchTemplatesTool creates a new launch template listing tool
-func NewListLaunchTemplatesTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewListLaunchTemplatesTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type":       "object",
 		"properties": map[string]interface{}{},
@@ -504,6 +507,7 @@ func NewListLaunchTemplatesTool(awsClient *aws.Client, logger *logging.Logger) i
 		"list-launch-templates",
 		"List all launch templates",
 		"autoscaling",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -553,7 +557,7 @@ type UpdateAutoScalingGroupTool struct {
 }
 
 // NewUpdateAutoScalingGroupTool creates a new ASG update tool
-func NewUpdateAutoScalingGroupTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewUpdateAutoScalingGroupTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -573,6 +577,7 @@ func NewUpdateAutoScalingGroupTool(awsClient *aws.Client, logger *logging.Logger
 		"update-auto-scaling-group",
 		"Update the desired capacity of an Auto Scaling Group",
 		"autoscaling",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -634,7 +639,7 @@ type DeleteAutoScalingGroupTool struct {
 }
 
 // NewDeleteAutoScalingGroupTool creates a new ASG deletion tool
-func NewDeleteAutoScalingGroupTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewDeleteAutoScalingGroupTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -655,6 +660,7 @@ func NewDeleteAutoScalingGroupTool(awsClient *aws.Client, logger *logging.Logger
 		"delete-auto-scaling-group",
 		"Delete an Auto Scaling Group",
 		"autoscaling",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -706,7 +712,7 @@ type AttachASGToTargetGroupTool struct {
 }
 
 // NewAttachASGToTargetGroupTool creates a new ASG target group attachment tool
-func NewAttachASGToTargetGroupTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewAttachASGToTargetGroupTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -729,6 +735,7 @@ func NewAttachASGToTargetGroupTool(awsClient *aws.Client, logger *logging.Logger
 		"attach-asg-to-target-group",
 		"Attach an Auto Scaling Group to load balancer target groups",
 		"autoscaling",
+		actionType,
 		inputSchema,
 		logger,
 	)

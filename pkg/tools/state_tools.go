@@ -44,7 +44,7 @@ type AnalyzeStateTool struct {
 }
 
 // NewAnalyzeStateTool creates a unified state analysis tool with dynamic resource discovery
-func NewAnalyzeStateTool(deps *ToolDependencies, awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewAnalyzeStateTool(deps *ToolDependencies, awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -67,6 +67,7 @@ func NewAnalyzeStateTool(deps *ToolDependencies, awsClient *aws.Client, logger *
 		"analyze-infrastructure-state",
 		"Analyze current infrastructure state with dynamic resource discovery and drift detection",
 		"state",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -231,7 +232,7 @@ type ExportStateTool struct {
 }
 
 // NewExportStateTool creates a unified state export tool with multiple format and discovery options
-func NewExportStateTool(deps *ToolDependencies, awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewExportStateTool(deps *ToolDependencies, awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -265,6 +266,7 @@ func NewExportStateTool(deps *ToolDependencies, awsClient *aws.Client, logger *l
 		"export-infrastructure-state",
 		"Export infrastructure state with multiple formats and dynamic resource discovery",
 		"state",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -550,7 +552,7 @@ type VisualizeDependencyGraphTool struct {
 }
 
 // NewVisualizeDependencyGraphTool creates a new dependency graph visualization tool
-func NewVisualizeDependencyGraphTool(deps *ToolDependencies, logger *logging.Logger) interfaces.MCPTool {
+func NewVisualizeDependencyGraphTool(deps *ToolDependencies, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -572,6 +574,7 @@ func NewVisualizeDependencyGraphTool(deps *ToolDependencies, logger *logging.Log
 		"visualize-dependency-graph",
 		"Generate dependency graph visualization",
 		"visualization",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -689,7 +692,7 @@ type DetectConflictsTool struct {
 }
 
 // NewDetectConflictsTool creates a new conflict detection tool
-func NewDetectConflictsTool(deps *ToolDependencies, logger *logging.Logger) interfaces.MCPTool {
+func NewDetectConflictsTool(deps *ToolDependencies, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -705,6 +708,7 @@ func NewDetectConflictsTool(deps *ToolDependencies, logger *logging.Logger) inte
 		"detect-infrastructure-conflicts",
 		"Detect conflicts in infrastructure configuration",
 		"analysis",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -805,7 +809,7 @@ type SaveStateTool struct {
 }
 
 // NewSaveStateTool creates a new state save tool
-func NewSaveStateTool(deps *ToolDependencies, logger *logging.Logger) interfaces.MCPTool {
+func NewSaveStateTool(deps *ToolDependencies, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -821,6 +825,7 @@ func NewSaveStateTool(deps *ToolDependencies, logger *logging.Logger) interfaces
 		"save-state",
 		"Save current infrastructure state to persistent storage",
 		"state",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -890,7 +895,7 @@ type AddResourceToStateTool struct {
 }
 
 // NewAddResourceToStateTool creates a new add resource tool
-func NewAddResourceToStateTool(deps *ToolDependencies, logger *logging.Logger) interfaces.MCPTool {
+func NewAddResourceToStateTool(deps *ToolDependencies, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -934,6 +939,7 @@ func NewAddResourceToStateTool(deps *ToolDependencies, logger *logging.Logger) i
 		"add-resource-to-state",
 		"Add a resource to the managed infrastructure state",
 		"state",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -1082,7 +1088,7 @@ type PlanDeploymentTool struct {
 }
 
 // NewPlanDeploymentTool creates a new deployment planning tool
-func NewPlanDeploymentTool(deps *ToolDependencies, logger *logging.Logger) interfaces.MCPTool {
+func NewPlanDeploymentTool(deps *ToolDependencies, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -1105,6 +1111,7 @@ func NewPlanDeploymentTool(deps *ToolDependencies, logger *logging.Logger) inter
 		"plan-infrastructure-deployment",
 		"Generate deployment plan with dependency ordering",
 		"planning",
+		actionType,
 		inputSchema,
 		logger,
 	)

@@ -17,7 +17,7 @@ type GetAvailabilityZonesTool struct {
 }
 
 // NewGetAvailabilityZonesTool creates a new availability zones retrieval tool
-func NewGetAvailabilityZonesTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewGetAvailabilityZonesTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -37,6 +37,7 @@ func NewGetAvailabilityZonesTool(awsClient *aws.Client, logger *logging.Logger) 
 		"get-availability-zones",
 		"Get available availability zones in the current or specified region",
 		"aws-info",
+		actionType,
 		inputSchema,
 		logger,
 	)

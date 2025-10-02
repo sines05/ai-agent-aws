@@ -18,7 +18,7 @@ type GetLatestAmazonLinuxAMITool struct {
 }
 
 // NewGetLatestAmazonLinuxAMITool creates a new tool for finding latest Amazon Linux 2 AMI
-func NewGetLatestAmazonLinuxAMITool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewGetLatestAmazonLinuxAMITool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type":       "object",
 		"properties": map[string]interface{}{},
@@ -28,6 +28,7 @@ func NewGetLatestAmazonLinuxAMITool(awsClient *aws.Client, logger *logging.Logge
 		"get-latest-amazon-linux-ami",
 		"Find the latest Amazon Linux 2 AMI ID in the current region",
 		"ec2",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -79,7 +80,7 @@ type GetLatestUbuntuAMITool struct {
 }
 
 // NewGetLatestUbuntuAMITool creates a new tool for finding latest Ubuntu LTS AMI
-func NewGetLatestUbuntuAMITool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewGetLatestUbuntuAMITool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -95,6 +96,7 @@ func NewGetLatestUbuntuAMITool(awsClient *aws.Client, logger *logging.Logger) in
 		"get-latest-ubuntu-ami",
 		"Find the latest Ubuntu LTS AMI ID in the current region",
 		"ec2",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -159,7 +161,7 @@ type GetLatestWindowsAMITool struct {
 }
 
 // NewGetLatestWindowsAMITool creates a new tool for finding latest Windows Server AMI
-func NewGetLatestWindowsAMITool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewGetLatestWindowsAMITool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -175,6 +177,7 @@ func NewGetLatestWindowsAMITool(awsClient *aws.Client, logger *logging.Logger) i
 		"get-latest-windows-ami",
 		"Find the latest Windows Server AMI ID in the current region",
 		"ec2",
+		actionType,
 		inputSchema,
 		logger,
 	)

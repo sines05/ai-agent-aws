@@ -18,7 +18,7 @@ type CreateSecurityGroupTool struct {
 }
 
 // NewCreateSecurityGroupTool creates a new security group creation tool
-func NewCreateSecurityGroupTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewCreateSecurityGroupTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -42,6 +42,7 @@ func NewCreateSecurityGroupTool(awsClient *aws.Client, logger *logging.Logger) i
 		"create-security-group",
 		"Create a new security group",
 		"security",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -114,7 +115,7 @@ type ListSecurityGroupsTool struct {
 }
 
 // NewListSecurityGroupsTool creates a new security group listing tool
-func NewListSecurityGroupsTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewListSecurityGroupsTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type":       "object",
 		"properties": map[string]interface{}{},
@@ -124,6 +125,7 @@ func NewListSecurityGroupsTool(awsClient *aws.Client, logger *logging.Logger) in
 		"list-security-groups",
 		"List all security groups in the region",
 		"security",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -166,7 +168,7 @@ type AddSecurityGroupIngressRuleTool struct {
 }
 
 // NewAddSecurityGroupIngressRuleTool creates a new ingress rule addition tool
-func NewAddSecurityGroupIngressRuleTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewAddSecurityGroupIngressRuleTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -198,6 +200,7 @@ func NewAddSecurityGroupIngressRuleTool(awsClient *aws.Client, logger *logging.L
 		"add-security-group-ingress-rule",
 		"Add an ingress rule to a security group",
 		"security",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -287,7 +290,7 @@ type AddSecurityGroupEgressRuleTool struct {
 }
 
 // NewAddSecurityGroupEgressRuleTool creates a new egress rule addition tool
-func NewAddSecurityGroupEgressRuleTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewAddSecurityGroupEgressRuleTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -319,6 +322,7 @@ func NewAddSecurityGroupEgressRuleTool(awsClient *aws.Client, logger *logging.Lo
 		"add-security-group-egress-rule",
 		"Add an egress rule to a security group",
 		"security",
+		actionType,
 		inputSchema,
 		logger,
 	)
@@ -408,7 +412,7 @@ type DeleteSecurityGroupTool struct {
 }
 
 // NewDeleteSecurityGroupTool creates a new security group deletion tool
-func NewDeleteSecurityGroupTool(awsClient *aws.Client, logger *logging.Logger) interfaces.MCPTool {
+func NewDeleteSecurityGroupTool(awsClient *aws.Client, actionType string, logger *logging.Logger) interfaces.MCPTool {
 	inputSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -424,6 +428,7 @@ func NewDeleteSecurityGroupTool(awsClient *aws.Client, logger *logging.Logger) i
 		"delete-security-group",
 		"Delete a security group",
 		"security",
+		actionType,
 		inputSchema,
 		logger,
 	)

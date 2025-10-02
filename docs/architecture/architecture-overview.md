@@ -252,9 +252,9 @@ type InfrastructureState struct {
 
 **Configuration Architecture:**
 - **Main Configuration** (`config.yaml`): System-wide settings
-- **Resource Patterns** (`settings/resource-patterns.yaml`): AWS resource ID patterns
-- **Field Mappings** (`settings/field-mappings.yaml`): API response field mappings
-- **Extraction Rules** (`settings/resource-extraction.yaml`): Value extraction patterns
+- **Resource Patterns** (`settings/resource-patterns-enhanced.yaml`): AWS resource ID patterns
+- **Field Mappings** (`settings/field-mappings-enhanced.yaml`): API response field mappings
+- **Extraction Rules** (`settings/resource-extraction-enhanced.yaml`): Value extraction patterns
 
 **Key Features:**
 - YAML-based configuration with environment variable override support

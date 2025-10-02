@@ -371,7 +371,7 @@ func (a *StateAwareAgent) retrieveSelectSubnetsForALB(ctx context.Context, planS
 	}
 
 	// Create the subnet selection tool and call it directly
-	subnetSelector := tools.NewSelectSubnetsForALBTool(a.awsClient, a.Logger)
+	subnetSelector := tools.NewSelectSubnetsForALBTool(a.awsClient, "query", a.Logger)
 	selectionArgs := map[string]interface{}{
 		"scheme": scheme,
 	}
