@@ -100,7 +100,15 @@ The dashboard provides:
 
 Let's create a simple web server infrastructure with a practical example. In the web dashboard, enter this natural language request:
 
-> **"Create an EC2 instance for hosting an Apache Server with a dedicated security group that allows inbound HTTP (port 80) and SSH (port 22) traffic."**
+```
+Create an EC2 instance for hosting an Apache Server with a dedicated security group that allows inbound HTTP (port 80) and SSH (port 22) traffic using the default VPC.
+```
+
+**Note:** If you have an existing VPC and want to use it to deploy EC2, please specify the VPC ID in the prompt. For example:
+
+```
+Create an EC2 instance for hosting an Apache Server with a dedicated security group that allows inbound HTTP (port 80) and SSH (port 22) traffic using the VPC with ID vpc-1234501ec3e750243.
+```
 
 ### What Happens Next
 

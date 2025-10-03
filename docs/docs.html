@@ -518,6 +518,7 @@
       coverpage: false,
       executeScript: true,
       relativePath: false,
+      routerMode: 'hash',
       search: {
         maxAge: 86400000,
         paths: 'auto',
@@ -542,7 +543,21 @@
             console.log('Docsify ready - dual sidebars should be loading...')
           })
           
+          hook.beforeEach(function(content) {
+            // Scroll to top when loading new page
+            const contentElement = document.querySelector('.content');
+            if (contentElement) {
+              contentElement.scrollTop = 0;
+            }
+            return content;
+          })
+          
           hook.doneEach(function() {
+            // Ensure scroll to top after content is loaded
+            const contentElement = document.querySelector('.content');
+            if (contentElement) {
+              contentElement.scrollTop = 0;
+            }
             // Generate page table of contents
             const tocContainer = document.getElementById('page-toc-content');
             if (tocContainer) {

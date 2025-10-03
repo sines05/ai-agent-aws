@@ -221,7 +221,17 @@ resource_id_extraction:
         
       # Route table association - returns associationId
       - field_paths: ["associationId"]
-        resource_types: ["route_table_association", "route_table"]
+        resource_types: ["route_table_association"]
+        priority: 2
+        
+      # Route table - for add-route operations, the route table ID is in parameters
+      - field_paths: ["routeTableId"]
+        resource_types: ["route_table", "route"]
+        priority: 2
+        
+      # Target group - for register/deregister-targets operations
+      - field_paths: ["targetGroupArn"]
+        resource_types: ["target_group"]
         priority: 2
         
       # Universal fallback for association tools
