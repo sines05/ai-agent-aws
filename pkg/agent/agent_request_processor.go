@@ -364,7 +364,7 @@ func (a *StateAwareAgent) buildDecisionWithPlanPrompt(request string, context *D
 	}
 
 	// Load decision guidelines from template file
-	decisionTemplate, err := a.loadTemplate("settings/templates/decision-plan-prompt-optimized.txt")
+	decisionTemplate, err := a.loadTemplate("settings/templates/decision-plan-prompt-ultra-optimized.txt")
 	if err != nil {
 		a.Logger.WithError(err).Error("Failed to load decision template")
 		return "", fmt.Errorf("failed to load decision template: %w", err)
