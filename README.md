@@ -8,7 +8,7 @@
 
 <div align="center">
 
-[![Python Version](https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
 [![AWS](https://img.shields.io/badge/AWS-Cloud-FF9900?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com/)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-purple?style=for-the-badge)](https://modelcontextprotocol.io/)
 
@@ -206,16 +206,53 @@ docker-compose down
 
 ### Method 2: Automated Bash Script (for Ubuntu/Debian)
 
-```bash
-# Clone the repository
-git clone https://github.com/VersusControl/ai-infrastructure-agent.git
-cd ai-infrastructure-agent
+This method guides you through setting up and running the AI Infrastructure Agent directly on your Ubuntu/Debian system.
 
-# Run the installation script
-bash scripts/install.sh
-```
+**Prerequisites:**
+- Python 3.10 or higher
+- `pip` (Python package installer)
+- `git`
+- `awscli` (AWS Command Line Interface)
 
-Start the Web UI:
+**Installation Steps:**
+
+1.  **Update System Packages:**
+    ```bash
+    sudo apt update
+    sudo apt upgrade -y
+    ```
+
+2.  **Install Python 3.10+ and pip (if not already installed):**
+    ```bash
+    sudo apt install -y python3 python3-pip
+    ```
+
+3.  **Install Git (if not already installed):**
+    ```bash
+    sudo apt install -y git
+    ```
+
+4.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/VersusControl/ai-infrastructure-agent.git
+    cd ai-infrastructure-agent
+    ```
+
+5.  **Run the installation script:**
+    This script will install Python dependencies and set up necessary directories.
+    ```bash
+    bash scripts/install.sh
+    ```
+
+6.  **Configure AWS CLI (if not already configured):**
+    ```bash
+    aws configure
+    ```
+    Follow the prompts to enter your AWS Access Key ID, Secret Access Key, default region, and output format.
+
+**Running the Web UI:**
+
+Once installed, you can start the web UI using the provided script:
 
 ```bash
 bash scripts/run-web-ui.sh
@@ -388,7 +425,7 @@ agent:
 
 ## 🤝 Community & Support
 
-- **GitHub Issues**: [Report bugs and request features](https://github.com/VersusControl/ai-infrastructure-agent/issues)
+- **GitHub Issues**: [Report bugs and request features](https://github.Pcom/VersusControl/ai-infrastructure-agent/issues)
 - **Discussions**: [Community discussions](https://github.com/VersusControl/ai-infrastructure-agent/discussions)
 
 ## 📄 License
