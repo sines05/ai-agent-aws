@@ -21,4 +21,4 @@ echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
 
-gunicorn --bind "${HOST}:${PORT}" api.app:app
+python3 -m gunicorn --bind "${HOST}:${PORT}" api.app:app
