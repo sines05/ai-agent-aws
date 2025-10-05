@@ -70,6 +70,9 @@ setup_python_env() {
         exit 1
     fi
 
+    print_status "Upgrading pip and setuptools..."
+    pip3 install --upgrade pip setuptools
+
     print_status "Installing dependencies from api/requirements.txt..."
     pip3 install -r api/requirements.txt
 
