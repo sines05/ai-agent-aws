@@ -109,12 +109,13 @@ def execute_plan_endpoint():
 @app.route('/<path:path>')
 def serve_frontend(path):
     """Serves the frontend application."""
-    if path.startswith('api/'):
-        # This path is for the API, let other routes handle it
-        return
+    if path.startswith("api/"):
+        return jsonify({"error": "API endpoint not found"}), 404
+    
     if path and os.path.exists(os.path.join(app.static_folder, path)):
         return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, 'index.html')
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
     log.info(f"Starting Flask server on http://{config.web.host}:{config.web.port}")
