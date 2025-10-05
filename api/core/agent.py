@@ -10,9 +10,9 @@ import json
 import openai
 from typing import Dict, Any
 
-from api.core.settings import SettingsLoader
-from api.core.aws import AWSClient
-from api.core.state import StateManager
+from .settings import SettingsLoader
+from .aws import AWSClient
+from .state import StateManager
 
 class Planner:
     """

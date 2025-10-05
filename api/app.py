@@ -12,12 +12,12 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 # Import core components
-from api.core.config import load_config
-from api.core.logger import setup_logger
-from api.core.settings import SettingsLoader
-from api.core.state import StateManager
-from api.core.aws import AWSClient
-from api.core.agent import Planner, Executor
+from core.config import load_config
+from core.logger import setup_logger
+from core.settings import SettingsLoader
+from core.state import StateManager
+from core.aws import AWSClient
+from core.agent import Planner, Executor
 
 # --- Initialization ---
 
