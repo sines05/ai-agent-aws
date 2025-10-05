@@ -56,7 +56,7 @@ log.info("Core components initialized successfully.")
 build_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'web', 'build'))
 static_dir = os.path.join(build_dir, 'static')
 
-app = Flask(__name__, static_folder=static_dir, static_url_path='/static')
+app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # --- API Endpoints ---
@@ -109,13 +109,17 @@ def execute_plan_endpoint():
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_frontend(path):
-    """Serves the frontend application's entry point and root assets."""
+    """Serves the frontend application's entry point and static assets."""
     if path.startswith("api/"):
         return jsonify({"error": "API endpoint not found"}), 404
 
-    if path and os.path.exists(os.path.join(build_dir, path)):
+    # Serve static files from the 'static' subdirectory within the build directory
+    if path.startswith('static/'):
+        return send_from_directory(static_dir, path.replace('static/', ''))
+    # Serve other root-level files (like manifest.json, favicon.ico)
+    elif path and os.path.exists(os.path.join(build_dir, path)):
         return send_from_directory(build_dir, path)
-    
+    # For all other paths, serve the main index.html
     return send_from_directory(build_dir, 'index.html')
 
 if __name__ == '__main__':
