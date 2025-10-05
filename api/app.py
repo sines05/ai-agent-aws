@@ -54,9 +54,10 @@ log.info("Core components initialized successfully.")
 
 # The frontend build directory is relative to the project root, not the api directory
 build_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'web', 'build'))
+static_dir = os.path.join(build_dir, 'static')
 
-app = Flask(__name__, static_folder=build_dir)
-CORS(app)
+app = Flask(__name__, static_folder=static_dir, static_url_path='/static')
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # --- API Endpoints ---
 
@@ -108,14 +109,14 @@ def execute_plan_endpoint():
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_frontend(path):
-    """Serves the frontend application."""
+    """Serves the frontend application's entry point and root assets."""
     if path.startswith("api/"):
         return jsonify({"error": "API endpoint not found"}), 404
+
+    if path and os.path.exists(os.path.join(build_dir, path)):
+        return send_from_directory(build_dir, path)
     
-    if path and os.path.exists(os.path.join(app.static_folder, path)):
-        return send_from_directory(app.static_folder, path)
-    else:
-        return send_from_directory(app.static_folder, 'index.html')
+    return send_from_directory(build_dir, 'index.html')
 
 if __name__ == '__main__':
     log.info(f"Starting Flask server on http://{config.web.host}:{config.web.port}")

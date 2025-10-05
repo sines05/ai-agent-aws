@@ -8,7 +8,7 @@
 
 <div align="center">
 
-[![Go Version](https://img.shields.io/badge/Go-1.24.2+-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
+[![Python Version](https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
 [![AWS](https://img.shields.io/badge/AWS-Cloud-FF9900?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com/)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-purple?style=for-the-badge)](https://modelcontextprotocol.io/)
 
@@ -30,7 +30,7 @@ AI Infrastructure Agent is an intelligent system that allows you to manage AWS i
 - **Multi-AI Provider Support** - Choose between OpenAI, Google Gemini, Anthropic, or AWS Bedrock Nova
 - **Web Dashboard** - Visual interface for infrastructure management, built-in conflict detection and dry-run mode
 - **Terraform-like state** - Maintains accurate infrastructure state
-- **Current Resource Support** - VPC, EC2, SG, Autoscaling Group, ALB. Check the roadmap here: [Core Platform Development](https://github.com/orgs/VersusControl/projects/19)
+- **Current Resource Support** - VPC, EC2, SG, Autoscaling Group, ALB.
 
 ## Example Usage
 
@@ -83,14 +83,7 @@ Once approved, the agent:
   <img alt="Execution & Monitoring" src="docs/images/simple-demo.svg">
 </h1>
 
-### 3. More Examples
-
-- Quick Tutorial: **[AI Infrastructure Agent for AWS](https://github.com/VersusControl/devops-ai-guidelines/blob/main/resources/ai-infrastructure-agent-for-aws.md)**
-- Series Tutorial: **[Building Your Business on AWS with AI Agent](https://github.com/VersusControl/devops-ai-guidelines/blob/main/04-ai-agent-for-aws/00-toc.md)**
-
 ## How To Run
-
-Detailed Guides: [Installation Guide](https://ai-agent.devopsvn.tech/docs.html#/installation)
 
 ### Clone the repository
 
@@ -211,7 +204,7 @@ docker-compose logs -f
 docker-compose down
 ```
 
-### Method 2: Automated Bash Script
+### Method 2: Automated Bash Script (for Ubuntu/Debian)
 
 ```bash
 # Clone the repository
@@ -219,13 +212,13 @@ git clone https://github.com/VersusControl/ai-infrastructure-agent.git
 cd ai-infrastructure-agent
 
 # Run the installation script
-./scripts/install.sh
+bash scripts/install.sh
 ```
 
 Start the Web UI:
 
 ```bash
-./scripts/run-web-ui.sh
+bash scripts/run-web-ui.sh
 ```
 
 ### Access the Dashboard
@@ -262,7 +255,7 @@ Read detail: [Technical Architecture Overview](https://ai-agent.devopsvn.tech/do
 ### Components
 
 - **Web Interface**: React-based dashboard for visual interaction
-- **MCP Server**: Core agent implementing Model Context Protocol
+- **API Server**: Python-based server implementing the agent logic
 - **Agent Core**: AI-powered decision making and planning
 - **AWS Client**: Secure AWS SDK integration
 - **State Management**: Infrastructure state tracking and conflict resolution
@@ -333,7 +326,6 @@ curl -H "Authorization: Bearer $OPENAI_API_KEY" \
 ```bash
 # Check what's using the port
 lsof -i :8080
-lsof -i :3000
 
 # Kill processes if needed
 kill -9 <pid>
@@ -344,18 +336,11 @@ kill -9 <pid>
 </details>
 
 <details>
-<summary><strong>Go Build Issues</strong></summary>
+<summary><strong>Python Dependency Issues</strong></summary>
 
 ```bash
-# Clean module cache
-go clean -modcache
-
-# Re-download dependencies
-go mod download
-go mod tidy
-
-# Rebuild
-go build ./...
+# Re-install dependencies
+pip3 install -r api/requirements.txt
 ```
 
 </details>
@@ -368,7 +353,7 @@ Try increase max_tokens:
 ```yaml
 agent:
   provider: "gemini"              # Use Google AI (Gemini)
-  model: "gemini-2.5-flash-lite"
+  model: "gemini-1.5-flash-latest"
   max_tokens: 10000 # <-- increase
 ```
 

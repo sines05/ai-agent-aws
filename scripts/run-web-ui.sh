@@ -2,43 +2,23 @@
 
 # AI Infrastructure Agent Web UI Launch Script
 
-echo "🚀 Building AI Infrastructure Agent Web UI..."
-
-# Build the web application
-go build -o bin/web-ui cmd/web/main.go
-
-if [ $? -ne 0 ]; then
-    echo "❌ Build failed!"
-    exit 1
-fi
-
-echo "✅ Build successful!"
+echo "🚀 Starting AI Infrastructure Agent Web UI..."
 
 # Set default values
 PORT=${PORT:-8080}
+HOST=${HOST:-"0.0.0.0"}
 
-# Create default config if it doesn't exist
+# Check if config.yaml exists
 if [ ! -f config.yaml ]; then
-    echo "📝 Creating default configuration..."
-    cat > config.yaml << EOF
-server:
-  port: ${PORT}
-  host: "localhost"
-
-aws:
-  region: "us-west-2"
-
-mcp:
-  server_name: "ai-infrastructure-agent"
-  version: "1.0.0"
-EOF
+    echo "📝 config.yaml not found. Please run the installation script first."
+    exit 1
 fi
 
-# Start the web UI
+# Start the web UI with Gunicorn
 echo "🌐 Starting AI Infrastructure Agent Web UI on port ${PORT}..."
 echo "🔗 Open: http://localhost:${PORT}"
 echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
 
-./bin/web-ui
+gunicorn --bind "${HOST}:${PORT}" api.app:app
