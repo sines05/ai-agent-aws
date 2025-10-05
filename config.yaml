@@ -27,7 +27,7 @@ state:
   backup_dir: "./backups"
 
 web:
-  port: 8080
+  port: 5000
   host: "localhost"
   template_dir: "web/templates"
   static_dir: "web/static"
