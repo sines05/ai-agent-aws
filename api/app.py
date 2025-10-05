@@ -22,14 +22,18 @@ from core.agent import Planner, Executor
 # --- Initialization ---
 
 # Load configuration
-config = load_config('config.yaml')
+# Construct the path to the config file in the project root
+config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config.yaml'))
+config = load_config(config_path)
 
 # Set up logger
 log = setup_logger()
 
 # Initialize core components
 log.info("Initializing core components...")
-settings = SettingsLoader(settings_path="settings")
+# Construct the path to the settings directory in the project root
+settings_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'settings'))
+settings = SettingsLoader(settings_path=settings_path)
 state_manager = StateManager(config.state.file_path)
 aws_client = AWSClient(region_name=config.aws.region)
 
