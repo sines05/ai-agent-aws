@@ -1,0 +1,9 @@
+Flask
+Flask-CORS
+openai
+boto3
+PyYAML
+pydantic
+python-dotenv
+filelock
+gunicorn
