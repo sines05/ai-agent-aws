@@ -109,17 +109,13 @@ def execute_plan_endpoint():
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_frontend(path):
-    """Serves the frontend application's entry point and static assets."""
+    """Serves the frontend application's entry point and root assets."""
     if path.startswith("api/"):
         return jsonify({"error": "API endpoint not found"}), 404
 
-    # Serve static files from the 'static' subdirectory within the build directory
-    if path.startswith('static/'):
-        return send_from_directory(static_dir, path.replace('static/', ''))
-    # Serve other root-level files (like manifest.json, favicon.ico)
-    elif path and os.path.exists(os.path.join(build_dir, path)):
+    if path and os.path.exists(os.path.join(build_dir, path)):
         return send_from_directory(build_dir, path)
-    # For all other paths, serve the main index.html
+    
     return send_from_directory(build_dir, 'index.html')
 
 if __name__ == '__main__':
